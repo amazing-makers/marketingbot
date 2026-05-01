@@ -1,8 +1,11 @@
 "use client";
 
-import { AppShell, Burger, Group, NavLink, Title, UnstyledButton, Text, Menu, Avatar, ActionIcon } from '@mantine/core';
+import { AppShell, Burger, Group, NavLink, Title, UnstyledButton, Text, Menu, Avatar, ActionIcon, Stack, Divider } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconDashboard, IconPlus, IconUserCircle, IconSettings, IconLogout } from '@tabler/icons-react';
+import { 
+  IconDashboard, IconPlus, IconUserCircle, IconSettings, 
+  IconLogout, IconWorld, IconCalendarEvent, IconDevices 
+} from '@tabler/icons-react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -56,34 +59,44 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </AppShell.Header>
 
       <AppShell.Navbar p="md">
-        <NavLink
-          component={Link}
-          href="/dashboard"
-          label="대시보드"
-          leftSection={<IconDashboard size="1rem" stroke={1.5} />}
-          active={pathname === '/dashboard'}
-        />
-        <NavLink
-          component={Link}
-          href="/dashboard/posts/new"
-          label="게시물 작성"
-          leftSection={<IconPlus size="1rem" stroke={1.5} />}
-          active={pathname === '/dashboard/posts/new'}
-        />
-        <NavLink
-          component={Link}
-          href="/dashboard/accounts"
-          label="계정 관리"
-          leftSection={<IconUserCircle size="1rem" stroke={1.5} />}
-          active={pathname === '/dashboard/accounts'}
-        />
-        <NavLink
-          component={Link}
-          href="/dashboard/settings"
-          label="설정"
-          leftSection={<IconSettings size="1rem" stroke={1.5} />}
-          active={pathname === '/dashboard/settings'}
-        />
+        <Stack gap="xs">
+          <NavLink
+            component={Link}
+            href="/dashboard"
+            label="홈"
+            leftSection={<IconDashboard size={18} stroke={1.5} />}
+            active={pathname === '/dashboard'}
+          />
+          <NavLink
+            component={Link}
+            href="/dashboard/channels"
+            label="채널 관리"
+            leftSection={<IconWorld size={18} stroke={1.5} />}
+            active={pathname === '/dashboard/channels'}
+          />
+          <NavLink
+            component={Link}
+            href="/dashboard/campaigns"
+            label="캠페인 관리"
+            leftSection={<IconCalendarEvent size={18} stroke={1.5} />}
+            active={pathname.startsWith('/dashboard/campaigns')}
+          />
+          <NavLink
+            component={Link}
+            href="/dashboard/agents"
+            label="에이전트"
+            leftSection={<IconDevices size={18} stroke={1.5} />}
+            active={pathname === '/dashboard/agents'}
+          />
+          <Divider my="sm" />
+          <NavLink
+            component={Link}
+            href="/dashboard/settings"
+            label="환경 설정"
+            leftSection={<IconSettings size={18} stroke={1.5} />}
+            active={pathname === '/dashboard/settings'}
+          />
+        </Stack>
       </AppShell.Navbar>
 
       <AppShell.Main>{children}</AppShell.Main>

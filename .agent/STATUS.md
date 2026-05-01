@@ -1,30 +1,28 @@
-# Project Status: Marketingbot (마케팅봇)
+# Project Status: MarketingBot (Phase 2)
 
 ## 현재 상태 (2026-05-01)
-- **프로젝트 이름 확정**: marketingbot (모든 마케팅 채널 자동화 — SNS·이메일·SMS·블로그 등)
-- **아키텍처**: Docker 기반 → Next.js + Supabase + Tauri 하이브리드 구조로 전환
-- **Phase 1 완료**: 프로젝트 골격 (Next.js 16 + Mantine 9 + Prisma 7) + 폴더 rename (sns-auto → marketingbot) + 빌드 검증 + 로컬 Git 커밋
-- **다음 즉시 작업**: GitHub 레포 생성 (`amazing-makers/marketingbot`) + push
-- **Phase 2 사전준비**: Supabase 프로젝트 생성 후 Session mode URI 확보
+- **Phase 2 완료**: 데이터베이스 설계 확장 및 인증 시스템 구축 완료.
+- **주요 성과**:
+  - 멀티 채널 대응을 위한 Prisma 스키마 확장 (`User`, `Channel`, `Campaign`, `Task`, `Agent`, `License`)
+  - NextAuth v5 (Beta) Credentials Provider 구현 (Email + Password)
+  - Supabase PostgreSQL 연동 및 마이그레이션 완료
+  - Next.js 16/Turbopack 빌드 최적화 (Prisma Driver Adapter 도입 및 Proxy 설정)
+  - 회원가입 시 자동 라이선스(14일 Trial) 부여 로직 적용
 
 ## 주요 마일스톤
-- [x] Phase 1: 프로젝트 기초 스캐폴딩 (Next.js 16 + Mantine 9 + Prisma 7)
-- [ ] Phase 2: Supabase 연동 및 NextAuth 인증 구현
-- [ ] Phase 3: SNS 계정 연동 로직 (Encryption/Decryption)
-- [ ] Phase 4: 게시물 예약 및 관리 UI 고도화
-- [ ] Phase 5: 데스크톱 에이전트 개발 (Tauri + Playwright)
-- [ ] Phase 6: DeepL API 번역 연동
-- [ ] Phase 7: 베타 테스트 및 안정화
+- [x] Phase 1: 프로젝트 기초 스캐폴딩
+- [x] Phase 2: DB + Auth (Supabase & NextAuth)
+- [ ] Phase 3: Dashboard MVP (채널 연동 UI 및 캠페인 생성)
+- [ ] Phase 4: Encryption & Security (SNS 계정 정보 암호화)
+- [ ] Phase 5: Desktop Agent Integration (Tauri API 연동)
+- [ ] Phase 6: AI Content & DeepL Translation
+- [ ] Phase 7: License & Global Launch
 
-## 최근 변경 사항
-- Prisma 7 설정 및 1차 모델 정의 (`User`, `SnsAccount`, `ScheduledPost`, `License`) — Phase 2에서 multi-channel 모델로 확장 예정 (`MarketingChannel`, `Campaign`, `ScheduledTask`, `AgentInstance`)
-- Mantine 9 기반 대시보드 레이아웃(AppShell) 및 페이지 뼈대 구축
-- 빌드 안정화를 위한 "use client" 지시어 적용 및 Prisma Config 최적화
-- 폴더 rename: C:\sns-auto → C:\marketingbot (robocopy /MOVE), 모든 git 히스토리·미커밋 변경 보존
-- package.json name: sns-auto → marketingbot
-- AGENTS.md 멀티채널 컨텍스트로 갱신
+## 기술적 특이사항 (빌드 로그)
+- **Next.js 16 대응**: `middleware.ts`를 `proxy.ts`로 변경하여 최신 컨벤션 준수.
+- **Prisma 7 대응**: `schema.prisma`에서 `url` 제거 후 `prisma.config.ts` 사용. 빌드 시 `engineType` 이슈 해결을 위해 `@prisma/adapter-pg` 드라이버 어댑터 적용.
 
-## 다음 작업 (Phase 2)
-- Supabase 프로젝트 생성 및 `DATABASE_URL` 연결
-- NextAuth.js (Beta) 기반의 로그인/회원가입 흐름 구현
-- Prisma Migrate를 통한 데이터베이스 스키마 적용
+## 다음 작업 (Phase 3)
+- 마케팅 채널 연동 UI 구현 (Instagram, Naver 등 플랫폼별 입력 폼)
+- 캠페인 및 태스크 생성 기능 (CRUD)
+- 대시보드 통계 카드 실데이터 연결
