@@ -46,6 +46,7 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
       smtpPort: '',
       cafeId: '',
       menuId: '',
+      pageId: '',
     },
   });
 
@@ -66,6 +67,10 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
         credentials.password = values.password;
         credentials.cafeId = values.cafeId;
         credentials.menuId = values.menuId;
+      } else if (values.type === 'FACEBOOK') {
+        credentials.username = values.username;
+        credentials.password = values.password;
+        credentials.pageId = values.pageId;
       } else {
         credentials.username = values.username;
         credentials.password = values.password;
@@ -179,6 +184,14 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
                     <TextInput label="카페 ID (숫자)" placeholder="12345678" {...form.getInputProps('cafeId')} />
                     <TextInput label="게시판 ID (숫자)" placeholder="25" {...form.getInputProps('menuId')} />
                   </>
+                )}
+                {form.values.type === 'FACEBOOK' && (
+                  <TextInput 
+                    label="페이지 ID (옵션)" 
+                    placeholder="비워두면 개인 타임라인" 
+                    description="페이지 URL의 facebook.com/<pageId> 부분"
+                    {...form.getInputProps('pageId')} 
+                  />
                 )}
               </>
             )}
