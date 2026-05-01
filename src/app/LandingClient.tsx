@@ -48,9 +48,11 @@ export default function LandingClient({ isLoggedIn }: LandingClientProps) {
       <Box style={{ position: 'sticky', top: 0, zIndex: 100, backgroundColor: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(10px)', borderBottom: '1px solid var(--mantine-color-gray-2)' }}>
         <Container size="lg" h={70}>
           <Group justify="space-between" h="100%">
-            <Title order={3} c="blue.6" style={{ cursor: 'pointer' }} component={Link} href="/">
-              MarketingBot
-            </Title>
+            <Link href="/" style={{ textDecoration: 'none' }}>
+              <Title order={3} c="blue.6" style={{ cursor: 'pointer' }}>
+                MarketingBot
+              </Title>
+            </Link>
             <Group gap="xl">
               <Anchor href="#features" c="dark" fw={500} size="sm">제품 기능</Anchor>
               <Anchor href="#pricing" c="dark" fw={500} size="sm">가격제</Anchor>
@@ -129,14 +131,16 @@ export default function LandingClient({ isLoggedIn }: LandingClientProps) {
             </Stack>
             <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="lg">
               {CHANNELS.map((channel, idx) => (
-                <Card key={idx} padding="xl" radius="md" withBorder align="center">
-                  <ThemeIcon color={channel.color} size={60} radius="xl" variant="light" mb="md">
-                    <channel.icon size={32} />
-                  </ThemeIcon>
-                  <Text fw={700}>{channel.label}</Text>
-                  <Badge variant={channel.status === 'AVAILABLE' ? 'filled' : 'light'} color={channel.status === 'AVAILABLE' ? 'blue' : 'gray'} mt="sm">
-                    {channel.status === 'AVAILABLE' ? '사용 가능' : '준비 중'}
-                  </Badge>
+                <Card key={idx} padding="xl" radius="md" withBorder>
+                  <Stack align="center" gap="xs">
+                    <ThemeIcon color={channel.color} size={60} radius="xl" variant="light" mb="xs">
+                      <channel.icon size={32} />
+                    </ThemeIcon>
+                    <Text fw={700}>{channel.label}</Text>
+                    <Badge variant={channel.status === 'AVAILABLE' ? 'filled' : 'light'} color={channel.status === 'AVAILABLE' ? 'blue' : 'gray'} mt="xs">
+                      {channel.status === 'AVAILABLE' ? '사용 가능' : '준비 중'}
+                    </Badge>
+                  </Stack>
                 </Card>
               ))}
             </SimpleGrid>

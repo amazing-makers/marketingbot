@@ -59,7 +59,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Group>
           )}
         </Group>
-      </AppShell.Header>
+      </Group>
+    </AppShell.Header>
 
       <AppShell.Navbar p="md">
         <Stack gap="xs">

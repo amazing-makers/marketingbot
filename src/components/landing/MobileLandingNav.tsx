@@ -26,9 +26,11 @@ export default function MobileLandingNav({ isLoggedIn }: MobileLandingNavProps) 
     <Box h={60} style={{ position: 'sticky', top: 0, zIndex: 100, backgroundColor: 'white', borderBottom: '1px solid var(--mantine-color-gray-2)' }}>
       <Container h="100%">
         <Group justify="space-between" h="100%">
-          <Title order={4} c="blue.6" component={Link} href="/" style={{ textDecoration: 'none' }}>
-            MarketingBot
-          </Title>
+          <Link href="/" style={{ textDecoration: 'none' }}>
+            <Title order={4} c="blue.6">
+              MarketingBot
+            </Title>
+          </Link>
 
           <Group gap="xs">
             {!isLoggedIn && (

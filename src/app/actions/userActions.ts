@@ -1,12 +1,11 @@
 "use server";
 
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
 import { revalidatePath } from "next/cache";
 
 export async function setOnboardingCompleted() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
 
   if (!session?.user?.id) {
     return { success: false, error: "Unauthorized" };
@@ -30,7 +29,7 @@ export async function setOnboardingCompleted() {
 }
 
 export async function getLicenseKey() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.id) return null;
 
   const license = await prisma.license.findFirst({

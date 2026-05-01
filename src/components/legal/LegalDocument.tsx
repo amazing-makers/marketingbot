@@ -14,7 +14,7 @@ interface LegalDocumentProps {
 
 export default function LegalDocument({ title, content, version, updatedAt }: LegalDocumentProps) {
   return (
-    <Box bg="gray.0" minHeight="100vh" py={60}>
+    <Box bg="gray.0" mih="100vh" py={60}>
       <Container size="md">
         <Button 
           component={Link} 

@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import "@/lib/env"; // 환경변수 검증 강제
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [

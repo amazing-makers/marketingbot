@@ -65,7 +65,7 @@ export default function OnboardingClient({ userName, license }: OnboardingClient
         <Text c="dimmed">신규 사용자님의 원활한 시작을 도와드립니다.</Text>
       </Stack>
 
-      <Stepper active={active} onStepClick={setActive} breakpoint="sm" allowNextStepsSelect={false}>
+      <Stepper active={active} onStepClick={setActive} allowNextStepsSelect={false}>
         {/* Step 1: 환영 */}
         <Stepper.Step 
           label="환영합니다" 

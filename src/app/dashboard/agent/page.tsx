@@ -1,6 +1,5 @@
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { 
   Title, 
@@ -28,7 +27,7 @@ import {
 import dayjs from "dayjs";
 
 export default async function AgentPage() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
   const user = await prisma.user.findUnique({
@@ -137,7 +136,7 @@ export default async function AgentPage() {
                     )}
                   </Table.Td>
                   <Table.Td>
-                    <Code size="xs">v{agent.version}</Code>
+                    <Code>v{agent.version}</Code>
                   </Table.Td>
                   <Table.Td>
                     <Text size="xs" c="dimmed">{dayjs(agent.lastSeenAt).format('YYYY-MM-DD HH:mm:ss')}</Text>

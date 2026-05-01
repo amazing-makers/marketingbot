@@ -88,14 +88,16 @@ export default function MobileLandingClient({ isLoggedIn }: MobileLandingClientP
           <Title order={3} ta="center" mb={30}>지원 채널</Title>
           <SimpleGrid cols={2} spacing="xs">
             {CHANNELS.map((channel, idx) => (
-              <Card key={idx} withBorder align="center" padding="md">
-                <ThemeIcon color={channel.color} variant="light" size="lg" mb={5}>
-                  <channel.icon size={20} />
-                </ThemeIcon>
-                <Text size="xs" fw={700}>{channel.label}</Text>
-                <Text size="10px" c={channel.status === 'AVAILABLE' ? 'blue' : 'dimmed'}>
-                  {channel.status === 'AVAILABLE' ? '사용 가능' : '준비 중'}
-                </Text>
+              <Card key={idx} withBorder padding="md">
+                <Stack align="center" gap={5}>
+                  <ThemeIcon color={channel.color} variant="light" size="lg">
+                    <channel.icon size={20} />
+                  </ThemeIcon>
+                  <Text size="xs" fw={700}>{channel.label}</Text>
+                  <Text size="10px" c={channel.status === 'AVAILABLE' ? 'blue' : 'dimmed'}>
+                    {channel.status === 'AVAILABLE' ? '사용 가능' : '준비 중'}
+                  </Text>
+                </Stack>
               </Card>
             ))}
           </SimpleGrid>
@@ -135,8 +137,8 @@ export default function MobileLandingClient({ isLoggedIn }: MobileLandingClientP
         <Accordion variant="separated">
           {FAQS.slice(0, 5).map((faq, idx) => (
             <Accordion.Item key={idx} value={`faq-${idx}`}>
-              <Accordion.Control size="sm" fw={600}>{faq.q}</Accordion.Control>
-              <Accordion.Panel size="xs" c="dimmed">{faq.a}</Accordion.Panel>
+              <Accordion.Control fw={600}>{faq.q}</Accordion.Control>
+              <Accordion.Panel c="dimmed">{faq.a}</Accordion.Panel>
             </Accordion.Item>
           ))}
         </Accordion>
