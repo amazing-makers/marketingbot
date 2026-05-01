@@ -25,6 +25,8 @@ const CHANNEL_ICONS: Record<string, any> = {
   THREADS: IconBrandThreads,
   EMAIL: IconMail,
   SMS: IconMessage,
+  NAVER_BLOG: IconSettings, // 적절한 아이콘이 없으면 기본 설정 아이콘 사용
+  NAVER_CAFE: IconSettings,
 };
 
 export default function ChannelsClient({ initialChannels }: { initialChannels: MarketingChannel[] }) {
@@ -42,6 +44,8 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
       apiSecret: '',
       smtpHost: '',
       smtpPort: '',
+      cafeId: '',
+      menuId: '',
     },
   });
 
@@ -57,6 +61,11 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
       } else if (['SMS'].includes(values.type)) {
         credentials.apiKey = values.apiKey;
         credentials.apiSecret = values.apiSecret;
+      } else if (values.type === 'NAVER_CAFE') {
+        credentials.username = values.username;
+        credentials.password = values.password;
+        credentials.cafeId = values.cafeId;
+        credentials.menuId = values.menuId;
       } else {
         credentials.username = values.username;
         credentials.password = values.password;
@@ -165,6 +174,12 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
               <>
                 <TextInput label="아이디 / 이메일" placeholder="username" {...form.getInputProps('username')} />
                 <TextInput label="비밀번호" type="password" placeholder="password" {...form.getInputProps('password')} />
+                {form.values.type === 'NAVER_CAFE' && (
+                  <>
+                    <TextInput label="카페 ID (숫자)" placeholder="12345678" {...form.getInputProps('cafeId')} />
+                    <TextInput label="게시판 ID (숫자)" placeholder="25" {...form.getInputProps('menuId')} />
+                  </>
+                )}
               </>
             )}
 

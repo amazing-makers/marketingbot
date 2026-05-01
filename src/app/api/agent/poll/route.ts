@@ -65,10 +65,9 @@ export async function POST(req: Request) {
     // 5. 응답 반환 (자격증명 포함 - Phase 4에서 암호화 처리 예정)
     const taskData = tasks.map(t => ({
       taskId: t.id,
+      channelId: t.channelId,
       channelType: t.channel.type,
       accountName: t.channel.accountName,
-      // AES-256-GCM 복호화 적용 (HTTPS 보안 통신 전제)
-      // TODO: 추후 mTLS 또는 추가 암호화 레이어 검토
       credentials: decryptJSON(t.channel.encryptedCredentials),
       content: t.content,
       mediaUrls: t.mediaUrls,
