@@ -3,6 +3,8 @@
     "buildCommand": "prisma generate && next build",
     "regions": ["icn1"],
     "crons": [
-        { "path": "/api/health", "schedule": "0 0 * * *" }
+        { "path": "/api/health", "schedule": "0 0 * * *" },
+        { "path": "/api/cron/email-task-summary", "schedule": "0 0 * * *" },
+        { "path": "/api/cron/email-weekly-report", "schedule": "0 0 * * 1" }
       ]
 }

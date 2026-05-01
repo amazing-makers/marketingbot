@@ -36,7 +36,7 @@ export async function registerUser(formData: FormData) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // 트랜잭션: 유저 생성 + 라이선스 부여
-    await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {
           email,
@@ -51,7 +51,7 @@ export async function registerUser(formData: FormData) {
         return `MB-${part()}-${part()}-${part()}-${part()}`;
       };
 
-      await tx.license.create({
+      const newLicense = await tx.license.create({
         data: {
           userId: newUser.id,
           key: generateKey(),
@@ -59,7 +59,26 @@ export async function registerUser(formData: FormData) {
           validUntil: dayjs().add(14, "day").toDate(),
         },
       });
+
+      return { user: newUser, license: newLicense };
     });
+
+    // 이메일 발송 (비동기, 가입 성공에 영향을 주지 않음)
+    const { sendEmail } = await import("@/lib/email/send");
+    const { WelcomeEmail } = await import("@/lib/email/templates/Welcome");
+
+    const prefs = result.user.emailPreferences as any;
+    if (prefs?.welcome !== false) {
+      sendEmail({
+        to: email,
+        subject: "[마케팅봇] 가입을 환영합니다 🎉",
+        react: WelcomeEmail({
+          name: name,
+          licenseKey: result.license.key,
+          dashboardUrl: `${process.env.NEXTAUTH_URL || 'https://marketingbot.kr'}/dashboard`,
+        }),
+      }).catch(err => console.error("Welcome email failed:", err));
+    }
 
     return { success: true };
   } catch (error) {

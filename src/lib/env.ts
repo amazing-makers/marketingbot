@@ -9,7 +9,9 @@ const envSchema = z.object({
     // 옵션 (Phase 5+)
     DEEPL_API_KEY: z.string().optional(),
     RESEND_API_KEY: z.string().optional(),
+    RESEND_FROM_EMAIL: z.string().email().default('onboarding@resend.dev'),
     SENTRY_DSN: z.string().optional(),
+    CRON_SECRET: z.string().optional(),
     
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 });

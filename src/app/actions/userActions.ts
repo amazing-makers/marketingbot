@@ -39,3 +39,34 @@ export async function getLicenseKey() {
 
   return license;
 }
+export async function updateEmailPreferences(preferences: { failures: boolean; weekly: boolean; welcome: boolean }) {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: "Unauthorized" };
+
+  try {
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: {
+        emailPreferences: preferences,
+      },
+    });
+
+    revalidatePath("/dashboard/settings/notifications");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update email preferences:", error);
+    return { success: false, error: "Internal Server Error" };
+  }
+}
+
+export async function getEmailPreferences() {
+  const session = await auth();
+  if (!session?.user?.id) return null;
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { emailPreferences: true },
+  });
+
+  return user?.emailPreferences as { failures: boolean; weekly: boolean; welcome: boolean } | null;
+}
