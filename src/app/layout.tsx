@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ColorSchemeScript, MantineProvider } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
+import { SessionProvider } from "next-auth/react";
 import dayjs from "dayjs";
 import "dayjs/locale/ko";
 import "./globals.css";
@@ -35,10 +36,12 @@ export default function RootLayout({
         <ColorSchemeScript />
       </head>
       <body>
-        <MantineProvider defaultColorScheme="light">
-          <Notifications />
-          {children}
-        </MantineProvider>
+        <SessionProvider>
+          <MantineProvider defaultColorScheme="light">
+            <Notifications />
+            {children}
+          </MantineProvider>
+        </SessionProvider>
       </body>
     </html>
   );

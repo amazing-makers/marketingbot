@@ -1,60 +1,140 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
+  engineType = "library"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
+enum UserRole {
+  USER
+  ADMIN
+  SUPPORT
+}
+
+enum ChannelType {
+  INSTAGRAM
+  FACEBOOK
+  X
+  TIKTOK
+  YOUTUBE
+  THREADS
+  NAVER_BLOG
+  NAVER_CAFE
+  KAKAO
+  EMAIL
+  SMS
+}
+
+enum ChannelStatus {
+  ACTIVE
+  PAUSED
+  ERROR
+  PENDING_AUTH
+}
+
+enum TaskStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
 model User {
-  id            String          @id @default(cuid())
-  email         String          @unique
-  password      String
-  name          String?
-  role          String          @default("USER")
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  snsAccounts   SnsAccount[]
-  posts         ScheduledPost[]
-  licenses      License[]
-}
+  id        String    @id @default(cuid())
+  email     String    @unique
+  password  String
+  name      String?
+  role      UserRole  @default(USER)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-model SnsAccount {
-  id                   String   @id @default(cuid())
-  userId               String
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  platform             String   // e.g., "INSTAGRAM", "NAVER_BLOG", "THREADS"
-  accountName          String
-  encryptedCredentials String
-  status               String   @default("ACTIVE")
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-}
-
-model ScheduledPost {
-  id            String   @id @default(cuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  snsAccountIds String[]
-  content       String
-  mediaUrls     String[]
-  scheduledAt   DateTime
-  status        String   @default("PENDING") // PENDING, COMPLETED, FAILED
-  executionLog  String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  channels  MarketingChannel[]
+  campaigns Campaign[]
+  agents    AgentInstance[]
+  licenses  License[]
 }
 
 model License {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  key        String   @unique
-  plan       String   @default("FREE")
-  validUntil DateTime
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key        String    @unique
+  plan       String    @default("FREE")
+  validUntil DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model MarketingChannel {
+  id                    String        @id @default(cuid())
+  userId                String
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type                  ChannelType
+  accountName           String
+  encryptedCredentials  String        @db.Text
+  status                ChannelStatus @default(PENDING_AUTH)
+  lastUsedAt            DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  scheduledTasks        ScheduledTask[]
+
+  @@index([userId])
+  @@index([type])
+}
+
+model Campaign {
+  id           String          @id @default(cuid())
+  userId       String
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  status       String          @default("DRAFT")
+  scheduledAt  DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  tasks        ScheduledTask[]
+
+  @@index([userId])
+}
+
+model ScheduledTask {
+  id           String           @id @default(cuid())
+  campaignId   String
+  campaign     Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  channelId    String
+  channel      MarketingChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  content      String           @db.Text
+  mediaUrls    Json?
+  scheduledAt  DateTime
+  executedAt   DateTime?
+  status       TaskStatus       @default(PENDING)
+  errorLog     String?          @db.Text
+  agentId      String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([campaignId])
+  @@index([channelId])
+  @@index([status, scheduledAt])
+}
+
+model AgentInstance {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  machineId   String    @unique
+  name        String?
+  version     String
+  os          String?
+  lastSeenAt  DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
 }

@@ -1,12 +1,14 @@
 "use client";
 
-import { AppShell, Burger, Group, NavLink, Title, UnstyledButton } from '@mantine/core';
+import { AppShell, Burger, Group, NavLink, Title, UnstyledButton, Text, Menu, Avatar, ActionIcon } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconDashboard, IconPlus, IconUserCircle, IconSettings } from '@tabler/icons-react';
+import { IconDashboard, IconPlus, IconUserCircle, IconSettings, IconLogout } from '@tabler/icons-react';
+import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { data: session } = useSession();
   const [opened, { toggle }] = useDisclosure();
   const pathname = usePathname();
 
@@ -21,9 +23,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       padding="md"
     >
       <AppShell.Header>
-        <Group h="100%" px="md">
-          <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
-          <Title order={3}>SNS Auto</Title>
+        <Group h="100%" px="md" justify="space-between">
+          <Group>
+            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
+            <Title order={3}>MarketingBot</Title>
+          </Group>
+          
+          {session?.user && (
+            <Group>
+              <Text size="sm" fw={500}>{session.user.name || session.user.email}님</Text>
+              <Menu shadow="md" width={200}>
+                <Menu.Target>
+                  <UnstyledButton>
+                    <Avatar radius="xl" size="sm" />
+                  </UnstyledButton>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Label>내 계정</Menu.Label>
+                  <Menu.Item leftSection={<IconUserCircle size={14} />}>프로필</Menu.Item>
+                  <Menu.Item 
+                    color="red" 
+                    leftSection={<IconLogout size={14} />}
+                    onClick={() => signOut({ callbackUrl: '/login' })}
+                  >
+                    로그아웃
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            </Group>
+          )}
         </Group>
       </AppShell.Header>
 
