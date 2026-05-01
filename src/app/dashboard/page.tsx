@@ -7,10 +7,11 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import dayjs from 'dayjs';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: { skip?: string } }) {
   const session = await auth();
   const userId = session?.user?.id;
 
@@ -22,6 +23,7 @@ export default async function DashboardPage() {
 
   // 1. 통계 데이터 조회
   const [
+    user,
     pendingCount,
     runningCount,
     todaySuccess,
@@ -30,6 +32,7 @@ export default async function DashboardPage() {
     agentCount,
     recentCampaigns
   ] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { onboardingCompletedAt: true, createdAt: true } }),
     prisma.scheduledTask.count({ where: { campaign: { userId }, status: 'PENDING', scheduledAt: { lte: weekEnd } } }),
     prisma.scheduledTask.count({ where: { campaign: { userId }, status: 'RUNNING' } }),
     prisma.scheduledTask.count({ where: { campaign: { userId }, status: 'SUCCESS', executedAt: { gte: todayStart } } }),
@@ -44,6 +47,10 @@ export default async function DashboardPage() {
     })
   ]);
 
+  if (!user?.onboardingCompletedAt && searchParams.skip !== '1') {
+    redirect('/onboarding');
+  }
+
   const stats = [
     { title: '이번 주 예약', value: pendingCount, icon: IconCalendarEvent, color: 'blue' },
     { title: '진행 중 작업', value: runningCount, icon: IconLoader2, color: 'cyan' },
@@ -53,9 +60,59 @@ export default async function DashboardPage() {
     { title: '활성 에이전트', value: agentCount, icon: IconDevices, color: 'teal' },
   ];
 
+  // 퀵스타트 노출 조건: 온보딩 완료 7일 이내 또는 미완료 단계 존재
+  const showQuickStart = user && (
+    !user.onboardingCompletedAt || 
+    dayjs().diff(dayjs(user.onboardingCompletedAt), 'day') < 7
+  );
+
+  const quickStartSteps = [
+    { label: '라이선스 확인', done: true, link: '/dashboard/agent' },
+    { label: '에이전트 설치', done: agentCount > 0, link: '/dashboard/agent' },
+    { label: '첫 채널 연결', done: channelCount > 0, link: '/dashboard/channels' },
+    { label: '첫 캠페인 발행', done: recentCampaigns.length > 0, link: '/dashboard/campaigns/new' },
+  ];
+
+  const allStepsDone = quickStartSteps.every(s => s.done);
+
   return (
     <Stack gap="xl">
-      <Title order={2}>대시보드 개요</Title>
+      <Group justify="space-between" align="flex-end">
+        <div>
+          <Title order={2}>대시보드 개요</Title>
+          <Text size="sm" c="dimmed">현재 마케팅 캠페인 현황입니다.</Text>
+        </div>
+      </Group>
+
+      {showQuickStart && !allStepsDone && (
+        <Card withBorder radius="md" p="xl" bg="blue.0">
+          <Group justify="space-between" mb="md">
+            <Stack gap={0}>
+              <Text fw={700} size="lg">🚀 퀵 스타트 가이드</Text>
+              <Text size="sm" c="dimmed">효과적인 마케팅을 위해 아래 단계를 완료해주세요.</Text>
+            </Stack>
+            <Badge size="lg" variant="filled">
+              {quickStartSteps.filter(s => s.done).length} / {quickStartSteps.length} 완료
+            </Badge>
+          </Group>
+          <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="md">
+            {quickStartSteps.map((step, idx) => (
+              <Card key={idx} withBorder radius="sm" p="sm" bg={step.done ? 'white' : 'blue.1'}>
+                <Group gap="xs">
+                  {step.done ? (
+                    <IconCheck size={16} color="var(--mantine-color-green-6)" />
+                  ) : (
+                    <IconChevronRight size={16} color="var(--mantine-color-blue-6)" />
+                  )}
+                  <Anchor component={Link} href={step.link} size="sm" fw={step.done ? 400 : 700} c={step.done ? 'dimmed' : 'blue'}>
+                    {step.label}
+                  </Anchor>
+                </Group>
+              </Card>
+            ))}
+          </SimpleGrid>
+        </Card>
+      )}
 
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
         {stats.map((stat) => (

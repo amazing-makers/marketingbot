@@ -45,12 +45,17 @@ export async function registerUser(formData: FormData) {
         },
       });
 
-      // 14일 트라이얼 라이선스 생성
+      // 14일 트라이얼 라이선스 생성 (MB-XXXX-XXXX-XXXX-XXXX)
+      const generateKey = () => {
+        const part = () => Math.random().toString(36).substring(2, 6).toUpperCase();
+        return `MB-${part()}-${part()}-${part()}-${part()}`;
+      };
+
       await tx.license.create({
         data: {
           userId: newUser.id,
-          key: `FREE-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
-          plan: "FREE",
+          key: generateKey(),
+          plan: "FREE_TRIAL",
           validUntil: dayjs().add(14, "day").toDate(),
         },
       });

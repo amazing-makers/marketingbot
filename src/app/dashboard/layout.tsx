@@ -4,11 +4,12 @@ import { AppShell, Burger, Group, NavLink, Title, UnstyledButton, Text, Menu, Av
 import { useDisclosure } from '@mantine/hooks';
 import { 
   IconDashboard, IconPlus, IconUserCircle, IconSettings, 
-  IconLogout, IconWorld, IconCalendarEvent, IconDevices 
+  IconLogout, IconWorld, IconCalendarEvent, IconDevices, IconDownload
 } from '@tabler/icons-react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import HeaderLicense from '@/components/HeaderLicense';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
@@ -32,10 +33,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Title order={3}>MarketingBot</Title>
           </Group>
           
-          {session?.user && (
-            <Group>
-              <Text size="sm" fw={500}>{session.user.name || session.user.email}님</Text>
-              <Menu shadow="md" width={200}>
+          <Group gap="md">
+            <HeaderLicense />
+            {session?.user && (
+              <Group gap="xs">
+                <Text size="sm" fw={500} visibleFrom="sm">{session.user.name || session.user.email}님</Text>
+                <Menu shadow="md" width={200}>
                 <Menu.Target>
                   <UnstyledButton>
                     <Avatar radius="xl" size="sm" />
@@ -83,10 +86,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           />
           <NavLink
             component={Link}
-            href="/dashboard/agents"
-            label="에이전트"
-            leftSection={<IconDevices size={18} stroke={1.5} />}
-            active={pathname === '/dashboard/agents'}
+            href="/dashboard/agent"
+            label="에이전트 관리"
+            leftSection={<IconDownload size={18} stroke={1.5} />}
+            active={pathname === '/dashboard/agent'}
           />
           <Divider my="sm" />
           <NavLink

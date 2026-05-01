@@ -9,14 +9,15 @@
 - **Phase 5.2**: 실제 자동화 엔진 (Playwright + Instagram 어댑터) [DONE]
 - **Phase 5.3**: 어댑터 확장 (네이버 카페/블로그) [DONE]
 - **Phase 5.4**: 어댑터 확장 (페이스북 페이지/그룹) [DONE]
-- **Phase 5.5**: 어댑터 확장 (X / Threads) [TODO]
+- **Phase 5.5**: 어댑터 확장 (Threads) [DONE]
+- **Phase 5.6**: 고도화 (Onboarding 흐름 또는 X 공식 API) [TODO]
 
-## ✅ Phase 5.4 성과
-- **Facebook 통합 어댑터**: 개인 타임라인 및 비즈니스 페이지 게시 기능 구현.
-- **페이지 ID 연동**: 클라우드 채널 설정에서 `pageId`를 입력하여 게시 대상을 유연하게 전환 가능.
-- **UI 자동화 정교화**: 페이스북의 복잡한 글쓰기 모달 및 이미지 업로드 프로세스 대응.
-- **안정성 검증**: 본체 및 에이전트 양쪽 프로젝트의 빌드 통과 확인.
+## ✅ Phase 5.5 성과
+- **에이전트 저장소 공식화**: `marketingbot-agent` Git 초기화 및 Phase 5.1~5.5 전체 코드 배포 완료.
+- **Threads 어댑터**: Instagram 기반 계정 연동 및 스레드 작성/이미지 첨부 자동화 성공.
+- **멀티 어댑터 체제**: Instagram, Naver(Blog/Cafe), Facebook, Threads 총 5개 핵심 채널 지원 완료.
+- **안정성 확보**: 각 어댑터별 독립 세션 관리 및 인간 모사 로직 강화.
 
-## 📌 다음 단계: Phase 5.5
-- X(Twitter) 및 Threads 게시 어댑터 구현.
-- 멀티 채널 동시 게시 최적화.
+## 📌 다음 단계: Phase 5.6
+- 신규 사용자 온보딩(Onboarding) 프로세스 구축.
+- X (Twitter) 공식 API 연동 또는 추가 SNS 어댑터 검토.
