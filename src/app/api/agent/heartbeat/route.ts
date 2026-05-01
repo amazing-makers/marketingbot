@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { sanitize } from "@/lib/log/sanitize";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    console.log("[HEARTBEAT] Request:", sanitize(body));
     const { machineId } = body;
 
     if (!machineId) {

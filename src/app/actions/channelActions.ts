@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { ChannelType } from "@prisma/client";
+import { encryptJSON } from "@/lib/crypto/aes";
 
 // 세션 확인 유틸리티
 async function getSessionUser() {
@@ -14,10 +15,16 @@ async function getSessionUser() {
 
 export async function listChannels() {
   const user = await getSessionUser();
-  return await prisma.marketingChannel.findMany({
+  const channels = await prisma.marketingChannel.findMany({
     where: { userId: user.id },
     orderBy: { createdAt: "desc" },
   });
+
+  // UI 노출 방지를 위한 마스킹 처리
+  return channels.map(c => ({
+    ...c,
+    encryptedCredentials: "", // 리스트에서는 자격증명 정보 제거
+  }));
 }
 
 export async function createChannel(data: {
@@ -27,8 +34,8 @@ export async function createChannel(data: {
 }) {
   const user = await getSessionUser();
 
-  // TODO: encrypt in Phase 4
-  const encryptedCredentials = JSON.stringify(data.credentials);
+  // AES-256-GCM 암호화 적용
+  const encryptedCredentials = encryptJSON(data.credentials);
 
   const channel = await prisma.marketingChannel.create({
     data: {
@@ -54,8 +61,8 @@ export async function updateChannel(id: string, data: {
   if (data.accountName) updateData.accountName = data.accountName;
   if (data.status) updateData.status = data.status;
   if (data.credentials) {
-    // TODO: encrypt in Phase 4
-    updateData.encryptedCredentials = JSON.stringify(data.credentials);
+    // AES-256-GCM 재암호화 적용
+    updateData.encryptedCredentials = encryptJSON(data.credentials);
   }
 
   const channel = await prisma.marketingChannel.update({

@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import dayjs from "dayjs";
+import { decryptJSON } from "@/lib/crypto/aes";
+import { sanitize } from "@/lib/log/sanitize";
 
 export async function POST(req: Request) {
   try {
@@ -11,6 +13,7 @@ export async function POST(req: Request) {
 
     const licenseKey = authHeader.replace("Bearer ", "");
     const body = await req.json();
+    console.log("[POLL] Request body:", sanitize(body));
     const { machineId, version, os } = body;
 
     // 1. 라이선스 확인
@@ -64,7 +67,9 @@ export async function POST(req: Request) {
       taskId: t.id,
       channelType: t.channel.type,
       accountName: t.channel.accountName,
-      credentials: JSON.parse(t.channel.encryptedCredentials), // TODO: Decrypt in Phase 4
+      // AES-256-GCM 복호화 적용 (HTTPS 보안 통신 전제)
+      // TODO: 추후 mTLS 또는 추가 암호화 레이어 검토
+      credentials: decryptJSON(t.channel.encryptedCredentials),
       content: t.content,
       mediaUrls: t.mediaUrls,
     }));

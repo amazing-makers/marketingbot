@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { sanitize } from "@/lib/log/sanitize";
 
 export async function POST(req: Request) {
   try {
@@ -10,6 +11,7 @@ export async function POST(req: Request) {
 
     const licenseKey = authHeader.replace("Bearer ", "");
     const body = await req.json();
+    console.log("[RESULT] Request:", sanitize(body));
     const { taskId, status, executedAt, errorLog } = body;
 
     // 1. 라이선스 및 유저 확인
