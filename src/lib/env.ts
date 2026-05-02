@@ -15,6 +15,9 @@ const envSchema = z.object({
     SENTRY_ORG: z.string().optional(),
     SENTRY_PROJECT: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
+    NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
+    NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
+    POSTHOG_API_KEY: z.string().optional(),
     CRON_SECRET: z.string().optional(),
     
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),

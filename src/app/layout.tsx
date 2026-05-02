@@ -6,6 +6,8 @@ import { SessionProvider } from "next-auth/react";
 import dayjs from "dayjs";
 import "dayjs/locale/ko";
 import "./globals.css";
+import { PostHogProvider } from "@/components/providers/PostHogProvider";
+import { PostHogIdentify } from "@/components/providers/PostHogIdentify";
 
 // dayjs 한국어 설정
 dayjs.locale("ko");
@@ -45,10 +47,13 @@ export default function RootLayout({
       </head>
       <body>
         <SessionProvider>
-          <MantineProvider defaultColorScheme="light">
-            <Notifications />
-            {children}
-          </MantineProvider>
+          <PostHogProvider>
+            <PostHogIdentify />
+            <MantineProvider defaultColorScheme="light">
+              <Notifications />
+              {children}
+            </MantineProvider>
+          </PostHogProvider>
         </SessionProvider>
       </body>
     </html>
