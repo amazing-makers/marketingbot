@@ -11,6 +11,10 @@ const envSchema = z.object({
     RESEND_API_KEY: z.string().optional(),
     RESEND_FROM_EMAIL: z.string().email().default('onboarding@resend.dev'),
     SENTRY_DSN: z.string().optional(),
+    NEXT_PUBLIC_SENTRY_DSN: z.string().optional(),
+    SENTRY_ORG: z.string().optional(),
+    SENTRY_PROJECT: z.string().optional(),
+    SENTRY_AUTH_TOKEN: z.string().optional(),
     CRON_SECRET: z.string().optional(),
     
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
