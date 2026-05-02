@@ -248,6 +248,11 @@ export default function LandingClient({ isLoggedIn }: LandingClientProps) {
                   <Anchor component={Link} href="/legal/privacy" size="sm" c="gray.7">개인정보처리방침</Anchor>
                   <Anchor component={Link} href="/legal/refund" size="sm" c="gray.7">환불정책</Anchor>
                 </Stack>
+                <Stack gap={5}>
+                  <Text size="xs" fw={700} c="dimmed">도움</Text>
+                  <Anchor component={Link} href="/help" size="sm" c="gray.7">사용 안내</Anchor>
+                  <Anchor href="mailto:help@amakers.co.kr" size="sm" c="gray.7">고객 지원</Anchor>
+                </Stack>
               </Group>
             </Stack>
             <Stack gap="xs">
