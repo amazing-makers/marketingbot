@@ -46,6 +46,17 @@ export async function createChannel(data: {
     },
   });
 
+  // PostHog
+  import("@/lib/analytics/posthog-server").then(({ captureEvent }) => {
+    import("@/lib/analytics/events").then(({ EVENTS }) => {
+      captureEvent({
+        distinctId: user.id!,
+        event: EVENTS.CHANNEL_CREATED,
+        properties: { channelType: data.type, channelId: channel.id },
+      }).catch(() => {});
+    });
+  });
+
   revalidatePath("/dashboard/channels");
   return channel;
 }

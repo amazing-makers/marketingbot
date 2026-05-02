@@ -80,6 +80,21 @@ export async function registerUser(formData: FormData) {
       }).catch(err => console.error("Welcome email failed:", err));
     }
 
+    // PostHog 이벤트 (비동기, 실패해도 가입 영향 X)
+    import("@/lib/analytics/posthog-server").then(({ captureEvent }) => {
+      import("@/lib/analytics/events").then(({ EVENTS }) => {
+        captureEvent({
+          distinctId: result.user.id,
+          event: EVENTS.USER_SIGNED_UP,
+          properties: {
+            email,
+            plan: result.license.plan,
+            $set: { email, name },
+          },
+        }).catch(() => {});
+      });
+    });
+
     return { success: true };
   } catch (error) {
     console.error("Registration error:", error);

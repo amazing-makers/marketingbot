@@ -73,6 +73,22 @@ export async function createCampaign(data: {
     return newCampaign;
   });
 
+  // PostHog
+  import("@/lib/analytics/posthog-server").then(({ captureEvent }) => {
+    import("@/lib/analytics/events").then(({ EVENTS }) => {
+      captureEvent({
+        distinctId: user.id!,
+        event: EVENTS.CAMPAIGN_CREATED,
+        properties: {
+          campaignId: campaign.id,
+          channelCount: data.channelIds.length,
+          hasMedia: !!(data.mediaUrls && data.mediaUrls.length > 0),
+          contentLength: data.content.length,
+        },
+      }).catch(() => {});
+    });
+  });
+
   revalidatePath("/dashboard/campaigns");
   return campaign;
 }
