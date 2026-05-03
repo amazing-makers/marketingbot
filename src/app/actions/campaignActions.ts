@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { TaskStatus } from "@prisma/client";
 import { translateText } from "@/lib/ai/translator";
+import { suggestPrimeTime, suggestPrimeTimes, getPrimeHourLabels, type Region } from "@/lib/scheduling/prime-time";
 
 async function getSessionUser() {
   const session = await auth();
@@ -238,4 +239,81 @@ export async function clearCampaignDraft(): Promise<{ success: boolean }> {
     where: { userId: user.id!, slot: 'campaign' },
   });
   return { success: true };
+}
+
+/**
+ * 선택한 채널들의 region 을 보고 다음 황금시간대를 추천.
+ *
+ * 동작:
+ *   - 채널 1개: 그 채널 region 의 다음 prime-time 1개 반환
+ *   - 채널 N개 (다른 region): 각 region 의 다음 prime-time 들 중 가장 빠른 시각 반환
+ *     (모든 region 동시 발행이라 가장 임박한 시각이 공통 예약 시점)
+ *   - 채널 N개 (같은 region): 그 region 의 다음 N개 prime-time 들의 첫 시각
+ *
+ * 캠페인 생성 폼의 "최적 시간 자동 추천" 버튼에서 호출.
+ */
+export async function suggestPrimeTimeForChannels(channelIds: string[]): Promise<{
+  suggested: string;       // ISO datetime 문자열
+  suggestedLocal: string;  // 사용자 표시용 (한국 시간 포맷)
+  region: Region;          // 사용된 기준 region
+  hourLabels: string[];    // 해당 region 의 prime hour 들 (UI 표시용)
+}> {
+  const user = await getSessionUser();
+  if (!channelIds || channelIds.length === 0) {
+    throw new Error('채널을 1개 이상 선택해주세요');
+  }
+
+  const channels = await prisma.marketingChannel.findMany({
+    where: { id: { in: channelIds }, userId: user.id! },
+    select: { region: true },
+  });
+  if (channels.length === 0) {
+    throw new Error('선택한 채널을 찾을 수 없습니다');
+  }
+
+  // 각 region 의 다음 prime-time 계산 → 가장 빠른 것 선택
+  const candidates = channels.map(c => ({
+    region: (c.region || 'korea') as Region,
+    next: suggestPrimeTime((c.region || 'korea') as Region),
+  }));
+  candidates.sort((a, b) => a.next.getTime() - b.next.getTime());
+  const winner = candidates[0];
+
+  // 한국 시간 포맷 (사용자 대시보드 기본 시간대)
+  const localFmt = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+
+  return {
+    suggested: winner.next.toISOString(),
+    suggestedLocal: localFmt.format(winner.next),
+    region: winner.region,
+    hourLabels: getPrimeHourLabels(winner.region),
+  };
+}
+
+/**
+ * 다중 분할 발행 — 한 캠페인을 region 의 다음 N개 prime-time 에 나눠 발행.
+ *
+ * 캠페인 생성 시 "분할 발행" 모드에서 사용 (예: 같은 콘텐츠를 다음 3개 황금시간대에 자동 예약).
+ * 채널의 region 기준 다음 N개 prime-time UTC Date 배열 반환.
+ */
+export async function suggestPrimeTimeSeriesForChannel(channelId: string, count: number): Promise<{
+  times: string[];       // ISO datetime 배열
+  region: Region;
+}> {
+  const user = await getSessionUser();
+  const channel = await prisma.marketingChannel.findFirst({
+    where: { id: channelId, userId: user.id! },
+    select: { region: true },
+  });
+  if (!channel) throw new Error('채널을 찾을 수 없습니다');
+  const region = (channel.region || 'korea') as Region;
+  const times = suggestPrimeTimes(region, Math.max(1, Math.min(count, 12)));
+  return {
+    times: times.map(t => t.toISOString()),
+    region,
+  };
 }

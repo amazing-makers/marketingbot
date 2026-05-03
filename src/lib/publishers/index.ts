@@ -20,11 +20,13 @@ import { prisma } from '@/lib/prisma';
 import { decryptJSON } from '@/lib/crypto/aes';
 import { publishToTelegram, type TelegramCredentials } from './telegram';
 import { publishToWordPress, type WordPressCredentials } from './wordpress';
+import { publishToDiscord, type DiscordCredentials } from './discord';
 
 // HTTP-only 발행 가능 채널 (클라우드 직접 처리)
 export const CLOUD_PUBLISHED_CHANNELS = new Set<ChannelType>([
     'TELEGRAM',
     'WORDPRESS',
+    'DISCORD',
 ] as ChannelType[]);
 
 export interface PublishOutcome {
@@ -118,6 +120,31 @@ export async function publishTask(taskId: string): Promise<PublishOutcome> {
                     externalId: String(result.postId),
                 };
             }
+            case 'DISCORD': {
+                const result = await publishToDiscord({
+                    credentials: creds as DiscordCredentials,
+                    text: task.content,
+                    photoUrl: extractPhotoUrl(task.mediaUrls),
+                    asEmbed: !!extractPhotoUrl(task.mediaUrls), // 이미지 있으면 자동으로 embed
+                });
+                await prisma.scheduledTask.update({
+                    where: { id: taskId },
+                    data: {
+                        status: 'SUCCESS',
+                        executedAt: new Date(),
+                        errorLog: `Discord message_id=${result.messageId}`,
+                    },
+                });
+                await prisma.marketingChannel.update({
+                    where: { id: channel.id },
+                    data: { lastUsedAt: new Date(), status: 'ACTIVE' },
+                });
+                return {
+                    handler: 'cloud',
+                    success: true,
+                    externalId: result.messageId,
+                };
+            }
             default: {
                 // CLOUD_PUBLISHED_CHANNELS 에 추가했지만 스위치 케이스 없는 경우 (개발자 실수 방지)
                 throw new Error(`클라우드 핸들러 미구현 채널: ${channel.type}`);
@@ -192,3 +219,4 @@ export async function publishCloudReadyTasks(opts?: {
 
 export { publishToTelegram, type TelegramCredentials };
 export { publishToWordPress, type WordPressCredentials };
+export { publishToDiscord, type DiscordCredentials };

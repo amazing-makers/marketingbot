@@ -39,6 +39,7 @@ enum ChannelType {
   WORDPRESS
   // HTTP-only API 채널 (에이전트 거치지 않고 Vercel 서버에서 직접 publish)
   TELEGRAM
+  DISCORD
 }
 
 // Webhook 외부 트리거 토큰 (sns-auto-platform webhook.py 포팅).

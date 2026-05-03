@@ -48,6 +48,7 @@ export const PLATFORM_FORMATS: Record<string, PlatformSpec> = {
     facebook:     { format: 'sns_caption',  maxChars: 5000,  hashtagCount: 5,  tone: '친근·공유 유도, 스토리텔링' },
     tiktok:       { format: 'sns_caption',  maxChars: 2200,  hashtagCount: 10, tone: '트렌디·MZ 감성, 짧고 임팩트' },
     telegram:     { format: 'sns_caption',  maxChars: 4096,  hashtagCount: 5,  tone: '직접적·정보성' },
+    discord:      { format: 'sns_caption',  maxChars: 2000,  hashtagCount: 0,  tone: '커뮤니티·친근, 마크다운 사용 가능, 해시태그 안 씀' },
     weibo:        { format: 'sns_caption',  maxChars: 2000,  hashtagCount: 5,  tone: '트렌디·중국 감성' },
     xiaohongshu:  { format: 'sns_caption',  maxChars: 1000,  hashtagCount: 10, tone: '라이프스타일·이모지 풍부, 첫 줄 후킹' },
     vk:           { format: 'sns_caption',  maxChars: 4000,  hashtagCount: 5,  tone: '친근·러시아권' },

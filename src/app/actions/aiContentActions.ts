@@ -33,6 +33,7 @@ const CHANNEL_TO_PLATFORM: Record<ChannelType, string> = {
     TISTORY:     'tistory',
     WORDPRESS:   'wordpress',
     TELEGRAM:    'telegram',
+    DISCORD:     'discord',
 };
 
 export interface GenerateCampaignCaptionInput {

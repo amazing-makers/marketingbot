@@ -45,6 +45,8 @@ const CHANNEL_ICONS: Record<string, any> = {
   WORDPRESS: IconBrandWordpress,
   // HTTP-only API 채널 (P3-g 추가)
   TELEGRAM: IconBrandTelegram,
+  // Discord (Phase 5 — webhook URL 만으로 발행)
+  DISCORD: IconSettings,
 };
 
 const REGION_OPTIONS = [
@@ -112,6 +114,9 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
       // WordPress (P4-a)
       siteUrl: '',
       appPassword: '',
+      // Discord (Phase 5 — webhook URL only)
+      webhookUrl: '',
+      discordUsername: '',
     },
   });
 
@@ -151,6 +156,9 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
         credentials.siteUrl = values.siteUrl;
         credentials.username = values.username;
         credentials.appPassword = values.appPassword;
+      } else if (values.type === 'DISCORD') {
+        credentials.webhookUrl = values.webhookUrl;
+        if (values.discordUsername) credentials.username = values.discordUsername;
       } else {
         credentials.username = values.username;
         credentials.password = values.password;
@@ -317,6 +325,22 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
                   description={<>관리자 → 사용자 → 프로필 → "Application Passwords" → 24자 토큰 (예: <code>abcd 1234 efgh 5678 ijkl 9012</code>). <Anchor href="https://wordpress.org/documentation/article/application-passwords/" target="_blank" rel="noreferrer" size="xs">발급 가이드 <IconExternalLink size={10} /></Anchor></>}
                   placeholder="abcd 1234 efgh 5678 ijkl 9012"
                   {...form.getInputProps('appPassword')}
+                />
+              </>
+            ) : form.values.type === 'DISCORD' ? (
+              <>
+                <TextInput
+                  label="Webhook URL"
+                  type="password"
+                  description={<>서버 → 채널 설정 → 연동 → 웹후크 → 새 웹후크 → "웹후크 URL 복사". <Anchor href="https://support.discord.com/hc/ko/articles/228383668" target="_blank" rel="noreferrer" size="xs">발급 가이드 <IconExternalLink size={10} /></Anchor></>}
+                  placeholder="https://discord.com/api/webhooks/123.../abc..."
+                  {...form.getInputProps('webhookUrl')}
+                />
+                <TextInput
+                  label="발신자명 (선택)"
+                  description="비워두면 Discord 웹후크 기본 이름 사용"
+                  placeholder="마케팅봇"
+                  {...form.getInputProps('discordUsername')}
                 />
               </>
             ) : (

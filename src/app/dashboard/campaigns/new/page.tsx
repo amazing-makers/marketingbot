@@ -14,7 +14,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { IconBulb, IconX, IconSparkles, IconPhoto, IconCopy, IconCheck, IconDownload } from '@tabler/icons-react';
 import { listChannels } from '@/app/actions/channelActions';
-import { createCampaign, loadCampaignDraft, saveCampaignDraft, clearCampaignDraft } from '@/app/actions/campaignActions';
+import { createCampaign, loadCampaignDraft, saveCampaignDraft, clearCampaignDraft, suggestPrimeTimeForChannels } from '@/app/actions/campaignActions';
 import { generateCampaignCaption, generateCampaignImage } from '@/app/actions/aiContentActions';
 import { MarketingChannel } from '@prisma/client';
 import { getTemplateById, applyTemplateVariables } from '@/lib/campaign-templates';
@@ -450,13 +450,42 @@ function NewCampaignPageInner() {
               </Paper>
             )}
 
-            <DateTimePicker
-              label="예약 발행 시각"
-              placeholder="날짜와 시간을 선택하세요"
-              required
-              minDate={new Date()}
-              {...form.getInputProps('scheduledAt')}
-            />
+            <Stack gap={4}>
+              <Group justify="space-between" align="flex-end">
+                <Text size="sm" fw={500}>예약 발행 시각 <Text span c="red">*</Text></Text>
+                <Tooltip label="선택한 채널의 region 별 황금 시간대 (다음 출근/점심/저녁 피크)에 자동 예약" withArrow>
+                  <Button
+                    size="compact-xs"
+                    variant="light"
+                    color="violet"
+                    leftSection={<IconBulb size={12} />}
+                    disabled={form.values.channelIds.length === 0}
+                    onClick={async () => {
+                      try {
+                        const res = await suggestPrimeTimeForChannels(form.values.channelIds);
+                        form.setFieldValue('scheduledAt', new Date(res.suggested));
+                        notifications.show({
+                          title: '🎯 황금시간대 적용',
+                          message: `${res.region} → ${res.suggestedLocal} (${res.hourLabels.join(' · ')} 중)`,
+                          color: 'violet',
+                          autoClose: 5000,
+                        });
+                      } catch (e: any) {
+                        notifications.show({ title: '오류', message: e?.message || '추천 실패', color: 'red' });
+                      }
+                    }}
+                  >
+                    🎯 최적 시간 자동
+                  </Button>
+                </Tooltip>
+              </Group>
+              <DateTimePicker
+                placeholder="날짜와 시간을 선택하세요"
+                required
+                minDate={new Date()}
+                {...form.getInputProps('scheduledAt')}
+              />
+            </Stack>
 
             <Group justify="space-between" mt="xl">
               <Group gap="xs">
