@@ -1,11 +1,11 @@
-import { getCampaign, retryTask } from "@/app/actions/campaignActions";
-import { 
-  Title, Text, Card, Group, Stack, Badge, Table, Button, 
-  ActionIcon, Tooltip, Divider, Breadcrumbs, Anchor, SimpleGrid 
+import { getCampaign, retryTask, executeTaskNow } from "@/app/actions/campaignActions";
+import { CLOUD_PUBLISHED_CHANNELS } from '@/lib/publishers';
+import {
+  Title, Text, Card, Group, Stack, Badge, Table, Button,
+  ActionIcon, Tooltip, Divider, Breadcrumbs, Anchor, SimpleGrid
 } from '@mantine/core';
-import { 
-  IconRefresh, IconCheck, IconX, IconLoader2, 
-  IconChevronLeft, IconExternalLink 
+import {
+  IconRefresh, IconBolt
 } from '@tabler/icons-react';
 import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
@@ -19,6 +19,12 @@ export default async function CampaignDetailPage({ params }: { params: { id: str
   const handleRetry = async (taskId: string) => {
     "use server";
     await retryTask(taskId);
+    revalidatePath(`/dashboard/campaigns/${params.id}`);
+  };
+
+  const handlePublishNow = async (taskId: string) => {
+    "use server";
+    await executeTaskNow(taskId);
     revalidatePath(`/dashboard/campaigns/${params.id}`);
   };
 
@@ -102,13 +108,27 @@ export default async function CampaignDetailPage({ params }: { params: { id: str
                   ) : '-'}
                 </Table.Td>
                 <Table.Td>
-                  {task.status === 'FAILED' && (
-                    <form action={handleRetry.bind(null, task.id)}>
-                      <Button variant="subtle" size="xs" leftSection={<IconRefresh size={14} />} type="submit">
-                        재시도
-                      </Button>
-                    </form>
-                  )}
+                  <Group gap={4} wrap="nowrap">
+                    {(task.status === 'PENDING' || task.status === 'FAILED') &&
+                      CLOUD_PUBLISHED_CHANNELS.has(task.channel.type) && (
+                        <form action={handlePublishNow.bind(null, task.id)}>
+                          <Tooltip label="에이전트 거치지 않고 클라우드에서 즉시 발행">
+                            <Button variant="filled" color="violet" size="xs"
+                              leftSection={<IconBolt size={14} />} type="submit">
+                              지금 발행
+                            </Button>
+                          </Tooltip>
+                        </form>
+                      )}
+                    {task.status === 'FAILED' && (
+                      <form action={handleRetry.bind(null, task.id)}>
+                        <Button variant="subtle" size="xs"
+                          leftSection={<IconRefresh size={14} />} type="submit">
+                          재시도
+                        </Button>
+                      </form>
+                    )}
+                  </Group>
                 </Table.Td>
               </Table.Tr>
             ))}

@@ -41,6 +41,54 @@ enum ChannelType {
   TELEGRAM
 }
 
+// Webhook 외부 트리거 토큰 (sns-auto-platform webhook.py 포팅).
+// 사용자별 토큰 발급 → /api/webhook/[token]/publish 로 외부에서 캠페인 생성 트리거.
+// Zapier · Make · 자체 자동화 통합용.
+// rate limit: 분당 60회 · 일 200회 (UserWebhookHit 카운터로 추적).
+model UserWebhookToken {
+  id           String              @id @default(cuid())
+  userId       String
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token        String              @unique  // 32자 random hex
+  label        String?             // 사용자가 식별용 라벨 (예: "Zapier 연동")
+  enabled      Boolean             @default(true)
+  lastUsedAt   DateTime?
+  createdAt    DateTime            @default(now())
+  hits         UserWebhookHit[]
+
+  @@index([userId])
+}
+
+// rate limit 카운터 — 분당/일별 키.
+// bucketKey: 'YYYYMMDDHHMM' (분) 또는 'YYYYMMDD' (일) — uniq 조합으로 incr.
+model UserWebhookHit {
+  id          String           @id @default(cuid())
+  tokenId     String
+  token       UserWebhookToken @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  bucketKey   String           // YYYYMMDDHHMM (분) 또는 YYYYMMDD (일)
+  bucketType  String           // 'minute' | 'day'
+  count       Int              @default(0)
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([tokenId, bucketKey, bucketType])
+  @@index([updatedAt])
+}
+
+// 캠페인 드래프트 — 작성 중 30초 idle 자동 저장 (sns-auto-platform drafts.py 포팅).
+// 같은 사용자 1개만 유지 (slot 'campaign'). 30일 후 자동 정리.
+model CampaignDraft {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slot        String   @default("campaign")  // 'campaign' | 'post' | 'image' (확장용)
+  payload     Json     // form 전체 상태 (name/description/channelIds/content/scheduledAt 등)
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, slot])
+  @@index([updatedAt])
+}
+
 enum ChannelStatus {
   ACTIVE
   PAUSED
@@ -66,11 +114,13 @@ model User {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  channels  MarketingChannel[]
-  campaigns Campaign[]
-  agents    AgentInstance[]
-  licenses  License[]
-  aiConfig  UserAiConfig?
+  channels       MarketingChannel[]
+  campaigns      Campaign[]
+  agents         AgentInstance[]
+  licenses       License[]
+  aiConfig       UserAiConfig?
+  drafts         CampaignDraft[]
+  webhookTokens  UserWebhookToken[]
 
   emailPreferences Json @default("{\"failures\": true, \"weekly\": true, \"welcome\": true}")
 }

@@ -90,6 +90,64 @@ export async function saveMyAiConfig(input: SaveAiConfigInput): Promise<{ succes
 }
 
 /**
+ * 사용량 통계 — AiUsageCounter 시각화용.
+ * 현재 월 + 지난 5개월 (총 6개월) 의 kind/engine 별 호출 카운트 + 추정 비용.
+ *
+ * 추정 비용 (sns-auto-platform engine_config.is_over_budget 동일):
+ *   - DALL-E 3 (openai/image_gen): $0.04/장
+ *   - Gemini Imagen (gemini/image_gen): $0.02/장
+ *   - 그 외 (caption / translate / video_gen 등): $0 (무료 tier 내 또는 추정 미반영)
+ */
+export async function getUsageStats(): Promise<{
+    success: boolean;
+    months?: Array<{
+        monthKey: string;
+        rows: Array<{ kind: string; engine: string; count: number; estimatedCostUsd: number }>;
+        totalCalls: number;
+        totalCostUsd: number;
+    }>;
+    error?: string;
+}> {
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
+
+    try {
+        const { prisma } = await import('@/lib/prisma');
+        // 최근 6개월 month_key 생성
+        const months: string[] = [];
+        const d = new Date();
+        for (let i = 0; i < 6; i++) {
+            months.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
+            d.setUTCMonth(d.getUTCMonth() - 1);
+        }
+
+        const counters = await prisma.aiUsageCounter.findMany({
+            where: { scope: session.user.id, monthKey: { in: months } },
+            orderBy: [{ monthKey: 'desc' }, { kind: 'asc' }],
+        });
+
+        const grouped: Record<string, typeof counters> = {};
+        for (const c of counters) (grouped[c.monthKey] ||= []).push(c);
+
+        const result = months.map((m) => {
+            const rows = (grouped[m] || []).map((c) => {
+                let estimatedCostUsd = 0;
+                if (c.kind === 'image_gen' && c.engine === 'openai') estimatedCostUsd = c.count * 0.04;
+                else if (c.kind === 'image_gen' && c.engine === 'gemini') estimatedCostUsd = c.count * 0.02;
+                return { kind: c.kind, engine: c.engine, count: c.count, estimatedCostUsd };
+            });
+            const totalCalls = rows.reduce((s, r) => s + r.count, 0);
+            const totalCostUsd = rows.reduce((s, r) => s + r.estimatedCostUsd, 0);
+            return { monthKey: m, rows, totalCalls, totalCostUsd };
+        });
+        return { success: true, months: result };
+    } catch (e: any) {
+        console.error('[getUsageStats]', e);
+        return { success: false, error: e?.message || '사용량 로드 실패' };
+    }
+}
+
+/**
  * 등록된 엔진 키 검증 — 짧은 프롬프트로 ping.
  * 실제 사용 전에 사용자가 "테스트" 버튼 누르면 빠르게 OK/NG 표시.
  */

@@ -1,7 +1,7 @@
 'use client';
 
 import { Container, Title, Text, Stack, Paper, Group, ThemeIcon, Anchor } from '@mantine/core';
-import { IconBolt, IconBell, IconChevronRight } from '@tabler/icons-react';
+import { IconBolt, IconBell, IconChevronRight, IconWebhook } from '@tabler/icons-react';
 import Link from 'next/link';
 
 const SECTIONS = [
@@ -18,6 +18,13 @@ const SECTIONS = [
         color: 'blue',
         title: '알림 설정',
         desc: '이메일 수신 여부 (가입·실패·주간 리포트)',
+    },
+    {
+        href: '/dashboard/settings/webhooks',
+        icon: IconWebhook,
+        color: 'cyan',
+        title: '외부 트리거 (Webhook)',
+        desc: 'Zapier · Make · 자체 자동화에서 캠페인 즉시 트리거',
     },
 ];
 

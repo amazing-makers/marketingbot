@@ -109,6 +109,9 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
       // Telegram (P3-g)
       botToken: '',
       chatId: '',
+      // WordPress (P4-a)
+      siteUrl: '',
+      appPassword: '',
     },
   });
 
@@ -144,6 +147,10 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
       } else if (values.type === 'TELEGRAM') {
         credentials.botToken = values.botToken;
         credentials.chatId = values.chatId;
+      } else if (values.type === 'WORDPRESS') {
+        credentials.siteUrl = values.siteUrl;
+        credentials.username = values.username;
+        credentials.appPassword = values.appPassword;
       } else {
         credentials.username = values.username;
         credentials.password = values.password;
@@ -289,6 +296,27 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
                   description="공개 채널: @my_channel · 비공개 채널/그룹: -100xxx (api.telegram.org/bot<TOKEN>/getUpdates 로 확인)"
                   placeholder="@my_channel 또는 -1001234567890"
                   {...form.getInputProps('chatId')}
+                />
+              </>
+            ) : form.values.type === 'WORDPRESS' ? (
+              <>
+                <TextInput
+                  label="사이트 URL"
+                  description="wp-json REST API 가 활성화된 워드프레스 사이트 (5.6+). https:// 자동 보정"
+                  placeholder="https://myblog.com 또는 https://myblog.wordpress.com"
+                  {...form.getInputProps('siteUrl')}
+                />
+                <TextInput
+                  label="사용자 이름"
+                  placeholder="admin"
+                  {...form.getInputProps('username')}
+                />
+                <TextInput
+                  label="Application Password"
+                  type="password"
+                  description={<>관리자 → 사용자 → 프로필 → "Application Passwords" → 24자 토큰 (예: <code>abcd 1234 efgh 5678 ijkl 9012</code>). <Anchor href="https://wordpress.org/documentation/article/application-passwords/" target="_blank" rel="noreferrer" size="xs">발급 가이드 <IconExternalLink size={10} /></Anchor></>}
+                  placeholder="abcd 1234 efgh 5678 ijkl 9012"
+                  {...form.getInputProps('appPassword')}
                 />
               </>
             ) : (

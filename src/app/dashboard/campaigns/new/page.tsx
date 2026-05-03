@@ -14,10 +14,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { IconBulb, IconX, IconSparkles, IconPhoto, IconCopy, IconCheck, IconDownload } from '@tabler/icons-react';
 import { listChannels } from '@/app/actions/channelActions';
-import { createCampaign } from '@/app/actions/campaignActions';
+import { createCampaign, loadCampaignDraft, saveCampaignDraft, clearCampaignDraft } from '@/app/actions/campaignActions';
 import { generateCampaignCaption, generateCampaignImage } from '@/app/actions/aiContentActions';
 import { MarketingChannel } from '@prisma/client';
 import { getTemplateById, applyTemplateVariables } from '@/lib/campaign-templates';
+import dayjs from 'dayjs';
 
 function NewCampaignPageInner() {
   const router = useRouter();
@@ -43,6 +44,11 @@ function NewCampaignPageInner() {
   const [imageAspect, setImageAspect] = useState<'square' | 'vertical' | 'horizontal'>('square');
   const [imgBusy, setImgBusy] = useState(false);
   const [imgPreview, setImgPreview] = useState<{ dataUrl: string; engine: string; sizeKb: number } | null>(null);
+
+  // 드래프트 자동 저장 state
+  const [draftStatus, setDraftStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [draftLastSaved, setDraftLastSaved] = useState<Date | null>(null);
+  const [draftLoaded, setDraftLoaded] = useState(false);
 
   useEffect(() => {
     listChannels().then(setChannels);
@@ -105,6 +111,60 @@ function NewCampaignPageInner() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variableValues, template]);
+
+  // ════ 드래프트 자동 복원 (페이지 진입 시 1회) ════
+  useEffect(() => {
+    // 템플릿 모드는 복원 skip (템플릿이 우선)
+    if (template) { setDraftLoaded(true); return; }
+    let cancelled = false;
+    loadCampaignDraft().then((r) => {
+      if (cancelled) return;
+      if (r.exists && r.payload) {
+        const p = r.payload;
+        form.setValues({
+          name: p.name || '',
+          description: p.description || '',
+          channelIds: p.channelIds || [],
+          content: p.content || '',
+          sourceLanguage: p.sourceLanguage || 'ko',
+          autoTranslate: p.autoTranslate !== false,
+          scheduledAt: p.scheduledAt ? new Date(p.scheduledAt) : new Date(Date.now() + 10 * 60 * 1000),
+        });
+        notifications.show({
+          color: 'blue',
+          title: '드래프트 복원',
+          message: `${dayjs(r.updatedAt).format('MM-DD HH:mm')} 작업 이어서 진행`,
+        });
+      }
+      setDraftLoaded(true);
+    }).catch(() => setDraftLoaded(true));
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [template]);
+
+  // ════ 30초 idle 자동 저장 ════
+  useEffect(() => {
+    if (!draftLoaded) return;
+    if (template) return;  // 템플릿 모드는 자동 저장 안 함
+
+    // 빈 상태 (모든 필드 비어있음) 도 저장 안 함
+    const isEmpty = !form.values.name && !form.values.content && form.values.channelIds.length === 0;
+    if (isEmpty) return;
+
+    const timer = setTimeout(async () => {
+      setDraftStatus('saving');
+      const r = await saveCampaignDraft(form.values);
+      if (r.success) {
+        setDraftStatus('saved');
+        setDraftLastSaved(r.updatedAt ? new Date(r.updatedAt) : new Date());
+        setTimeout(() => setDraftStatus('idle'), 2000);
+      } else {
+        setDraftStatus('idle');
+      }
+    }, 30000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.values, draftLoaded, template]);
 
   const handleVariableChange = (name: string, value: string) => {
     setVariableValues(prev => ({ ...prev, [name]: value }));
@@ -203,6 +263,8 @@ function NewCampaignPageInner() {
         autoTranslate: values.autoTranslate,
         scheduledAt: values.scheduledAt,
       });
+      // 성공 → 드래프트 삭제 (사용 끝났으므로)
+      await clearCampaignDraft().catch(() => {});
       notifications.show({ title: '성공', message: '캠페인이 예약되었습니다.', color: 'green' });
       router.push('/dashboard/campaigns');
     } catch (error) {
@@ -210,6 +272,14 @@ function NewCampaignPageInner() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDiscardDraft = async () => {
+    if (!confirm('작성 중인 내용을 모두 버립니다. 계속할까요?')) return;
+    await clearCampaignDraft();
+    form.reset();
+    setDraftLastSaved(null);
+    notifications.show({ color: 'gray', title: '드래프트 삭제', message: '빈 폼으로 초기화됐어요.' });
   };
 
   return (
@@ -388,9 +458,30 @@ function NewCampaignPageInner() {
               {...form.getInputProps('scheduledAt')}
             />
 
-            <Group justify="flex-end" mt="xl">
-              <Button variant="subtle" onClick={() => router.back()}>취소</Button>
-              <Button type="submit" loading={loading} size="md">캠페인 생성 및 예약</Button>
+            <Group justify="space-between" mt="xl">
+              <Group gap="xs">
+                {draftStatus === 'saving' && (
+                  <Group gap={4}>
+                    <Loader size={12} />
+                    <Text size="xs" c="dimmed">저장 중...</Text>
+                  </Group>
+                )}
+                {draftStatus === 'saved' && (
+                  <Text size="xs" c="green">✓ 드래프트 저장됨</Text>
+                )}
+                {draftStatus === 'idle' && draftLastSaved && (
+                  <Text size="xs" c="dimmed">최근 저장: {dayjs(draftLastSaved).format('HH:mm:ss')}</Text>
+                )}
+                {draftLastSaved && (
+                  <Button size="compact-xs" variant="subtle" color="gray" onClick={handleDiscardDraft}>
+                    드래프트 삭제
+                  </Button>
+                )}
+              </Group>
+              <Group gap="xs">
+                <Button variant="subtle" onClick={() => router.back()}>취소</Button>
+                <Button type="submit" loading={loading} size="md">캠페인 생성 및 예약</Button>
+              </Group>
             </Group>
           </Stack>
         </form>

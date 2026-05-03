@@ -19,10 +19,12 @@ import type { ChannelType, MarketingChannel, ScheduledTask } from '@prisma/clien
 import { prisma } from '@/lib/prisma';
 import { decryptJSON } from '@/lib/crypto/aes';
 import { publishToTelegram, type TelegramCredentials } from './telegram';
+import { publishToWordPress, type WordPressCredentials } from './wordpress';
 
 // HTTP-only 발행 가능 채널 (클라우드 직접 처리)
 export const CLOUD_PUBLISHED_CHANNELS = new Set<ChannelType>([
     'TELEGRAM',
+    'WORDPRESS',
 ] as ChannelType[]);
 
 export interface PublishOutcome {
@@ -90,6 +92,30 @@ export async function publishTask(taskId: string): Promise<PublishOutcome> {
                     handler: 'cloud',
                     success: true,
                     externalId: String(result.messageId),
+                };
+            }
+            case 'WORDPRESS': {
+                const result = await publishToWordPress({
+                    credentials: creds as WordPressCredentials,
+                    content: task.content,
+                    photoUrl: extractPhotoUrl(task.mediaUrls),
+                });
+                await prisma.scheduledTask.update({
+                    where: { id: taskId },
+                    data: {
+                        status: 'SUCCESS',
+                        executedAt: new Date(),
+                        errorLog: `WordPress post_id=${result.postId} url=${result.link}`,
+                    },
+                });
+                await prisma.marketingChannel.update({
+                    where: { id: channel.id },
+                    data: { lastUsedAt: new Date(), status: 'ACTIVE' },
+                });
+                return {
+                    handler: 'cloud',
+                    success: true,
+                    externalId: String(result.postId),
                 };
             }
             default: {
@@ -165,3 +191,4 @@ export async function publishCloudReadyTasks(opts?: {
 }
 
 export { publishToTelegram, type TelegramCredentials };
+export { publishToWordPress, type WordPressCredentials };

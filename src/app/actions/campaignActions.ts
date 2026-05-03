@@ -185,3 +185,57 @@ export async function deleteCampaign(id: string) {
   revalidatePath("/dashboard/campaigns");
   return { success: true };
 }
+
+// ════════════════════════════════════════════════════════════
+//  Campaign drafts — 30초 idle auto-save (sns-auto-platform drafts.py 포팅)
+// ════════════════════════════════════════════════════════════
+
+/**
+ * 현재 사용자의 'campaign' slot 드래프트 로드. 없으면 null.
+ * 캠페인 작성 페이지 진입 시 호출 → 직전 작업 복원.
+ */
+export async function loadCampaignDraft(): Promise<{
+  exists: boolean;
+  payload?: any;
+  updatedAt?: Date;
+}> {
+  const user = await getSessionUser();
+  const draft = await prisma.campaignDraft.findUnique({
+    where: { userId_slot: { userId: user.id!, slot: 'campaign' } },
+  });
+  if (!draft) return { exists: false };
+  return { exists: true, payload: draft.payload, updatedAt: draft.updatedAt };
+}
+
+/**
+ * 드래프트 저장/갱신 (upsert). idle 30초 클라이언트 타이머에서 호출.
+ * payload 는 form 전체 상태 (직렬화 가능한 JSON).
+ */
+export async function saveCampaignDraft(payload: any): Promise<{ success: boolean; updatedAt?: Date }> {
+  const user = await getSessionUser();
+  if (!payload || typeof payload !== 'object') return { success: false };
+
+  // 너무 큰 payload 방어 (~1MB 컷)
+  try {
+    const sz = JSON.stringify(payload).length;
+    if (sz > 1_000_000) return { success: false };
+  } catch { return { success: false }; }
+
+  const row = await prisma.campaignDraft.upsert({
+    where: { userId_slot: { userId: user.id!, slot: 'campaign' } },
+    create: { userId: user.id!, slot: 'campaign', payload },
+    update: { payload },
+  });
+  return { success: true, updatedAt: row.updatedAt };
+}
+
+/**
+ * 드래프트 삭제 — 캠페인 생성 성공 시 또는 사용자가 명시적으로 "드래프트 버리기" 누를 때.
+ */
+export async function clearCampaignDraft(): Promise<{ success: boolean }> {
+  const user = await getSessionUser();
+  await prisma.campaignDraft.deleteMany({
+    where: { userId: user.id!, slot: 'campaign' },
+  });
+  return { success: true };
+}

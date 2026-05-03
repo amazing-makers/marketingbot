@@ -1,6 +1,6 @@
 # MarketingBot Project Status
 
-**최근 갱신**: 2026-05-03 (P3 라운드 — sns-auto-platform 기능 복원)
+**최근 갱신**: 2026-05-03 (P4 라운드 — 운영 기능·UX 폴리싱)
 
 ## 🚀 진행 현황
 
@@ -39,23 +39,32 @@
 ### 부수 fix
 - **빌드 fix**: @sentry/nextjs v9→v10 (Next 16 호환), zombie cron 주석 syntax, /help 페이지 Anchor+Link RSC 직렬화
 
+### Phase 4 — 운영 기능·UX 폴리싱
+- **P4-a**: WordPress 클라우드 publisher (REST API HTTP-only — site URL + username + Application Password) [DONE]
+- **P4-b**: 캠페인 상세에 "지금 발행" 버튼 — Telegram/WordPress 즉시 트리거 [DONE]
+- **P4-c**: 캠페인 작성 30초 idle 자동 저장 — CampaignDraft 모델, 진입 시 복원, 생성 성공 시 삭제 [DONE]
+- **P4-d**: AI 사용량 대시보드 — `/dashboard/settings/ai` 사용량 탭, 월별 호출수·추정 비용 (DALL-E $0.04, Imagen $0.02) [DONE]
+- **P4-e**: Webhook 외부 트리거 — UserWebhookToken 모델, 32자 hex 토큰, 분당 60·일 200 rate limit, /api/webhook/[token]/publish 엔드포인트 + UI 토큰 발급/관리 [DONE]
+
 ## 📊 sns-auto-platform 비전 대비 진행률
 - 인프라·AI 코어: **~95%** (lib + UI + 캠페인 통합 완료)
-- 발행 어댑터: **~30%** (5/19 + Telegram 추가 = 6/19, 클라우드 직접 발행 패턴 정립)
+- 발행 어댑터: **~37%** (7/19 — IG · 네이버블로그 · 네이버카페 · FB · Threads + Telegram + WordPress)
 - 미디어 변환 (오버레이/비율/영상): **~5%**
-- 자동화 워크플로우 (폴더감시·prime-time·webhook·retry): **~15%**
-- 운영 기능 (다중브랜드·사용량UI·자동청소·드래프트): **~15%**
+- 자동화 워크플로우 (폴더감시·prime-time·webhook·retry): **~30%** (Webhook + dispatch cron 추가)
+- 운영 기능 (다중브랜드·사용량UI·자동청소·드래프트): **~40%** (드래프트·사용량 추가)
 
-## 📌 다음 단계 (Phase 4 후보)
-1. **추가 클라우드 publisher**: WordPress (REST API), Tistory (Open API), X(Twitter API v2), LinkedIn (REST API), YouTube (Data API v3) — 모두 HTTP-only 패턴 활용
-2. **R2 통합**: AI 이미지 생성 → R2 자동 업로드 → 캠페인 mediaUrls 자동 채우기
-3. **drafts 자동 저장**: 30초 idle 임시저장 (sns-auto-platform `drafts.py` 포팅)
-4. **사용량 대시보드 UI**: AiUsageCounter 시각화
-5. **prime-time 자동 예약**: region별 황금 시간대 계산 (한국 9시, 미국 8PM…)
-6. **webhook 외부 트리거**: 사용자별 토큰 + rate limit 60/시간
+## 📌 다음 단계 (Phase 5 후보)
+1. **추가 클라우드 publisher**: X(Twitter API v2), LinkedIn (REST API), YouTube (Data API v3), Discord (Bot webhook) — 모두 HTTP-only 패턴 활용
+2. **R2 통합**: AI 이미지 생성 → R2 자동 업로드 → 캠페인 mediaUrls 자동 채우기 → Telegram/WordPress photoUrl 그대로 사용 가능
+3. **prime-time 자동 예약**: region별 황금 시간대 계산 (한국 9시, 미국 8PM…)
+4. **이미지 비율 자동 변환**: ffmpeg or Sharp — 채널별 4:5 / 9:16 / 16:9 자동 크롭
+5. **텍스트 오버레이 편집기**: 이미지 위 자막
+6. **다중 브랜드**: 한 시스템에서 여러 회사 격리 (User → Workspace 모델 도입)
+7. **드래프트 자동 청소 cron**: 30일+ 미수정 CampaignDraft 정리
 
 ## ⚠️ 사용자 액션 필요 (운영 적용)
-1. **Prisma migrate**: `npx prisma migrate deploy` — UserAiConfig + TranslationCache + AiUsageCounter + region/language + TELEGRAM enum 적용
+1. **Prisma migrate**: `npx prisma migrate deploy` — 누적 마이그레이션 5개 (UserAiConfig + TranslationCache + AiUsageCounter + region/language + TELEGRAM enum + CampaignDraft + UserWebhookToken/Hit)
 2. **Vercel CRON_SECRET**: 새 cron 보안 위해 환경변수 등록 (없으면 dev 모드만 동작)
 3. **무료 AI 키 등록**: `/dashboard/settings/ai` 에서 Gemini + Groq + DeepL (각 발급 5분, 무료)
-4. **첫 Telegram 채널**: BotFather → `/newbot` → 채널 추가 → /accounts 등록 → 즉시 작동 (에이전트 없이)
+4. **첫 클라우드 채널**: Telegram (BotFather) 또는 WordPress (Application Password) 등록 → 캠페인 → 5분 내 자동 발행 (에이전트 불필요)
+5. **(선택) Webhook 토큰**: `/dashboard/settings/webhooks` 에서 발급 → Zapier · Make · 자체 자동화 연동

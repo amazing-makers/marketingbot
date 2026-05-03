@@ -3,15 +3,18 @@
 import {
     Container, Title, Text, Stack, Paper, Group, Button, TextInput, NumberInput,
     Select, Switch, Badge, Anchor, Alert, Tabs, Divider, ActionIcon, Tooltip,
-    PasswordInput, SimpleGrid,
+    PasswordInput, SimpleGrid, Loader,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
     IconKey, IconBolt, IconLanguage, IconPhoto, IconCoin, IconChartBar,
     IconExternalLink, IconCheck, IconX, IconRefresh, IconInfoCircle,
+    IconChartHistogram,
 } from '@tabler/icons-react';
+import { Table } from '@mantine/core';
 import { useState, useTransition } from 'react';
-import { saveMyAiConfig, testEngine } from '@/app/actions/aiSettingsActions';
+import { saveMyAiConfig, testEngine, getUsageStats } from '@/app/actions/aiSettingsActions';
+import { useEffect } from 'react';
 
 // engine-config.ts 와 동일한 메타 (UI 전용 복제 — 서버 전용 import 불가)
 const AVAILABLE_MODELS = {
@@ -153,6 +156,20 @@ export default function AiSettingsClient({ initialConfig, loadError }: AiSetting
     const [utm, setUtm] = useState<{ [k: string]: string }>(cfg.utm || {});
     const [budget, setBudget] = useState<number>(cfg.monthlyBudgetUsd || 0);
     const [testResults, setTestResults] = useState<Record<string, { ok: boolean; latencyMs?: number; error?: string }>>({});
+    const [usage, setUsage] = useState<any[] | null>(null);
+    const [usageBusy, setUsageBusy] = useState(false);
+
+    async function loadUsage() {
+        setUsageBusy(true);
+        const r = await getUsageStats();
+        setUsage(r.success ? r.months || [] : []);
+        setUsageBusy(false);
+    }
+
+    useEffect(() => {
+        // 페이지 진입 시 한 번 사전 로드 (탭 열기 전이라도 빠르게 표시)
+        loadUsage();
+    }, []);
 
     function handleSave() {
         startTransition(async () => {
@@ -211,6 +228,7 @@ export default function AiSettingsClient({ initialConfig, loadError }: AiSetting
                         <Tabs.Tab value="models" leftSection={<IconBolt size={14} />}>엔진/모델</Tabs.Tab>
                         <Tabs.Tab value="translation" leftSection={<IconLanguage size={14} />}>번역</Tabs.Tab>
                         <Tabs.Tab value="budget" leftSection={<IconCoin size={14} />}>예산·UTM</Tabs.Tab>
+                        <Tabs.Tab value="usage" leftSection={<IconChartHistogram size={14} />}>사용량</Tabs.Tab>
                     </Tabs.List>
 
                     {/* ════════ API 키 탭 ════════ */}
@@ -477,6 +495,88 @@ export default function AiSettingsClient({ initialConfig, loadError }: AiSetting
                                     </SimpleGrid>
                                 </Stack>
                             </Paper>
+                        </Stack>
+                    </Tabs.Panel>
+                    {/* ════════ 사용량 탭 ════════ */}
+                    <Tabs.Panel value="usage" pt="md">
+                        <Stack gap="lg">
+                            <Group justify="space-between">
+                                <div>
+                                    <Text fw={700}>월별 AI 호출 사용량</Text>
+                                    <Text size="xs" c="dimmed">
+                                        최근 6개월 — kind/engine 별 호출 수 + 추정 비용 (DALL-E $0.04/장, Imagen $0.02/장).
+                                        무료 엔진 (Pollinations / Gemini Flash 무료tier / Groq / Ollama) 은 비용 0.
+                                    </Text>
+                                </div>
+                                <Button
+                                    variant="subtle"
+                                    leftSection={<IconRefresh size={14} />}
+                                    onClick={loadUsage}
+                                    loading={usageBusy}
+                                >
+                                    새로고침
+                                </Button>
+                            </Group>
+
+                            {!usage && <Loader />}
+                            {usage && usage.every((m) => m.totalCalls === 0) && (
+                                <Alert color="gray" icon={<IconInfoCircle size={16} />}>
+                                    아직 사용 기록이 없어요. 캠페인 생성 시 AI 캡션·이미지를 사용하면 여기 카운터가 누적됩니다.
+                                </Alert>
+                            )}
+                            {usage && usage.some((m) => m.totalCalls > 0) && (
+                                <Stack gap="md">
+                                    {usage.map((m: any) => (
+                                        <Paper key={m.monthKey} withBorder p="md" radius="md">
+                                            <Group justify="space-between" mb="xs">
+                                                <Text fw={700}>{m.monthKey}</Text>
+                                                <Group gap="md">
+                                                    <Badge variant="light">호출 {m.totalCalls.toLocaleString()}회</Badge>
+                                                    <Badge variant="light" color={m.totalCostUsd > 0 ? 'orange' : 'green'}>
+                                                        예상 비용 ${m.totalCostUsd.toFixed(2)}
+                                                    </Badge>
+                                                </Group>
+                                            </Group>
+                                            {m.rows.length === 0 ? (
+                                                <Text size="xs" c="dimmed">호출 없음</Text>
+                                            ) : (
+                                                <Table verticalSpacing={4} fz="sm">
+                                                    <Table.Thead>
+                                                        <Table.Tr>
+                                                            <Table.Th>종류</Table.Th>
+                                                            <Table.Th>엔진</Table.Th>
+                                                            <Table.Th ta="right">호출수</Table.Th>
+                                                            <Table.Th ta="right">예상 비용</Table.Th>
+                                                        </Table.Tr>
+                                                    </Table.Thead>
+                                                    <Table.Tbody>
+                                                        {m.rows.map((r: any, idx: number) => (
+                                                            <Table.Tr key={`${m.monthKey}-${idx}`}>
+                                                                <Table.Td>
+                                                                    <Badge size="sm" variant="dot" color={
+                                                                        r.kind === 'image_gen' ? 'teal' :
+                                                                        r.kind === 'translate' ? 'cyan' :
+                                                                        r.kind === 'caption' ? 'violet' : 'gray'
+                                                                    }>
+                                                                        {r.kind}
+                                                                    </Badge>
+                                                                </Table.Td>
+                                                                <Table.Td><Text size="sm">{r.engine}</Text></Table.Td>
+                                                                <Table.Td ta="right">{r.count.toLocaleString()}</Table.Td>
+                                                                <Table.Td ta="right">
+                                                                    {r.estimatedCostUsd > 0
+                                                                        ? <Text size="sm" c="orange">${r.estimatedCostUsd.toFixed(2)}</Text>
+                                                                        : <Text size="sm" c="dimmed">$0 (무료)</Text>}
+                                                                </Table.Td>
+                                                            </Table.Tr>
+                                                        ))}
+                                                    </Table.Tbody>
+                                                </Table>
+                                            )}
+                                        </Paper>
+                                    ))}
+                                </Stack>
+                            )}
                         </Stack>
                     </Tabs.Panel>
                 </Tabs>
