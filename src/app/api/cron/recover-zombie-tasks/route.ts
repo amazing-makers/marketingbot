@@ -5,7 +5,7 @@ const ZOMBIE_TIMEOUT_MS = 10 * 60 * 1000; // 10분
 
 /**
  * 좀비 task 복구 cron
- * 실행: 매 5분 (vercel.json schedule: */5 * * * *)
+ * 실행: 매 5분 (vercel.json schedule: '*\/5 * * * *')
  *
  * 10분 이상 RUNNING 으로 남아있는 task = 에이전트가 응답 안 한 좀비.
  * → FAILED 로 복구하여 사용자가 다시 시도 가능하게.

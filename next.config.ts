@@ -15,7 +15,6 @@ export default sentryEnabled
       widenClientFileUpload: true,
       reactComponentAnnotation: { enabled: true },
       tunnelRoute: '/monitoring',
-      hideSourceMaps: true,
       disableLogger: true,
       automaticVercelMonitors: true,
     })
