@@ -4,7 +4,6 @@ import {
     IconSparkles, IconAlertTriangle, IconLifebuoy, IconChecklist,
     IconBrandInstagram, IconArticle, IconBrandFacebook, IconBrandThreads, IconUsersGroup
 } from '@tabler/icons-react';
-import Link from 'next/link';
 
 export const metadata = {
     title: '사용 안내 - 마케팅봇',
@@ -110,7 +109,7 @@ export default function HelpPage() {
                             <Stack gap={4} ml="md">
                                 <Text size="sm">• 가입 직후 자동으로 표시되는 <strong>온보딩 화면</strong></Text>
                                 <Text size="sm">• 대시보드 상단 헤더의 <strong>"라이센스" 위젯</strong> 클릭</Text>
-                                <Text size="sm">• <Anchor component={Link} href="/dashboard/agent">에이전트 관리 페이지</Anchor></Text>
+                                <Text size="sm">• <Anchor href="/dashboard/agent">에이전트 관리 페이지</Anchor></Text>
                                 <Text size="sm">• 가입 환영 이메일</Text>
                             </Stack>
                             <Paper p="sm" bg="yellow.0" withBorder>
@@ -127,7 +126,7 @@ export default function HelpPage() {
                     <Section icon={<IconDownload size={20} />} title="3. 에이전트 설치" id="agent">
                         <Stack gap="sm">
                             <Text>
-                                <Anchor component={Link} href="/dashboard/agent">에이전트 관리</Anchor> 페이지에서 Windows 인스톨러를 다운로드 → 설치 → 실행.
+                                <Anchor href="/dashboard/agent">에이전트 관리</Anchor> 페이지에서 Windows 인스톨러를 다운로드 → 설치 → 실행.
                             </Text>
                             <Stack gap={4}>
                                 <Text size="sm" fw={600}>설치 절차</Text>
@@ -153,7 +152,7 @@ export default function HelpPage() {
                     <Section icon={<IconPlugConnected size={20} />} title="4. 채널 연결" id="channels">
                         <Stack gap="sm">
                             <Text>
-                                <Anchor component={Link} href="/dashboard/channels">채널 관리</Anchor>에서 자동 게시할 SNS 계정을 등록.
+                                <Anchor href="/dashboard/channels">채널 관리</Anchor>에서 자동 게시할 SNS 계정을 등록.
                             </Text>
                             <Text size="sm" c="dimmed">현재 지원 채널 (5종)</Text>
                             <Stack gap="xs">
@@ -185,7 +184,7 @@ export default function HelpPage() {
                             <Stack gap={4}>
                                 <Text size="sm" fw={600}>가장 빠른 방법: 템플릿</Text>
                                 <Text size="sm">
-                                    <Anchor component={Link} href="/dashboard/campaigns/templates">템플릿 갤러리</Anchor>에서
+                                    <Anchor href="/dashboard/campaigns/templates">템플릿 갤러리</Anchor>에서
                                     업종별 템플릿(음식점/미용실/카페 등 10종)을 선택 → 변수만 채우면 자동으로 본문 완성.
                                 </Text>
                             </Stack>
@@ -193,7 +192,7 @@ export default function HelpPage() {
                             <Stack gap={4}>
                                 <Text size="sm" fw={600}>직접 작성</Text>
                                 <Text size="sm">
-                                    <Anchor component={Link} href="/dashboard/campaigns/new">새 캠페인</Anchor>에서:
+                                    <Anchor href="/dashboard/campaigns/new">새 캠페인</Anchor>에서:
                                 </Text>
                                 <Stack gap={2} ml="md">
                                     <Text size="sm">1. 캠페인 이름 입력</Text>
@@ -281,7 +280,7 @@ export default function HelpPage() {
                             <Box>
                                 <Text fw={600} size="sm">Q. 환불 가능한가요?</Text>
                                 <Text size="sm" c="dimmed" mt={4}>
-                                    결제 후 7일 내 미사용 시 100% 환불. 사용 중에도 일할 계산. 자세한 내용은 <Anchor component={Link} href="/legal/refund">환불정책</Anchor> 참고.
+                                    결제 후 7일 내 미사용 시 100% 환불. 사용 중에도 일할 계산. 자세한 내용은 <Anchor href="/legal/refund">환불정책</Anchor> 참고.
                                 </Text>
                             </Box>
                         </Stack>
