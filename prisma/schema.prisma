@@ -37,6 +37,8 @@ enum ChannelType {
   // 블로그 — 한국·글로벌
   TISTORY
   WORDPRESS
+  // HTTP-only API 채널 (에이전트 거치지 않고 Vercel 서버에서 직접 publish)
+  TELEGRAM
 }
 
 enum ChannelStatus {
@@ -93,6 +95,12 @@ model MarketingChannel {
   accountName           String
   encryptedCredentials  String        @db.Text
   status                ChannelStatus @default(PENDING_AUTH)
+  // 다지역 발행 — sns-auto-platform 의 "계정 region 별 자동 언어 라우팅" 포팅.
+  // region: korea/usa/japan/china/europe/latam/middle_east/africa/india/southeast_asia/russia/oceania
+  // language: ko/en/ja/zh/ar/es/pt/fr/de/ru/hi/id/th/vi
+  // 한 캠페인이 여러 region 채널에 발행되면 translator.translateForRegions 가 자동 번역.
+  region                String        @default("korea")
+  language              String        @default("ko")
   lastUsedAt            DateTime?
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
@@ -101,6 +109,7 @@ model MarketingChannel {
 
   @@index([userId])
   @@index([type])
+  @@index([region])
 }
 
 model Campaign {

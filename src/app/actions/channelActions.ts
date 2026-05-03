@@ -30,6 +30,8 @@ export async function listChannels() {
 export async function createChannel(data: {
   type: ChannelType;
   accountName: string;
+  region?: string;
+  language?: string;
   credentials: any;
 }) {
   const user = await getSessionUser();
@@ -42,6 +44,8 @@ export async function createChannel(data: {
       userId: user.id!,
       type: data.type,
       accountName: data.accountName,
+      region: data.region || 'korea',
+      language: data.language || 'ko',
       encryptedCredentials,
     },
   });
@@ -63,6 +67,8 @@ export async function createChannel(data: {
 
 export async function updateChannel(id: string, data: {
   accountName?: string;
+  region?: string;
+  language?: string;
   credentials?: any;
   status?: any;
 }) {
@@ -70,6 +76,8 @@ export async function updateChannel(id: string, data: {
 
   const updateData: any = {};
   if (data.accountName) updateData.accountName = data.accountName;
+  if (data.region) updateData.region = data.region;
+  if (data.language) updateData.language = data.language;
   if (data.status) updateData.status = data.status;
   if (data.credentials) {
     // AES-256-GCM 재암호화 적용
@@ -93,4 +101,18 @@ export async function deleteChannel(id: string) {
 
   revalidatePath("/dashboard/channels");
   return { success: true };
+}
+
+/**
+ * Telegram bot token 유효성 빠른 검증 — getMe 호출.
+ * 채널 등록 전 토큰 오타/만료 즉시 발견.
+ */
+export async function verifyTelegramToken(botToken: string): Promise<{
+  ok: boolean;
+  username?: string;
+  error?: string;
+}> {
+  await getSessionUser();
+  const { verifyTelegramCredentials } = await import("@/lib/publishers/telegram");
+  return verifyTelegramCredentials(botToken);
 }
