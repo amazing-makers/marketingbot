@@ -21,12 +21,19 @@ import { decryptJSON } from '@/lib/crypto/aes';
 import { publishToTelegram, type TelegramCredentials } from './telegram';
 import { publishToWordPress, type WordPressCredentials } from './wordpress';
 import { publishToDiscord, type DiscordCredentials } from './discord';
+import { publishToLinkedIn, type LinkedInCredentials } from './linkedin';
+import { publishToX, type XCredentials } from './x';
+import { publishToYouTube, type YouTubeCredentials } from './youtube';
 
 // HTTP-only 발행 가능 채널 (클라우드 직접 처리)
+// YouTube: 현재 STUB (수동 업로드 안내만). 동영상 자동 업로드는 Phase 7 예정.
 export const CLOUD_PUBLISHED_CHANNELS = new Set<ChannelType>([
     'TELEGRAM',
     'WORDPRESS',
     'DISCORD',
+    'LINKEDIN',
+    'X',
+    'YOUTUBE',
 ] as ChannelType[]);
 
 export interface PublishOutcome {
@@ -145,6 +152,107 @@ export async function publishTask(taskId: string): Promise<PublishOutcome> {
                     externalId: result.messageId,
                 };
             }
+            case 'LINKEDIN': {
+                try {
+                    const result = await publishToLinkedIn({
+                        credentials: creds as LinkedInCredentials,
+                        text: task.content,
+                    });
+                    await prisma.scheduledTask.update({
+                        where: { id: taskId },
+                        data: {
+                            status: 'SUCCESS',
+                            executedAt: new Date(),
+                            errorLog: `LinkedIn ${result.postUrn}`,
+                        },
+                    });
+                    await prisma.marketingChannel.update({
+                        where: { id: channel.id },
+                        data: { lastUsedAt: new Date(), status: 'ACTIVE' },
+                    });
+                    return {
+                        handler: 'cloud',
+                        success: true,
+                        externalId: result.postUrn,
+                    };
+                } catch (e: any) {
+                    const isAuthError = /401|invalid_token|expired/i.test(e?.message || '');
+                    if (isAuthError) {
+                        await prisma.marketingChannel.update({
+                            where: { id: channel.id },
+                            data: { status: 'PENDING_AUTH' },
+                        });
+                    }
+                    throw e;
+                }
+            }
+            case 'X': {
+                try {
+                    const result = await publishToX({
+                        credentials: creds as XCredentials,
+                        text: task.content,
+                    });
+                    await prisma.scheduledTask.update({
+                        where: { id: taskId },
+                        data: {
+                            status: 'SUCCESS',
+                            executedAt: new Date(),
+                            errorLog: `X tweet_id=${result.tweetId}`,
+                        },
+                    });
+                    await prisma.marketingChannel.update({
+                        where: { id: channel.id },
+                        data: { lastUsedAt: new Date(), status: 'ACTIVE' },
+                    });
+                    return {
+                        handler: 'cloud',
+                        success: true,
+                        externalId: result.tweetId,
+                    };
+                } catch (e: any) {
+                    const isAuthError = /401|invalid_token|expired/i.test(e?.message || '');
+                    if (isAuthError) {
+                        await prisma.marketingChannel.update({
+                            where: { id: channel.id },
+                            data: { status: 'PENDING_AUTH' },
+                        });
+                    }
+                    throw e;
+                }
+            }
+            case 'YOUTUBE': {
+                // 현재 stub — manual upload 안내만. SUCCESS 가 아닌 PENDING 으로 두고 안내 메시지 errorLog 에 기록.
+                try {
+                    const result = await publishToYouTube({
+                        credentials: creds as YouTubeCredentials,
+                        text: task.content,
+                        videoUrl: extractPhotoUrl(task.mediaUrls), // 동영상도 mediaUrls 첫 항목에서 추출
+                    });
+                    // 자동 발행 X 라 SUCCESS 가 아니라 사용자 안내 메시지 + 'manual' 표시
+                    await prisma.scheduledTask.update({
+                        where: { id: taskId },
+                        data: {
+                            status: 'FAILED', // 자동 발행 안 했으므로 사용자 행동 필요 = FAILED
+                            executedAt: new Date(),
+                            errorLog: result.message + (result.studioUrl ? `\n${result.studioUrl}` : ''),
+                        },
+                    });
+                    return {
+                        handler: 'cloud',
+                        success: false,
+                        error: 'YouTube 자동 업로드 미지원 — Studio 에서 수동 업로드 필요',
+                    };
+                } catch (e: any) {
+                    const isAuthError = /401|invalid_token|expired/i.test(e?.message || '');
+                    if (isAuthError) {
+                        await prisma.marketingChannel.update({
+                            where: { id: channel.id },
+                            data: { status: 'PENDING_AUTH' },
+                        });
+                    }
+                    throw e;
+                }
+            }
             default: {
                 // CLOUD_PUBLISHED_CHANNELS 에 추가했지만 스위치 케이스 없는 경우 (개발자 실수 방지)
                 throw new Error(`클라우드 핸들러 미구현 채널: ${channel.type}`);
@@ -220,3 +328,6 @@ export async function publishCloudReadyTasks(opts?: {
 export { publishToTelegram, type TelegramCredentials };
 export { publishToWordPress, type WordPressCredentials };
 export { publishToDiscord, type DiscordCredentials };
+export { publishToLinkedIn, type LinkedInCredentials };
+export { publishToX, type XCredentials };
+export { publishToYouTube, type YouTubeCredentials };

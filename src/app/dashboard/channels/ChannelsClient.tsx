@@ -117,6 +117,13 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
       // Discord (Phase 5 — webhook URL only)
       webhookUrl: '',
       discordUsername: '',
+      // LinkedIn (Phase 6 — access token + optional URN)
+      linkedinAccessToken: '',
+      linkedinAuthorUrn: '',
+      // X / Twitter (Phase 6 — OAuth 2.0 user access token)
+      xAccessToken: '',
+      xRefreshToken: '',
+      xClientId: '',
     },
   });
 
@@ -159,6 +166,13 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
       } else if (values.type === 'DISCORD') {
         credentials.webhookUrl = values.webhookUrl;
         if (values.discordUsername) credentials.username = values.discordUsername;
+      } else if (values.type === 'LINKEDIN') {
+        credentials.accessToken = values.linkedinAccessToken;
+        if (values.linkedinAuthorUrn) credentials.authorUrn = values.linkedinAuthorUrn;
+      } else if (values.type === 'X') {
+        credentials.accessToken = values.xAccessToken;
+        if (values.xRefreshToken) credentials.refreshToken = values.xRefreshToken;
+        if (values.xClientId) credentials.clientId = values.xClientId;
       } else {
         credentials.username = values.username;
         credentials.password = values.password;
@@ -341,6 +355,45 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
                   description="비워두면 Discord 웹후크 기본 이름 사용"
                   placeholder="마케팅봇"
                   {...form.getInputProps('discordUsername')}
+                />
+              </>
+            ) : form.values.type === 'LINKEDIN' ? (
+              <>
+                <TextInput
+                  label="Access Token"
+                  type="password"
+                  description={<>LinkedIn Developer Portal → 앱 생성 → OAuth 2.0 → Token Generator (60일 유효). <Anchor href="https://www.linkedin.com/developers/tools/oauth/token-generator" target="_blank" rel="noreferrer" size="xs">발급 가이드 <IconExternalLink size={10} /></Anchor>. r_liteprofile + w_member_social scope 필수.</>}
+                  placeholder="AQXa..."
+                  {...form.getInputProps('linkedinAccessToken')}
+                />
+                <TextInput
+                  label="Author URN (선택)"
+                  description={<>비워두면 자동 추출 (개인 계정). 회사 페이지 발행 시 <code>urn:li:organization:1234567</code> 형식으로 입력.</>}
+                  placeholder="urn:li:person:abc123 또는 urn:li:organization:1234567"
+                  {...form.getInputProps('linkedinAuthorUrn')}
+                />
+              </>
+            ) : form.values.type === 'X' ? (
+              <>
+                <TextInput
+                  label="Access Token"
+                  type="password"
+                  description={<>X Developer Portal → 앱 생성 → User authentication settings → OAuth 2.0 → Token Generator. scope: tweet.write users.read offline.access. <Anchor href="https://developer.x.com" target="_blank" rel="noreferrer" size="xs">발급 가이드 <IconExternalLink size={10} /></Anchor>. ⚠️ Free tier 월 1500 tweet 한도</>}
+                  placeholder="b2QwS..."
+                  {...form.getInputProps('xAccessToken')}
+                />
+                <TextInput
+                  label="Refresh Token (선택, 자동 갱신용)"
+                  type="password"
+                  description="offline.access scope 로 발급 시 함께 받음. 만료 시 자동 갱신 가능."
+                  placeholder=""
+                  {...form.getInputProps('xRefreshToken')}
+                />
+                <TextInput
+                  label="Client ID (선택, 자동 갱신용)"
+                  description="OAuth 2.0 Client ID. refresh token 갱신 시 필수."
+                  placeholder=""
+                  {...form.getInputProps('xClientId')}
                 />
               </>
             ) : (
