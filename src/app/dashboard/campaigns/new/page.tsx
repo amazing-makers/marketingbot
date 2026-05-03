@@ -14,7 +14,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { IconBulb, IconX, IconSparkles, IconPhoto, IconCopy, IconCheck, IconDownload } from '@tabler/icons-react';
 import { listChannels } from '@/app/actions/channelActions';
-import { createCampaign, loadCampaignDraft, saveCampaignDraft, clearCampaignDraft, suggestPrimeTimeForChannels } from '@/app/actions/campaignActions';
+import { createCampaign, createSplitCampaign, loadCampaignDraft, saveCampaignDraft, clearCampaignDraft, suggestPrimeTimeForChannels } from '@/app/actions/campaignActions';
 import { generateCampaignCaption, generateCampaignImage } from '@/app/actions/aiContentActions';
 import { MarketingChannel } from '@prisma/client';
 import { getTemplateById, applyTemplateVariables } from '@/lib/campaign-templates';
@@ -71,6 +71,9 @@ function NewCampaignPageInner() {
       sourceLanguage: 'ko',
       autoTranslate: true,
       scheduledAt: new Date(Date.now() + 10 * 60 * 1000),
+      // 분할 발행 모드 (Phase 6)
+      splitMode: false,
+      splitCount: 3,
     },
     validate: {
       name: (value) => (value.length < 2 ? '캠페인 이름을 입력하세요.' : null),
@@ -254,21 +257,40 @@ function NewCampaignPageInner() {
   const handleSubmit = async (values: typeof form.values) => {
     setLoading(true);
     try {
-      await createCampaign({
-        name: values.name,
-        description: values.description,
-        channelIds: values.channelIds,
-        content: values.content,
-        sourceLanguage: values.sourceLanguage,
-        autoTranslate: values.autoTranslate,
-        scheduledAt: values.scheduledAt,
-      });
-      // 성공 → 드래프트 삭제 (사용 끝났으므로)
-      await clearCampaignDraft().catch(() => {});
-      notifications.show({ title: '성공', message: '캠페인이 예약되었습니다.', color: 'green' });
+      if (values.splitMode) {
+        // 분할 발행 모드 — N개 황금시간대로 자동 예약
+        const result = await createSplitCampaign({
+          name: values.name,
+          description: values.description,
+          channelIds: values.channelIds,
+          content: values.content,
+          sourceLanguage: values.sourceLanguage,
+          autoTranslate: values.autoTranslate,
+          splitCount: values.splitCount,
+        });
+        await clearCampaignDraft().catch(() => {});
+        notifications.show({
+          title: '🎯 분할 발행 예약',
+          message: `${result.region} 황금시간대 ${result.splitCount}회 × ${values.channelIds.length}채널 = ${result.totalTasks}건 예약됨`,
+          color: 'violet',
+          autoClose: 7000,
+        });
+      } else {
+        await createCampaign({
+          name: values.name,
+          description: values.description,
+          channelIds: values.channelIds,
+          content: values.content,
+          sourceLanguage: values.sourceLanguage,
+          autoTranslate: values.autoTranslate,
+          scheduledAt: values.scheduledAt,
+        });
+        await clearCampaignDraft().catch(() => {});
+        notifications.show({ title: '성공', message: '캠페인이 예약되었습니다.', color: 'green' });
+      }
       router.push('/dashboard/campaigns');
-    } catch (error) {
-      notifications.show({ title: '오류', message: '캠페인 생성 중 실패했습니다.', color: 'red' });
+    } catch (error: any) {
+      notifications.show({ title: '오류', message: error?.message || '캠페인 생성 중 실패했습니다.', color: 'red' });
     } finally {
       setLoading(false);
     }
@@ -450,42 +472,86 @@ function NewCampaignPageInner() {
               </Paper>
             )}
 
-            <Stack gap={4}>
-              <Group justify="space-between" align="flex-end">
-                <Text size="sm" fw={500}>예약 발행 시각 <Text span c="red">*</Text></Text>
-                <Tooltip label="선택한 채널의 region 별 황금 시간대 (다음 출근/점심/저녁 피크)에 자동 예약" withArrow>
-                  <Button
-                    size="compact-xs"
-                    variant="light"
-                    color="violet"
-                    leftSection={<IconBulb size={12} />}
-                    disabled={form.values.channelIds.length === 0}
-                    onClick={async () => {
-                      try {
-                        const res = await suggestPrimeTimeForChannels(form.values.channelIds);
-                        form.setFieldValue('scheduledAt', new Date(res.suggested));
-                        notifications.show({
-                          title: '🎯 황금시간대 적용',
-                          message: `${res.region} → ${res.suggestedLocal} (${res.hourLabels.join(' · ')} 중)`,
-                          color: 'violet',
-                          autoClose: 5000,
-                        });
-                      } catch (e: any) {
-                        notifications.show({ title: '오류', message: e?.message || '추천 실패', color: 'red' });
-                      }
-                    }}
-                  >
-                    🎯 최적 시간 자동
-                  </Button>
-                </Tooltip>
+            {/* 분할 발행 토글 (Phase 6) */}
+            <Paper withBorder p="sm" radius="md" bg={form.values.splitMode ? 'violet.0' : undefined}>
+              <Group justify="space-between" wrap="nowrap" align="center">
+                <Box style={{ flex: 1 }}>
+                  <Group gap={6}>
+                    <Text size="sm" fw={700}>🔀 분할 발행 모드</Text>
+                    {form.values.splitMode && <Badge size="xs" color="violet" variant="filled">ON</Badge>}
+                  </Group>
+                  <Text size="xs" c="dimmed">같은 콘텐츠를 region 의 다음 N개 황금시간대에 자동 분할 예약</Text>
+                </Box>
+                <Button
+                  size="xs"
+                  variant={form.values.splitMode ? 'filled' : 'light'}
+                  color="violet"
+                  onClick={() => form.setFieldValue('splitMode', !form.values.splitMode)}
+                >
+                  {form.values.splitMode ? '단일 발행으로' : '분할 활성화'}
+                </Button>
               </Group>
-              <DateTimePicker
-                placeholder="날짜와 시간을 선택하세요"
-                required
-                minDate={new Date()}
-                {...form.getInputProps('scheduledAt')}
-              />
-            </Stack>
+              {form.values.splitMode && (
+                <Group mt="sm" gap="xs" align="flex-end">
+                  <Text size="sm">분할 횟수:</Text>
+                  <Group gap={4}>
+                    {[2, 3, 5, 7, 10].map(n => (
+                      <Button
+                        key={n}
+                        size="compact-xs"
+                        variant={form.values.splitCount === n ? 'filled' : 'light'}
+                        color="violet"
+                        onClick={() => form.setFieldValue('splitCount', n)}
+                      >
+                        {n}회
+                      </Button>
+                    ))}
+                  </Group>
+                  <Text size="xs" c="violet.7" fw={600} ml="auto">
+                    채널 {form.values.channelIds.length}개 × {form.values.splitCount}회 = {form.values.channelIds.length * form.values.splitCount}건 예약
+                  </Text>
+                </Group>
+              )}
+            </Paper>
+
+            {!form.values.splitMode && (
+              <Stack gap={4}>
+                <Group justify="space-between" align="flex-end">
+                  <Text size="sm" fw={500}>예약 발행 시각 <Text span c="red">*</Text></Text>
+                  <Tooltip label="선택한 채널의 region 별 황금 시간대 (다음 출근/점심/저녁 피크)에 자동 예약" withArrow>
+                    <Button
+                      size="compact-xs"
+                      variant="light"
+                      color="violet"
+                      leftSection={<IconBulb size={12} />}
+                      disabled={form.values.channelIds.length === 0}
+                      onClick={async () => {
+                        try {
+                          const res = await suggestPrimeTimeForChannels(form.values.channelIds);
+                          form.setFieldValue('scheduledAt', new Date(res.suggested));
+                          notifications.show({
+                            title: '🎯 황금시간대 적용',
+                            message: `${res.region} → ${res.suggestedLocal} (${res.hourLabels.join(' · ')} 중)`,
+                            color: 'violet',
+                            autoClose: 5000,
+                          });
+                        } catch (e: any) {
+                          notifications.show({ title: '오류', message: e?.message || '추천 실패', color: 'red' });
+                        }
+                      }}
+                    >
+                      🎯 최적 시간 자동
+                    </Button>
+                  </Tooltip>
+                </Group>
+                <DateTimePicker
+                  placeholder="날짜와 시간을 선택하세요"
+                  required
+                  minDate={new Date()}
+                  {...form.getInputProps('scheduledAt')}
+                />
+              </Stack>
+            )}
 
             <Group justify="space-between" mt="xl">
               <Group gap="xs">

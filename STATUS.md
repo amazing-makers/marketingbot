@@ -1,6 +1,6 @@
 # MarketingBot Project Status
 
-**최근 갱신**: 2026-05-04 (Phase 5 라운드 — Discord publisher + 자동 청소 cron + prime-time 추천)
+**최근 갱신**: 2026-05-04 (Phase 6 라운드 — R2 + Sharp + 오버레이 + LinkedIn/X/YouTube + Workspace + 분할발행)
 
 ## 🚀 진행 현황
 
@@ -47,41 +47,84 @@
 - **P4-e**: Webhook 외부 트리거 — UserWebhookToken 모델, 32자 hex 토큰, 분당 60·일 200 rate limit, /api/webhook/[token]/publish 엔드포인트 + UI 토큰 발급/관리 [DONE]
 
 ### Phase 5 — Discord + 운영 자동화 + 스마트 스케줄링
-- **P5-a**: Discord webhook publisher (HTTP-only)
-  - `lib/publishers/discord.ts` — sendMessage / embed (이미지 첨부 시 자동), 2000자 분할
-  - dispatcher index.ts 에 case 'DISCORD' 추가, CLOUD_PUBLISHED_CHANNELS 에 등록
-  - schema ChannelType 에 DISCORD enum 추가
-  - 채널 등록 폼에 webhook URL + 발신자명 입력 + BotFather 비슷한 발급 가이드 [DONE]
-- **P5-b**: 자동 청소 cron (`/api/cron/cleanup-drafts`)
-  - 30일+ 미수정 CampaignDraft 삭제 (사용자가 잊은 임시 저장본 정리)
-  - 만료된 TranslationCache 행 삭제
-  - 7일+ UserWebhookHit (rate limit 카운터) 삭제
-  - vercel.json schedule: '0 18 * * *' UTC = 매일 03:00 KST [DONE]
-- **P5-c**: prime-time 자동 예약 추천
-  - `lib/scheduling/prime-time.ts` — 12 region × 평균 3-4 황금시간대 매핑 (Sprout/HubSpot 보고서 기준)
-  - 다음 prime-time 1개 / N개 / 라벨 추천 함수
-  - server action `suggestPrimeTimeForChannels(channelIds)` — 다중 채널의 region 중 가장 빠른 황금시간대 선택
-  - 캠페인 생성 폼에 "🎯 최적 시간 자동" 버튼 (DateTimePicker 위에 위치) [DONE]
+- **P5-a**: Discord webhook publisher (HTTP-only) [DONE]
+- **P5-b**: 자동 청소 cron (`/api/cron/cleanup-drafts`) [DONE]
+- **P5-c**: prime-time 자동 예약 추천 [DONE]
+
+### Phase 6 — 미디어 인프라 + 추가 publisher + 다중 브랜드
+- **P6-1**: Cloudflare R2 (S3-compatible) 통합 [DONE]
+  - `lib/storage/r2.ts` — S3Client 캐시, uploadToR2 / deleteFromR2 / verifyR2Config
+  - aiContentActions: AI 이미지 생성 시 R2 설정 시 자동 업로드 → URL 반환, 미설정 시 dataUrl 폴백
+  - storageActions: 사용자 업로드 / 삭제 / 테스트 server actions
+  - 환경변수: R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_URL
+- **P6-2**: Sharp 이미지 비율 자동 변환 [DONE]
+  - `lib/media/image-resize.ts` — 6 preset (square 1:1, portrait 4:5, portrait_tall 2:3, vertical_story 9:16, landscape 16:9, wide 1.91:1)
+  - CHANNEL_PRESETS — 21 채널별 권장 preset 매핑
+  - resizeImage / resizeForChannels (병렬 unique) / inspectImage
+  - storageActions.processImageForChannels: 1 이미지 → 채널들의 unique preset 으로 병렬 변환 → R2 업로드 → byChannelId 매핑 반환
+- **P6-3**: 텍스트 오버레이 (서버 sharp + SVG composite) [DONE]
+  - `lib/media/text-overlay.ts` — applyTextOverlay (위치 top/center/bottom × left/center/right, 그림자, 박스 배경, 줄바꿈)
+  - storageActions.addTextOverlay → R2 업로드 또는 inline 폴백
+- **P6-4**: LinkedIn UGC Posts publisher (HTTP-only, OAuth 2.0) [DONE]
+  - `lib/publishers/linkedin.ts` — text-only (3000자), /v2/me 자동 URN 추출, visibility PUBLIC/CONNECTIONS
+  - 401 → channel.status PENDING_AUTH 자동 전환
+- **P6-5**: X (Twitter) /2/tweets publisher [DONE]
+  - `lib/publishers/x.ts` — text-only, OAuth 2.0 user access token (Bearer), refresh_token 자동 갱신
+  - weighted 280 chars 검증 (한글 = 2 weight)
+  - ⚠️ Free tier 월 1500 tweet 한도
+- **P6-6**: YouTube — STUB (수동 업로드 안내만) [DONE]
+  - `lib/publishers/youtube.ts` — 동영상 자동 업로드 미지원 (Vercel serverless 50MB body 한도)
+  - /channels?mine=true 로 채널 정보 검증, Studio 링크 알림만 보내고 task FAILED 처리
+  - Phase 7 후보: 에이전트가 사용자 PC 영상 직접 업로드 (Vercel quota 우회)
+- **P6-7**: Workspace 모델 골격 (다중 브랜드) [DONE]
+  - schema: Workspace (id/name/slug/owner/plan/brand) + WorkspaceMember (role 4종)
+  - User.currentWorkspaceId 옵션 컬럼
+  - actions/workspaceActions.ts: createWorkspace / listMyWorkspaces / switchWorkspace / inviteWorkspaceMember / removeWorkspaceMember / getCurrentWorkspace
+  - 현재 채널/캠페인은 user.id 기준 (호환성). 별도 단계에서 workspaceId 마이그레이션 예정
+- **P6-8**: prime-time 분할 발행 UI [DONE]
+  - server action `createSplitCampaign` — 1 캠페인 + 다음 N개 황금시간대 × M채널 = N×M ScheduledTask 생성
+  - 캠페인 생성 폼: "🔀 분할 발행 모드" 토글 + 횟수(2/3/5/7/10회) + 채널×횟수 카운터 표시
 
 ## 📊 sns-auto-platform 비전 대비 진행률
-- 인프라·AI 코어: **~95%** (lib + UI + 캠페인 통합 완료)
-- 발행 어댑터: **~42%** (8/19 — IG · 네이버블로그 · 네이버카페 · FB · Threads + Telegram + WordPress + Discord)
-- 미디어 변환 (오버레이/비율/영상): **~5%**
-- 자동화 워크플로우 (폴더감시·prime-time·webhook·retry): **~50%** (prime-time 추천 + cleanup cron 추가)
-- 운영 기능 (다중브랜드·사용량UI·자동청소·드래프트): **~55%** (자동 청소 cron 추가)
+- 인프라·AI 코어: **~95%**
+- 발행 어댑터: **~58%** (11/19 — IG · 네이버블로그 · 네이버카페 · FB · Threads + Telegram + WordPress + Discord + LinkedIn + X + YouTube[stub])
+- 미디어 변환 (오버레이/비율/영상): **~70%** (Sharp 6 preset + 채널 자동 매핑 + SVG 오버레이 추가, 영상 변환은 미지원)
+- 자동화 워크플로우 (폴더감시·prime-time·webhook·retry): **~75%** (prime-time 추천 + 분할 발행)
+- 운영 기능 (다중브랜드·사용량UI·자동청소·드래프트): **~75%** (Workspace 골격 추가)
+- **미디어 호스팅 (R2/CDN)**: **~80%** 신규
 
-## 📌 다음 단계 (Phase 6 후보)
-1. **R2 통합**: AI 이미지 생성 → R2 자동 업로드 → 캠페인 mediaUrls 자동 채우기 → Telegram/WordPress/Discord photoUrl 그대로 사용 가능
-2. **이미지 비율 자동 변환**: ffmpeg or Sharp — 채널별 4:5 / 9:16 / 16:9 자동 크롭
-3. **텍스트 오버레이 편집기**: 이미지 위 자막
-4. **추가 publisher**: LinkedIn (회사 OAuth), X (paid API), YouTube (Data API v3) — 무료/저비용 우선
-5. **다중 브랜드**: 한 시스템에서 여러 회사 격리 (User → Workspace 모델 도입)
-6. **prime-time 분할 발행**: 같은 콘텐츠 N회 황금시간대 분할 (server action `suggestPrimeTimeSeriesForChannel` 이미 준비됨, UI 만 붙이면 됨)
+## 📌 다음 단계 (Phase 7 후보)
+1. **YouTube 동영상 자동 업로드**: 에이전트(Tauri) 가 사용자 PC 영상 직접 업로드 — Vercel 50MB 우회
+2. **이미지/영상 미디어 라이브러리 UI**: R2 업로드 객체 목록 + 재사용 + 삭제
+3. **LinkedIn / X / YouTube OAuth flow**: 사용자가 토큰 직접 입력 대신 "연결" 버튼으로 OAuth flow
+4. **Workspace 채널·캠페인 마이그레이션**: 채널/캠페인 모델에 workspaceId 추가 + 데이터 분리 (기존 user.id 데이터 보존)
+5. **클라이언트 사이드 캔버스 편집기**: 텍스트 오버레이 편집 (Konva 또는 fabric.js)
+6. **영상 비율 자동 변환**: ffmpeg-wasm 또는 외부 처리 서비스 (Vercel Pro 1024MB Edge 함수)
+7. **추가 publisher**: WhatsApp Business / TikTok / Pinterest (모두 OAuth/비즈니스 인증 필요)
 
 ## ⚠️ 사용자 액션 필요 (운영 적용)
-1. **Prisma migrate**: `npx prisma migrate deploy` — DISCORD enum 추가 마이그레이션 1개 신규 + 누적분
-2. **Vercel CRON_SECRET**: 새 cron 보안 위해 환경변수 등록 (없으면 dev 모드만 동작) — cleanup-drafts 도 같은 secret 사용
-3. **무료 AI 키 등록**: `/dashboard/settings/ai` 에서 Gemini + Groq + DeepL (각 발급 5분, 무료)
-4. **첫 클라우드 채널**: Telegram (BotFather) / WordPress (Application Password) / **Discord** (서버 → 채널 → 웹후크) — 5분 내 자동 발행 (에이전트 불필요)
-5. **(선택) Webhook 토큰**: `/dashboard/settings/webhooks` 에서 발급 → Zapier · Make · 자체 자동화 연동
-6. **(선택) prime-time 사용**: 캠페인 생성 시 채널 선택 후 "🎯 최적 시간 자동" 버튼 한 번에 region 별 황금시간대 적용
+
+### 필수
+1. **Prisma migrate**: `npx prisma migrate deploy` — DISCORD enum + Workspace + WorkspaceMember 마이그레이션 (총 2개 신규 + 누적분)
+2. **Vercel CRON_SECRET**: 새 cron 보안 위해 환경변수 등록 — cleanup-drafts 도 같은 secret 사용
+
+### 권장 (무료/저비용)
+3. **무료 AI 키 등록**: `/dashboard/settings/ai` 에서 Gemini + Groq + DeepL (각 5분, 무료)
+4. **R2 환경변수 등록 (이미지 자동 업로드 활성화)**:
+   - Cloudflare R2 → 버킷 생성 → API 토큰 발급 (Object Read & Write)
+   - Vercel: R2_ENDPOINT (https://<account>.r2.cloudflarestorage.com), R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_URL (Custom Domain 또는 r2.dev)
+   - 무료 10GB / 월 10M egress 무제한 (S3 와 차별점)
+5. **첫 클라우드 채널** (각 5분):
+   - Telegram (BotFather)
+   - WordPress (Application Password)
+   - Discord (서버 → 채널 → 웹후크)
+
+### 고급 (인증 필요)
+6. **LinkedIn**: Developer Portal → OAuth 2.0 Token Generator (60일 유효) → 마케팅봇 채널 추가
+7. **X (Twitter)**: Developer Portal → OAuth 2.0 user access token → 마케팅봇 채널 추가 (⚠️ Free 1500 tweet/월)
+8. **YouTube**: 현재 stub (수동 업로드 알림만). Phase 7 에서 에이전트 자동 업로드 예정
+
+### 선택 기능
+9. **Webhook 토큰**: `/dashboard/settings/webhooks` 에서 발급 → Zapier/Make 연동
+10. **prime-time**: 캠페인 생성 폼에서 "🎯 최적 시간 자동" 버튼 또는 "🔀 분할 발행 모드" 활성화
+11. **Workspace 다중 브랜드**: server actions 준비됨 (`/dashboard/workspaces` UI 는 향후 추가)

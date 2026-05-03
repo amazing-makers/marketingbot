@@ -317,3 +317,121 @@ export async function suggestPrimeTimeSeriesForChannel(channelId: string, count:
     region,
   };
 }
+
+/**
+ * 캠페인 1개 + 다음 N개 황금시간대로 ScheduledTask N×채널수 생성.
+ *
+ * 동작:
+ *   1. 첫 번째 채널의 region 기준 다음 N 개 prime-time 계산
+ *   2. 캠페인 1개 (status=SCHEDULED, scheduledAt=첫 시각)
+ *   3. 각 시각 × 각 채널 → ScheduledTask 생성 (총 N × 채널수)
+ *   4. 채널 region 별 자동 번역도 그대로 적용
+ *
+ * 사용 시나리오: 같은 콘텐츠를 한국 9시·12시·19시 3회 자동 예약.
+ */
+export async function createSplitCampaign(data: {
+  name: string;
+  description?: string;
+  channelIds: string[];
+  content: string;
+  mediaUrls?: string[];
+  /** 분할 횟수 (2-12) */
+  splitCount: number;
+  sourceLanguage?: string;
+  autoTranslate?: boolean;
+}) {
+  const user = await getSessionUser();
+
+  if (data.channelIds.length === 0) throw new Error('채널을 1개 이상 선택하세요');
+  const splitCount = Math.max(2, Math.min(data.splitCount, 12));
+
+  const sourceLanguage = data.sourceLanguage || 'ko';
+  const autoTranslate = data.autoTranslate !== false;
+
+  // 채널 정보
+  const channels = await prisma.marketingChannel.findMany({
+    where: { id: { in: data.channelIds }, userId: user.id! },
+  });
+  if (channels.length !== data.channelIds.length) {
+    throw new Error('일부 채널을 찾을 수 없습니다.');
+  }
+
+  // 첫 번째 채널의 region 기준으로 N 개 prime-time 계산
+  const baseRegion = (channels[0].region || 'korea') as Region;
+  const primeTimes = suggestPrimeTimes(baseRegion, splitCount);
+
+  // 채널별 번역 (1회만 — 모든 시각에 동일 콘텐츠 사용)
+  const channelContents = await Promise.all(channels.map(async (ch) => {
+    if (!autoTranslate || !ch.language || ch.language === sourceLanguage) {
+      return { channelId: ch.id, content: data.content };
+    }
+    try {
+      const translated = await translateText({
+        text: data.content,
+        targetLang: ch.language,
+        sourceLang: sourceLanguage,
+        platform: ch.type.toLowerCase(),
+        region: ch.region || '',
+        userId: user.id!,
+      });
+      return { channelId: ch.id, content: translated };
+    } catch (e) {
+      console.warn(`[createSplitCampaign] 번역 실패, 원문 사용:`, e);
+      return { channelId: ch.id, content: data.content };
+    }
+  }));
+
+  const campaign = await prisma.$transaction(async (tx) => {
+    const newCampaign = await tx.campaign.create({
+      data: {
+        userId: user.id!,
+        name: data.name,
+        description: (data.description ? data.description + ' · ' : '') + `분할 발행 ${splitCount}회 (${baseRegion} 황금시간대)`,
+        status: 'SCHEDULED',
+        scheduledAt: primeTimes[0],
+      },
+    });
+
+    // N 시각 × 채널 수 = N × M tasks
+    const tasks: any[] = [];
+    for (const time of primeTimes) {
+      for (const { channelId, content } of channelContents) {
+        tasks.push({
+          campaignId: newCampaign.id,
+          channelId,
+          content,
+          mediaUrls: data.mediaUrls ? (data.mediaUrls as any) : undefined,
+          scheduledAt: time,
+          status: TaskStatus.PENDING,
+        });
+      }
+    }
+    await tx.scheduledTask.createMany({ data: tasks });
+    return newCampaign;
+  });
+
+  // PostHog
+  import("@/lib/analytics/posthog-server").then(({ captureEvent }) => {
+    import("@/lib/analytics/events").then(({ EVENTS }) => {
+      captureEvent({
+        distinctId: user.id!,
+        event: EVENTS.CAMPAIGN_CREATED,
+        properties: {
+          campaignId: campaign.id,
+          channelCount: data.channelIds.length,
+          splitCount,
+          mode: 'split',
+        },
+      }).catch(() => {});
+    });
+  });
+
+  revalidatePath('/dashboard/campaigns');
+  return {
+    campaignId: campaign.id,
+    splitCount,
+    times: primeTimes.map(t => t.toISOString()),
+    region: baseRegion,
+    totalTasks: primeTimes.length * channelContents.length,
+  };
+}

@@ -115,6 +115,11 @@ model User {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
+  // Phase 6 — 활성 Workspace ID (다중 브랜드 지원).
+  // null 이면 user 기본 (개인) 워크스페이스 사용. 채널/캠페인 모델은
+  // 추후 단계에서 workspaceId 컬럼 추가 (현재는 userId 유지 — 호환성).
+  currentWorkspaceId String?
+
   channels       MarketingChannel[]
   campaigns      Campaign[]
   agents         AgentInstance[]
@@ -122,8 +127,47 @@ model User {
   aiConfig       UserAiConfig?
   drafts         CampaignDraft[]
   webhookTokens  UserWebhookToken[]
+  ownedWorkspaces Workspace[] @relation("WorkspaceOwner")
+  workspaceMemberships WorkspaceMember[]
 
   emailPreferences Json @default("{\"failures\": true, \"weekly\": true, \"welcome\": true}")
+}
+
+// 다중 브랜드/회사 격리 (Phase 6) — 한 사용자가 여러 워크스페이스에 소속 가능.
+// 향후 채널/캠페인/license 모델에 workspaceId 추가하여 데이터 분리.
+// 현재는 모델만 정의 + 사용자가 직접 워크스페이스 생성/전환 가능.
+model Workspace {
+  id        String            @id @default(cuid())
+  name      String
+  slug      String            @unique // URL 친화 식별자 (e.g., 'my-startup')
+  ownerId   String
+  owner     User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  // 플랜·결제는 향후 Workspace 단위로 이전. 현재는 User 단위 라이센스 그대로.
+  plan      String            @default("FREE")
+  // 메타: 로고/색상/설명 (브랜드 정보)
+  logoUrl   String?
+  brandColor String?          @default("#1D1D1B")
+  description String?
+  members   WorkspaceMember[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@index([ownerId])
+}
+
+// Workspace 의 멤버십 — userId × workspaceId unique. role 별 권한.
+model WorkspaceMember {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        String    @default("MEMBER") // OWNER | ADMIN | MEMBER | VIEWER
+  invitedBy   String?
+  joinedAt    DateTime  @default(now())
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
 }
 
 model License {
