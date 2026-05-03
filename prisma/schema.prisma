@@ -25,6 +25,18 @@ enum ChannelType {
   KAKAO
   EMAIL
   SMS
+  // 글로벌 SNS — 캡션 포맷 지원, 발행 어댑터는 단계별 추가
+  WEIBO
+  XIAOHONGSHU
+  VK
+  LINE
+  WHATSAPP
+  PINTEREST
+  DOUYIN
+  LINKEDIN
+  // 블로그 — 한국·글로벌
+  TISTORY
+  WORDPRESS
 }
 
 enum ChannelStatus {
@@ -56,6 +68,7 @@ model User {
   campaigns Campaign[]
   agents    AgentInstance[]
   licenses  License[]
+  aiConfig  UserAiConfig?
 
   emailPreferences Json @default("{\"failures\": true, \"weekly\": true, \"welcome\": true}")
 }
@@ -140,4 +153,65 @@ model AgentInstance {
   createdAt   DateTime  @default(now())
 
   @@index([userId])
+}
+
+// ════════════════════════════════════════════════════════════
+//  AI / Translate / Image-gen — sns-auto-platform 포팅
+// ════════════════════════════════════════════════════════════
+
+// 사용자별 AI 엔진 설정 (sns-auto-platform engine_config.py 의 Redis 저장을 Prisma로 포팅)
+// - aiPriority: 전역 폴백 순서 (예: ['gemini','groq','ollama','claude'])
+// - aiModels: 엔진별 선택 모델
+// - aiKeys: 사용자가 직접 등록한 API 키 (env보다 우선) — 단방향 암호화 필요 (lib/crypto encryptCredentials 재사용)
+// - taskPriorities: task별 폴백 순서 (vision/blog_long/sns_short/micro_280/business_cta/video_meta/image_gen/video_gen)
+// - translationPriority: 번역 엔진 순서 (deepl/libretranslate/ai)
+// - utm: 발행 시 자동 append할 UTM 파라미터
+// - monthlyBudgetUsd: 0=한도없음, >0이면 초과 시 유료 엔진 자동 skip
+model UserAiConfig {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aiPriority           Json     @default("[\"gemini\",\"groq\",\"ollama\",\"claude\"]")
+  aiModels             Json     @default("{}")
+  aiKeysEncrypted      String?  @db.Text
+  taskPriorities       Json     @default("{}")
+  translationPriority  Json     @default("[\"deepl\",\"libretranslate\",\"ai\"]")
+  deeplPro             Boolean  @default(false)
+  utm                  Json     @default("{}")
+  monthlyBudgetUsd     Float    @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+// 번역 캐시 (sns-auto-platform Redis 'translate:cache:*' 를 Prisma로 포팅)
+// hash = md5("{sourceLang}|{targetLang}|{text}") — 같은 (src,tgt,text)는 캐시 재사용
+// expiresAt 기준 만료 (기본 30일). 만료된 행은 cron에서 정리.
+model TranslationCache {
+  id          String   @id @default(cuid())
+  hash        String   @unique
+  sourceLang  String
+  targetLang  String
+  translated  String   @db.Text
+  engine      String   // deepl/libretranslate/ai-groq/ai-claude/ai-ollama
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+
+  @@index([expiresAt])
+}
+
+// 사용량 카운터 (sns-auto-platform Redis 'usage:*' 키 포팅) — 예산 초과 판정용
+// scope: 'global' | userId — 전역과 사용자별 동시 추적 가능
+// kind: 'image_gen' | 'video_gen' | 'translate' | 'caption'
+// engine: 'pollinations' | 'openai' | 'gemini' | 'groq' | 'claude' | 'ollama' | 'deepl' | 'libretranslate' | 'ai'
+model AiUsageCounter {
+  id        String   @id @default(cuid())
+  scope     String   // 'global' or userId
+  kind      String   // image_gen / video_gen / translate / caption
+  engine    String
+  count     Int      @default(0)
+  monthKey  String   // 'YYYY-MM' for budget reset
+  updatedAt DateTime @updatedAt
+
+  @@unique([scope, kind, engine, monthKey])
+  @@index([scope, monthKey])
 }
