@@ -4,6 +4,7 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { generateCaption, type CaptionResult, PLATFORM_FORMATS } from '@/lib/ai/caption';
 import { generateImage } from '@/lib/ai/image-gen';
+import { isR2Configured, uploadToR2 } from '@/lib/storage/r2';
 import type { ChannelType } from '@prisma/client';
 
 /**
@@ -110,20 +111,27 @@ export interface GenerateCampaignImageInput {
 }
 
 /**
- * AI 이미지 생성 → base64 data URL 반환 (즉시 미리보기 가능).
- * R2 업로드는 별도 — 이번 라운드: 미리보기 + 다운로드만.
+ * AI 이미지 생성.
+ *   - R2 설정되어 있으면: 자동 업로드 → public URL 반환 (캠페인 mediaUrls 에 그대로 사용 가능)
+ *   - R2 미설정: base64 data URL 만 반환 (미리보기/다운로드 용도. Telegram/WordPress/Discord 직접
+ *     첨부는 안 됨 — http URL 만 받음)
  */
 export async function generateCampaignImage(input: GenerateCampaignImageInput): Promise<{
     success: boolean;
+    /** R2 public URL (R2 설정 시) — 캠페인 mediaUrls 에 그대로 저장. */
+    url?: string;
+    /** base64 data URL — 미리보기 + R2 미설정 폴백. */
     dataUrl?: string;
     engine?: string;
     sizeKb?: number;
+    /** 'r2' | 'inline' — UI 가 어디로 저장됐는지 표시. */
+    storage: 'r2' | 'inline';
     error?: string;
 }> {
     const session = await auth();
-    if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
+    if (!session?.user?.id) return { success: false, storage: 'inline', error: 'Unauthorized' };
 
-    if (!input.prompt?.trim()) return { success: false, error: '이미지 프롬프트를 입력하세요.' };
+    if (!input.prompt?.trim()) return { success: false, storage: 'inline', error: '이미지 프롬프트를 입력하세요.' };
 
     try {
         const aspect = input.aspect || 'square';
@@ -140,15 +148,48 @@ export async function generateCampaignImage(input: GenerateCampaignImageInput): 
         });
 
         const dataUrl = `data:${r.mimeType};base64,${r.bytes.toString('base64')}`;
+        const sizeKb = Math.round(r.bytes.length / 1024);
+
+        // R2 설정되어 있으면 자동 업로드 → URL 반환
+        if (isR2Configured()) {
+            try {
+                const uploaded = await uploadToR2({
+                    data: r.bytes,
+                    keyPrefix: `users/${session.user.id}/ai-images/${aspect}`,
+                    contentType: r.mimeType,
+                });
+                return {
+                    success: true,
+                    url: uploaded.url,
+                    dataUrl, // 미리보기용 — 클라이언트가 즉시 보여줄 때 url 보다 빠름
+                    engine: r.engine,
+                    sizeKb,
+                    storage: 'r2',
+                };
+            } catch (e: any) {
+                // R2 업로드 실패 → inline 폴백
+                console.warn('[R2 upload failed, falling back to inline]', e?.message);
+                return {
+                    success: true,
+                    dataUrl,
+                    engine: r.engine,
+                    sizeKb,
+                    storage: 'inline',
+                };
+            }
+        }
+
+        // R2 미설정 → 기존 inline 동작
         return {
             success: true,
             dataUrl,
             engine: r.engine,
-            sizeKb: Math.round(r.bytes.length / 1024),
+            sizeKb,
+            storage: 'inline',
         };
     } catch (e: any) {
         console.error('[generateCampaignImage]', e);
-        return { success: false, error: e?.message || 'AI 이미지 생성 실패' };
+        return { success: false, storage: 'inline', error: e?.message || 'AI 이미지 생성 실패' };
     }
 }
 
