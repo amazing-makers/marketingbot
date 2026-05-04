@@ -96,6 +96,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       keywords: ['series', '자동화', '시리즈', 'auto'],
     },
     {
+      id: 'ab-test',
+      label: '🧪 A/B 테스트',
+      description: '같은 메시지 N개 변형 → 동시 발행 → 성과 비교',
+      onClick: () => router.push('/dashboard/campaigns/ab'),
+      leftSection: <IconBolt size={18} />,
+      keywords: ['ab', 'test', '실험', 'split'],
+    },
+    {
       id: 'new-campaign',
       label: '새 캠페인 작성',
       description: 'AI 자동 + 황금시간대 + 분할 발행',

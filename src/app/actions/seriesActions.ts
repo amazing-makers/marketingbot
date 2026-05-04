@@ -153,6 +153,85 @@ export async function deleteSeries(id: string): Promise<{ ok: boolean }> {
     return { ok: true };
 }
 
+/**
+ * 시리즈 상세 + 이 시리즈가 생성한 캠페인들의 task 통계 + 최근 발행 이력.
+ */
+export async function getSeriesDetail(id: string) {
+    const user = await getSessionUser();
+    const series = await prisma.campaignSeries.findFirst({
+        where: { id, userId: user.id! },
+    });
+    if (!series) throw new Error('시리즈 미존재');
+
+    // 이 시리즈에서 만들어진 캠페인들 (description 매칭으로 단순 식별 — 향후 series.id 컬럼 추가 시 정확)
+    const campaigns = await prisma.campaign.findMany({
+        where: {
+            userId: user.id!,
+            name: { startsWith: `[시리즈] ${series.name}` },
+        },
+        include: {
+            tasks: {
+                include: { channel: { select: { type: true, accountName: true } } },
+                orderBy: { scheduledAt: 'desc' },
+            },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+    });
+
+    // task 통계
+    const allTasks = campaigns.flatMap(c => c.tasks);
+    const stats = {
+        total: allTasks.length,
+        pending: allTasks.filter(t => t.status === 'PENDING').length,
+        running: allTasks.filter(t => t.status === 'RUNNING').length,
+        success: allTasks.filter(t => t.status === 'SUCCESS').length,
+        failed: allTasks.filter(t => t.status === 'FAILED').length,
+        cancelled: allTasks.filter(t => t.status === 'CANCELLED').length,
+    };
+
+    // 최근 발행 30건
+    const recentTasks = allTasks.slice(0, 30).map(t => ({
+        id: t.id,
+        campaignId: t.campaignId,
+        content: t.content.slice(0, 200),
+        channelType: t.channel.type,
+        accountName: t.channel.accountName,
+        status: t.status,
+        scheduledAt: t.scheduledAt.toISOString(),
+        executedAt: t.executedAt?.toISOString() || null,
+        errorLog: t.errorLog?.slice(0, 300) || null,
+    }));
+
+    return {
+        series: {
+            id: series.id,
+            name: series.name,
+            mode: series.mode,
+            scheduleType: series.scheduleType,
+            intervalHours: series.intervalHours,
+            dailyTimes: (series.dailyTimes as any) || [],
+            weeklyDays: (series.weeklyDays as any) || [],
+            totalPosts: series.totalPosts,
+            completedPosts: series.completedPosts,
+            failedPosts: series.failedPosts,
+            mediaPool: (series.mediaPool as any) || [],
+            contentSeed: series.contentSeed,
+            briefData: (series.briefData as any) || {},
+            channelIds: (series.channelIds as any) || [],
+            status: series.status,
+            startAt: series.startAt.toISOString(),
+            endAt: series.endAt?.toISOString() || null,
+            nextRunAt: series.nextRunAt?.toISOString() || null,
+            lastRunAt: series.lastRunAt?.toISOString() || null,
+            lastError: series.lastError,
+        },
+        stats,
+        recentTasks,
+        campaignCount: campaigns.length,
+    };
+}
+
 // ════════════════════════════════════════════════════════════
 //  스케줄 계산 (다음 nextRunAt)
 // ════════════════════════════════════════════════════════════
@@ -414,6 +493,84 @@ async function produceContent(series: any): Promise<{ content: string; mediaUrls
     }
 
     return { content: content.trim(), mediaUrls };
+}
+
+/**
+ * A/B 테스트 — 같은 시드 본문 → AI 가 N개 변형 생성 → 사용자가 선택한 채널들에 즉시 동시 발행.
+ *
+ * 향후 강화:
+ *   - 발행 후 24-48시간 후 좋아요/댓글 수집 (에이전트 또는 Instagram Graph API)
+ *   - 가장 성과 좋은 변형 자동 선택 → 비슷한 변형 시리즈로 확장
+ */
+export async function createAbTest(input: {
+    name: string;
+    channelIds: string[];
+    seed: string;
+    variantCount: number;        // 2-5
+    brief?: ContentBrief;
+}): Promise<{ campaignIds: string[]; variants: { content: string }[] }> {
+    const user = await getSessionUser();
+    if (!input.seed?.trim()) throw new Error('시드 본문을 입력하세요');
+    if (input.channelIds.length === 0) throw new Error('채널을 1개 이상 선택하세요');
+    const n = Math.max(2, Math.min(5, input.variantCount));
+
+    // N개 변형 생성 (병렬)
+    const variants = await Promise.all(
+        Array.from({ length: n }).map(async (_, i) => {
+            try {
+                const r = await generateCaption({
+                    platforms: ['instagram'],
+                    userHint: `다음 본문을 같은 의도로 다르게 표현 — 변형 ${i + 1}/${n} (각 변형은 서로 다른 후킹/CTA/구조 사용):\n"${input.seed}"`,
+                    language: 'ko',
+                    userId: user.id!,
+                    brief: input.brief,
+                });
+                const first = Object.values(r)[0];
+                let text = first?.text || input.seed;
+                if (first?.hashtags?.length) {
+                    text += '\n\n' + first.hashtags.map((t: string) => `#${t}`).join(' ');
+                }
+                return { content: text.trim() };
+            } catch {
+                return { content: input.seed };
+            }
+        })
+    );
+
+    const channels = await prisma.marketingChannel.findMany({
+        where: { id: { in: input.channelIds }, userId: user.id! },
+    });
+
+    // 각 변형마다 캠페인 1개 + 채널별 task 생성
+    const campaignIds: string[] = [];
+    for (let i = 0; i < variants.length; i++) {
+        const v = variants[i];
+        const campaign = await prisma.$transaction(async (tx) => {
+            const c = await tx.campaign.create({
+                data: {
+                    userId: user.id!,
+                    name: `[A/B] ${input.name} — 변형 ${String.fromCharCode(65 + i)}`,
+                    description: `A/B 테스트 ${i + 1}/${variants.length}`,
+                    status: 'SCHEDULED',
+                    scheduledAt: new Date(),
+                },
+            });
+            await tx.scheduledTask.createMany({
+                data: channels.map(ch => ({
+                    campaignId: c.id,
+                    channelId: ch.id,
+                    content: v.content,
+                    scheduledAt: new Date(),
+                    status: TaskStatus.PENDING,
+                })),
+            });
+            return c;
+        });
+        campaignIds.push(campaign.id);
+    }
+
+    revalidatePath('/dashboard/campaigns');
+    return { campaignIds, variants };
 }
 
 /**

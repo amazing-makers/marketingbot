@@ -111,9 +111,21 @@ export default function SeriesListClient({ items: initial }: { items: Item[] }) 
                         const progress = (s.completedPosts / s.totalPosts) * 100;
                         const isBusy = busy === s.id;
                         return (
-                            <Card key={s.id} withBorder radius="md" p="md" style={{
-                                borderLeft: `4px solid var(--mantine-color-${mode.color}-6)`,
-                            }}>
+                            <Card
+                                key={s.id}
+                                withBorder
+                                radius="md"
+                                p="md"
+                                style={{
+                                    borderLeft: `4px solid var(--mantine-color-${mode.color}-6)`,
+                                    cursor: 'pointer',
+                                }}
+                                onClick={(e) => {
+                                    // 메뉴 클릭은 router 막음
+                                    if ((e.target as HTMLElement).closest('button, [role="menuitem"]')) return;
+                                    window.location.href = `/dashboard/campaigns/series/${s.id}`;
+                                }}
+                            >
                                 <Group justify="space-between" wrap="nowrap" mb="xs">
                                     <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
                                         <Text fw={700} truncate>{s.name}</Text>
