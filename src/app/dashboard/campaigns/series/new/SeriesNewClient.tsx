@@ -20,39 +20,39 @@ import { MarketingChannel } from '@prisma/client';
 const MODE_OPTIONS = [
     {
         value: 'POOL_VARY',
-        emoji: '🎨',
-        title: '사진풀 + AI 캡션 변형',
-        desc: '사진을 미리 풀로 업로드 → 매번 다른 사진 + AI 가 다른 캡션 작성',
-        bestFor: '식당 메뉴 사진 30장으로 한 달간 다양한 캡션 운영',
+        emoji: '🖼️',
+        title: '내 사진 + 매번 다른 글',
+        desc: '사진을 미리 여러 장 올려두면 매번 1장씩 사용. 글은 AI 가 매번 새로 작성.',
+        bestFor: '예: 음식점 메뉴 사진 30장으로 한 달 내내 다양한 멘트 자동',
     },
     {
         value: 'AI_FRESH',
         emoji: '✨',
-        title: 'AI 매번 신규 (이미지+캡션)',
-        desc: '이미지·캡션 모두 매번 AI 가 새로 생성 (가장 다양, 노이즈 위험)',
-        bestFor: '브랜드 분위기만 가이드, 구체 콘텐츠는 AI 에 위임',
+        title: '전부 AI 가 새로 만들기',
+        desc: '사진도 글도 매번 AI 가 새로 생성. 분위기만 잡아주면 알아서 만듭니다.',
+        bestFor: '예: 브랜드 톤만 정해두고 다양성 최대로',
     },
     {
         value: 'POOL_SIMILAR',
-        emoji: '🔄',
-        title: '사진풀, 캡션 비슷',
-        desc: '사진은 풀에서 순환, 캡션은 같은 톤·스타일 (브랜드 일관성)',
-        bestFor: '같은 행사 알림을 매번 약간만 다르게',
+        emoji: '🔁',
+        title: '내 사진 + 일관된 글',
+        desc: '사진은 풀에서 순서대로 사용, 글은 비슷한 톤·스타일 유지 (브랜드 일관성)',
+        bestFor: '예: 매번 거의 같은 메시지를 약간만 바꿔서',
     },
     {
         value: 'PARAPHRASE',
         emoji: '📝',
-        title: '본문만 약간씩 변형',
-        desc: '시드 본문을 매번 다르게 표현 (이미지 없음)',
-        bestFor: '같은 메시지를 여러 번 반복 노출',
+        title: '글만 매번 살짝씩 다르게 (사진 없음)',
+        desc: '미리 작성한 글을 AI 가 매번 표현만 약간 바꿔서 게시 (이미지 안 사용)',
+        bestFor: '예: 같은 행사 알림을 반복 노출',
     },
 ];
 
 const SCHEDULE_OPTIONS = [
-    { value: 'INTERVAL', label: '⏱️ 시간 간격 (예: 3시간마다)' },
-    { value: 'DAILY', label: '📅 매일 정해진 시각 (예: 9시·19시)' },
-    { value: 'WEEKLY', label: '📆 주간 패턴 (예: 월·수·금)' },
-    { value: 'FIXED_COUNT', label: '🎯 N개 균등 분배 (시작~종료 사이 자동)' },
+    { value: 'INTERVAL', label: '⏱️ 몇 시간마다 1번씩 (예: 3시간마다)' },
+    { value: 'DAILY', label: '📅 매일 정해진 시간에 (예: 매일 9시·19시)' },
+    { value: 'WEEKLY', label: '📆 정해진 요일에만 (예: 월·수·금)' },
+    { value: 'FIXED_COUNT', label: '🎯 기간 안에 균등하게 (예: 5일 동안 30개)' },
 ];
 
 export default function SeriesNewClient() {
@@ -149,31 +149,31 @@ export default function SeriesNewClient() {
                 <Group gap={6}>
                     <Anchor component={Link} href="/dashboard/campaigns/series" size="sm">← 시리즈 목록</Anchor>
                 </Group>
-                <Title order={2}>🤖 새 자동화 시리즈</Title>
+                <Title order={2}>🔁 새 자동 발행 만들기</Title>
                 <Text c="dimmed">
-                    한 번 설정 → 정해진 일정에 따라 자동 캠페인 생성·발행. cron 이 5분마다 다음 발행 처리.
+                    한 번만 설정해두면 정해진 시간마다 알아서 게시물을 만들어 올려줍니다. (5분마다 자동 처리)
                 </Text>
             </Stack>
 
             <Stepper active={step} onStepClick={setStep} mb="xl">
-                <Stepper.Step label="기본" description="이름·채널" />
-                <Stepper.Step label="콘텐츠 모드" description="POOL/AI/PARAPHRASE" />
-                <Stepper.Step label="스케줄" description="시간·횟수" />
-                <Stepper.Step label="검토·시작" description="확인 후 발행" />
+                <Stepper.Step label="1. 기본 정보" description="이름·채널" />
+                <Stepper.Step label="2. 어떻게 만들지" description="사진·글 방식" />
+                <Stepper.Step label="3. 언제 올릴지" description="시간·횟수" />
+                <Stepper.Step label="4. 확인·시작" description="검토 후 발행" />
             </Stepper>
 
             <Paper withBorder p="lg" radius="md">
                 {step === 0 && (
                     <Stack gap="md">
                         <TextInput
-                            label="시리즈 이름"
+                            label="이 자동 발행의 이름 (나만 보는 것)"
                             placeholder="예: 봄 시즌 30일 자동 운영"
                             required
                             {...form.getInputProps('name')}
                         />
                         <MultiSelect
-                            label="발행 채널 (멀티 선택)"
-                            placeholder={channels.length === 0 ? '채널을 먼저 추가하세요' : '채널 선택'}
+                            label="어떤 채널에 올릴까요? (여러 개 선택 가능)"
+                            placeholder={channels.length === 0 ? '먼저 채널을 등록해주세요' : '채널 선택'}
                             data={channels.map(c => ({
                                 value: c.id,
                                 label: `[${c.type}] ${c.accountName} · ${(c as any).language?.toUpperCase() || 'KO'}`,
@@ -184,10 +184,10 @@ export default function SeriesNewClient() {
                             {...form.getInputProps('channelIds')}
                         />
                         {/* AI 브리프 (간소화 버전) */}
-                        <Divider label="AI 콘텐츠 브리프 (선택)" labelPosition="left" />
+                        <Divider label="🪄 AI에게 알려주기 (선택, 입력하면 글 품질 ↑)" labelPosition="left" />
                         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
                             <Select
-                                label="콘텐츠 목적"
+                                label="어떤 종류의 글인가요?"
                                 placeholder="선택"
                                 clearable
                                 data={[
@@ -199,38 +199,39 @@ export default function SeriesNewClient() {
                                 {...form.getInputProps('briefPurpose')}
                             />
                             <Select
-                                label="톤"
+                                label="말투는 어떻게?"
                                 placeholder="선택"
                                 clearable
                                 data={[
-                                    { value: 'casual', label: '😊 친근' },
-                                    { value: 'professional', label: '👔 전문' },
-                                    { value: 'humorous', label: '🤣 유머' },
-                                    { value: 'trendy', label: '🔥 트렌디' },
-                                    { value: 'warm', label: '💕 감성' },
+                                    { value: 'casual', label: '😊 친근하게 (반말 친구처럼)' },
+                                    { value: 'professional', label: '👔 격식 있게 (정중)' },
+                                    { value: 'humorous', label: '🤣 유머러스하게' },
+                                    { value: 'trendy', label: '🔥 MZ 트렌디 (이모지 많이)' },
+                                    { value: 'warm', label: '💕 따뜻·감성적으로' },
                                 ]}
                                 {...form.getInputProps('briefTone')}
                             />
                             <Select
-                                label="타겟"
+                                label="누구를 향한 글?"
                                 placeholder="선택"
                                 clearable
                                 data={[
-                                    { value: 'mz_2030', label: '20-30 MZ' },
-                                    { value: 'mid_3040', label: '30-40' },
-                                    { value: 'b2b', label: 'B2B' },
-                                    { value: 'general', label: '일반' },
+                                    { value: 'mz_2030', label: '20-30대 MZ세대' },
+                                    { value: 'mid_3040', label: '30-40대 (가족·실용)' },
+                                    { value: 'b2b', label: '회사·전문가 (B2B)' },
+                                    { value: 'general', label: '일반인 (다양한 연령)' },
                                 ]}
                                 {...form.getInputProps('briefAudience')}
                             />
-                            <TextInput label="업종" placeholder="예: 카페" {...form.getInputProps('briefIndustry')} />
+                            <TextInput label="어떤 업종/분야인가요?" placeholder="예: 카페, IT, 헬스장" {...form.getInputProps('briefIndustry')} />
                         </SimpleGrid>
                     </Stack>
                 )}
 
                 {step === 1 && (
                     <Stack gap="md">
-                        <Text size="sm" fw={700}>콘텐츠 모드 선택</Text>
+                        <Text size="sm" fw={700}>📦 사진과 글을 어떻게 만들까요?</Text>
+                        <Text size="xs" c="dimmed">아래 4가지 방식 중 하나를 선택하세요. 각 방식의 차이는 카드에 설명되어 있어요.</Text>
                         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
                             {MODE_OPTIONS.map(m => (
                                 <Card
@@ -258,22 +259,58 @@ export default function SeriesNewClient() {
                         {/* 모드별 추가 입력 */}
                         {(form.values.mode === 'POOL_VARY' || form.values.mode === 'POOL_SIMILAR') && (
                             <Box>
-                                <Text size="sm" fw={700} mb={4}>📸 사진 풀 업로드 (R2 권장)</Text>
+                                <Text size="sm" fw={700} mb={4}>📸 사진·영상 추가 (3가지 방법 중 골라서)</Text>
                                 <Text size="xs" c="dimmed" mb="xs">
-                                    이미지를 여러 장 업로드. 각 발행마다 1장씩 라운드로빈으로 사용. R2 미설정 시 inline 은 외부 publisher 에 첨부 안 됨 → R2 설정 권장.
+                                    각 발행마다 1장씩 순서대로 사용해요. R2 클라우드 저장소가 설정되어 있어야 외부 채널에 첨부됩니다 (미설정 시 미리보기만).
                                 </Text>
+
+                                {/* 3가지 추가 방법 안내 */}
+                                <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xs" mb="sm">
+                                    <Card withBorder p="xs" radius="md" style={{ background: 'var(--mantine-color-blue-0)' }}>
+                                        <Group gap={4} mb={2}><Text size="14px">📂</Text><Text size="xs" fw={700}>1. 파일 직접 선택</Text></Group>
+                                        <Text size="10px" c="dimmed">아래 영역에 사진을 끌어다 놓거나 클릭해서 선택</Text>
+                                    </Card>
+                                    <Card withBorder p="xs" radius="md" style={{ background: 'var(--mantine-color-grape-0)' }}>
+                                        <Group gap={4} mb={2}><Text size="14px">📁</Text><Text size="xs" fw={700}>2. 폴더 통째 선택</Text></Group>
+                                        <Text size="10px" c="dimmed">아래의 "폴더 통째 선택" 버튼 → 안의 모든 이미지·영상 자동 추가</Text>
+                                    </Card>
+                                    <Card withBorder p="xs" radius="md" style={{ background: 'var(--mantine-color-violet-0)' }}>
+                                        <Group gap={4} mb={2}><Text size="14px">✨</Text><Text size="xs" fw={700}>3. AI 로 만들기</Text></Group>
+                                        <Text size="10px" c="dimmed">사진이 없으면 AI 가 만들어줘요. 캠페인 작성 페이지의 "AI 이미지 생성" 활용</Text>
+                                    </Card>
+                                </SimpleGrid>
+
                                 <MediaUploader items={mediaPool} onChange={setMediaPool} maxItems={50} />
                             </Box>
                         )}
                         {(form.values.mode === 'POOL_SIMILAR' || form.values.mode === 'PARAPHRASE' || form.values.mode === 'AI_FRESH') && (
                             <Textarea
-                                label="시드 본문 (AI 가 변형/참고)"
-                                placeholder="예: 봄 신메뉴가 출시됐어요! 따뜻한 햇살 아래서 라떼 한 잔..."
+                                label={form.values.mode === 'PARAPHRASE'
+                                    ? '📝 어떤 글을 매번 살짝씩 바꿔서 올릴까요?'
+                                    : form.values.mode === 'POOL_SIMILAR'
+                                        ? '📝 어떤 톤·스타일의 글을 원하세요? (AI 가 이걸 참고해서 일관된 글 작성)'
+                                        : '✨ AI 에게 어떤 분위기·주제로 만들지 알려주세요'
+                                }
+                                placeholder="예: 봄 신메뉴가 출시됐어요! 따뜻한 햇살 아래 한 잔의 여유..."
                                 autosize
                                 minRows={3}
                                 maxRows={8}
                                 {...form.getInputProps('contentSeed')}
                             />
+                        )}
+                        {form.values.mode === 'AI_FRESH' && (
+                            <Card withBorder p="md" radius="md" style={{ background: 'var(--mantine-color-violet-0)', borderColor: 'var(--mantine-color-violet-3)' }}>
+                                <Group gap="sm">
+                                    <Text size="lg">🎬</Text>
+                                    <Stack gap={2}>
+                                        <Text size="sm" fw={700} c="violet.9">AI 영상 자동 생성은 곧 출시 예정</Text>
+                                        <Text size="xs" c="violet.7">
+                                            현재는 AI 이미지만 생성 가능 (Pollinations/DALL-E/Imagen). 영상 생성은 비용·인프라 큼 →
+                                            우선 직접 영상 파일을 업로드하시거나, AI 이미지로 진행 후 추후 출시 시 자동 마이그레이션.
+                                        </Text>
+                                    </Stack>
+                                </Group>
+                            </Card>
                         )}
                     </Stack>
                 )}
@@ -281,15 +318,15 @@ export default function SeriesNewClient() {
                 {step === 2 && (
                     <Stack gap="md">
                         <Select
-                            label="스케줄 유형"
+                            label="언제 올릴까요?"
                             data={SCHEDULE_OPTIONS}
                             allowDeselect={false}
                             {...form.getInputProps('scheduleType')}
                         />
                         {form.values.scheduleType === 'INTERVAL' && (
                             <NumberInput
-                                label="시간 간격 (시간)"
-                                description="발행 간격 — 예: 3 = 3시간마다"
+                                label="몇 시간마다 1번?"
+                                description="예: 3 입력 = 3시간마다 1번씩 자동 발행"
                                 min={1}
                                 max={168}
                                 {...form.getInputProps('intervalHours')}
@@ -297,42 +334,42 @@ export default function SeriesNewClient() {
                         )}
                         {(form.values.scheduleType === 'DAILY' || form.values.scheduleType === 'WEEKLY') && (
                             <TextInput
-                                label="발행 시각 (콤마 구분, HH:mm)"
-                                placeholder="09:00,12:00,19:00"
+                                label="몇 시에 올릴까요? (여러 개는 콤마로 구분, 24시간제 HH:mm)"
+                                placeholder="09:00,12:00,19:00 (= 매일 오전 9시·낮 12시·저녁 7시)"
                                 {...form.getInputProps('dailyTimes')}
                             />
                         )}
                         {form.values.scheduleType === 'WEEKLY' && (
                             <MultiSelect
-                                label="요일"
+                                label="어떤 요일에 올릴까요?"
                                 data={[
-                                    { value: '0', label: '일' },
-                                    { value: '1', label: '월' },
-                                    { value: '2', label: '화' },
-                                    { value: '3', label: '수' },
-                                    { value: '4', label: '목' },
-                                    { value: '5', label: '금' },
-                                    { value: '6', label: '토' },
+                                    { value: '0', label: '일요일' },
+                                    { value: '1', label: '월요일' },
+                                    { value: '2', label: '화요일' },
+                                    { value: '3', label: '수요일' },
+                                    { value: '4', label: '목요일' },
+                                    { value: '5', label: '금요일' },
+                                    { value: '6', label: '토요일' },
                                 ]}
                                 value={form.values.weeklyDays.map(String)}
                                 onChange={(v) => form.setFieldValue('weeklyDays', v.map(Number))}
                             />
                         )}
                         <NumberInput
-                            label="총 발행 수"
-                            description="이 횟수에 도달하면 자동 종료"
+                            label="총 몇 번 올릴까요?"
+                            description="이 숫자만큼 발행되면 자동으로 멈춰요"
                             min={1}
                             max={1000}
                             {...form.getInputProps('totalPosts')}
                         />
                         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
                             <DateTimePicker
-                                label="시작 일시"
+                                label="언제부터 시작할까요?"
                                 {...form.getInputProps('startAt')}
                             />
                             <DateTimePicker
-                                label="종료 일시 (선택)"
-                                placeholder="totalPosts 도달 시 자동 종료"
+                                label="언제까지? (선택)"
+                                placeholder="비워두면 위 횟수 도달 시 자동 종료"
                                 clearable
                                 {...form.getInputProps('endAt')}
                             />
@@ -342,16 +379,16 @@ export default function SeriesNewClient() {
 
                 {step === 3 && (
                     <Stack gap="md">
-                        <Text size="sm" fw={700}>설정 검토</Text>
+                        <Text size="sm" fw={700}>마지막 확인</Text>
                         <Card withBorder radius="md" p="md">
                             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
                                 <Box><Text size="xs" c="dimmed">이름</Text><Text fw={600}>{form.values.name || '미입력'}</Text></Box>
-                                <Box><Text size="xs" c="dimmed">채널</Text><Text fw={600}>{form.values.channelIds.length}개</Text></Box>
-                                <Box><Text size="xs" c="dimmed">모드</Text><Text fw={600}>{selectedMode.emoji} {selectedMode.title}</Text></Box>
-                                <Box><Text size="xs" c="dimmed">스케줄</Text><Text fw={600}>{SCHEDULE_OPTIONS.find(s => s.value === form.values.scheduleType)?.label}</Text></Box>
-                                <Box><Text size="xs" c="dimmed">총 발행</Text><Text fw={600}>{form.values.totalPosts}개</Text></Box>
+                                <Box><Text size="xs" c="dimmed">올릴 채널</Text><Text fw={600}>{form.values.channelIds.length}개</Text></Box>
+                                <Box><Text size="xs" c="dimmed">만드는 방식</Text><Text fw={600}>{selectedMode.emoji} {selectedMode.title}</Text></Box>
+                                <Box><Text size="xs" c="dimmed">언제 올릴지</Text><Text fw={600}>{SCHEDULE_OPTIONS.find(s => s.value === form.values.scheduleType)?.label}</Text></Box>
+                                <Box><Text size="xs" c="dimmed">총 발행 수</Text><Text fw={600}>{form.values.totalPosts}회</Text></Box>
                                 {(form.values.mode === 'POOL_VARY' || form.values.mode === 'POOL_SIMILAR') && (
-                                    <Box><Text size="xs" c="dimmed">사진풀</Text><Text fw={600}>{mediaPool.length}장</Text></Box>
+                                    <Box><Text size="xs" c="dimmed">준비된 사진</Text><Text fw={600}>{mediaPool.length}장</Text></Box>
                                 )}
                             </SimpleGrid>
                         </Card>
@@ -362,7 +399,7 @@ export default function SeriesNewClient() {
                                 onChange={(e) => form.setFieldValue('startNow', e.currentTarget.checked)}
                                 id="startNow"
                             />
-                            <label htmlFor="startNow"><Text size="sm">생성 직후 즉시 시작 (체크 해제 시 DRAFT 로 저장)</Text></label>
+                            <label htmlFor="startNow"><Text size="sm">만들자마자 바로 시작하기 (체크 해제 시 저장만)</Text></label>
                         </Group>
                     </Stack>
                 )}
@@ -370,11 +407,11 @@ export default function SeriesNewClient() {
                 {/* 네비 */}
                 <Group justify="space-between" mt="xl">
                     <Button variant="subtle" disabled={step === 0} onClick={() => setStep(step - 1)}>
-                        이전
+                        ← 이전
                     </Button>
                     {step < 3 ? (
                         <Button onClick={() => setStep(step + 1)} disabled={step === 0 && (form.values.channelIds.length === 0 || !form.values.name)}>
-                            다음
+                            다음 →
                         </Button>
                     ) : (
                         <Button
@@ -385,7 +422,7 @@ export default function SeriesNewClient() {
                             variant="gradient"
                             gradient={{ from: 'violet', to: 'blue' }}
                         >
-                            {form.values.startNow ? '생성하고 즉시 시작' : 'DRAFT 로 저장'}
+                            {form.values.startNow ? '🚀 만들고 바로 시작하기' : '💾 일단 저장만 하기'}
                         </Button>
                     )}
                 </Group>

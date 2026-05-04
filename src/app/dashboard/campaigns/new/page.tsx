@@ -75,7 +75,9 @@ function NewCampaignPageInner() {
   const [imageModal, imageModalCtl] = useDisclosure(false);
   const [imagePrompt, setImagePrompt] = useState('');
   const [imageAspect, setImageAspect] = useState<'square' | 'vertical' | 'horizontal'>('square');
+  const [imageBatchCount, setImageBatchCount] = useState<1 | 3 | 5 | 10>(1);
   const [imgBusy, setImgBusy] = useState(false);
+  const [imgBatchProgress, setImgBatchProgress] = useState<{ done: number; total: number } | null>(null);
 
   // 첨부 미디어 — Dropzone + AI 이미지 모두 동일 배열에 들어옴
   const [media, setMedia] = useState<MediaItem[]>([]);
@@ -287,43 +289,68 @@ function NewCampaignPageInner() {
     setTimeout(() => setCopiedKey(null), 1500);
   };
 
-  // ════ AI 이미지 생성 → media 배열에 자동 추가 ════
+  // ════ AI 이미지 생성 (1장 또는 N장 일괄) → media 배열 자동 추가 ════
   const handleGenerateImage = async () => {
     if (!imagePrompt.trim()) {
       notifications.show({ color: 'orange', title: '프롬프트 필요', message: '이미지 설명을 입력하세요.' });
       return;
     }
     setImgBusy(true);
+    setImgBatchProgress({ done: 0, total: imageBatchCount });
+    let succeeded = 0;
+    let lastEngine: string | undefined;
+    let lastStorage: 'r2' | 'inline' = 'inline';
+
     try {
-      const r = await generateCampaignImage({ prompt: imagePrompt, aspect: imageAspect });
-      if (!r.success || !r.dataUrl) {
-        notifications.show({ color: 'red', title: '생성 실패', message: r.error || '엔진 모두 실패' });
-        return;
+      // 직렬 호출 (병렬 시 무료 엔진 rate limit 위험)
+      for (let i = 0; i < imageBatchCount; i++) {
+        try {
+          // 같은 프롬프트면 비슷한 결과 → 변형 시드 추가
+          const variantPrompt = imageBatchCount > 1
+            ? `${imagePrompt} (variant ${i + 1}/${imageBatchCount})`
+            : imagePrompt;
+          const r = await generateCampaignImage({ prompt: variantPrompt, aspect: imageAspect });
+          if (r.success && r.dataUrl) {
+            const newItem: MediaItem = {
+              id: `ai-${Date.now()}-${i}`,
+              type: 'image',
+              name: `ai-${imageAspect}-${Date.now()}-${i + 1}.png`,
+              sizeKb: r.sizeKb!,
+              uploading: false,
+              dataUrl: r.dataUrl,
+              url: r.url,
+              storage: r.storage,
+            };
+            setMedia(prev => [...prev, newItem]);
+            succeeded++;
+            lastEngine = r.engine;
+            lastStorage = r.storage;
+          } else if (r.error) {
+            console.warn(`[ai-image ${i + 1}/${imageBatchCount}]`, r.error);
+          }
+        } catch (e: any) {
+          console.warn(`[ai-image ${i + 1}/${imageBatchCount}] 예외:`, e?.message);
+        }
+        setImgBatchProgress({ done: i + 1, total: imageBatchCount });
       }
-      // media 에 즉시 추가 (R2 url 또는 dataUrl 폴백)
-      const newItem: MediaItem = {
-        id: `ai-${Date.now()}`,
-        type: 'image',
-        name: `ai-${imageAspect}-${Date.now()}.png`,
-        sizeKb: r.sizeKb!,
-        uploading: false,
-        dataUrl: r.dataUrl,
-        url: r.url,
-        storage: r.storage,
-      };
-      setMedia(prev => [...prev, newItem]);
-      imageModalCtl.close();
-      setImagePrompt('');
-      notifications.show({
-        color: 'teal',
-        title: `🎨 AI 이미지 생성 완료 (${r.engine})`,
-        message: r.storage === 'r2'
-          ? `R2 업로드 완료 — 캠페인에 자동 첨부됐어요. ${r.sizeKb}KB`
-          : `${r.sizeKb}KB · R2 미설정이라 inline 미리보기 (R2 키 등록 시 자동 업로드)`,
-        autoClose: 5000,
-      });
+
+      if (succeeded === 0) {
+        notifications.show({ color: 'red', title: '모두 실패', message: 'AI 이미지 생성 모두 실패. 키/할당량 확인' });
+      } else {
+        imageModalCtl.close();
+        setImagePrompt('');
+        notifications.show({
+          color: 'teal',
+          title: `🎨 AI 이미지 ${succeeded}/${imageBatchCount}장 생성됨 (${lastEngine})`,
+          message: lastStorage === 'r2'
+            ? `R2 업로드 완료 — 자동 첨부됐어요`
+            : `inline 미리보기 (R2 키 등록 시 자동 업로드 활성화)`,
+          autoClose: 5000,
+        });
+      }
     } finally {
       setImgBusy(false);
+      setImgBatchProgress(null);
     }
   };
 
@@ -893,42 +920,87 @@ function NewCampaignPageInner() {
       {/* ════ AI 이미지 생성 모달 ════ */}
       <Modal
         opened={imageModal}
-        onClose={imageModalCtl.close}
-        title={<Group gap={6}><IconPhoto size={18} /><Text fw={700}>AI 이미지 생성</Text></Group>}
+        onClose={() => !imgBusy && imageModalCtl.close()}
+        title={<Group gap={6}><IconPhoto size={18} /><Text fw={700}>🎨 AI로 이미지 만들기</Text></Group>}
         size="md"
+        closeOnClickOutside={!imgBusy}
+        withCloseButton={!imgBusy}
       >
         <Stack gap="md">
           <Textarea
-            label="이미지 프롬프트"
-            placeholder="예: 봄 시즌 카페 신메뉴 라떼와 케이크, 따뜻한 햇빛, 미니멀 스타일"
+            label="어떤 이미지를 원하세요?"
+            description="구체적으로 적을수록 더 정확한 이미지가 나와요 (장면·분위기·색상 등)"
+            placeholder="예: 봄 카페에서 따뜻한 햇살을 받으며 마시는 라떼와 케이크, 미니멀하고 따뜻한 스타일"
             value={imagePrompt}
             onChange={(e) => setImagePrompt(e.currentTarget.value)}
             minRows={3}
             autosize
+            disabled={imgBusy}
           />
-          <Group gap="xs">
-            <Text size="sm" fw={500}>비율:</Text>
-            {(['square', 'vertical', 'horizontal'] as const).map(a => (
-              <Badge
-                key={a}
-                size="md"
-                variant={imageAspect === a ? 'filled' : 'outline'}
-                style={{ cursor: 'pointer' }}
-                onClick={() => setImageAspect(a)}
-              >
-                {a === 'square' ? '1:1 정사각' : a === 'vertical' ? '9:16 세로' : '16:9 가로'}
-              </Badge>
-            ))}
-          </Group>
-          <Text size="xs" c="dimmed">
-            엔진 폴백: Pollinations (무료) → DALL-E 3 → Gemini Imagen. 키 미등록 시 Pollinations 만 시도.
-          </Text>
+          <Box>
+            <Text size="sm" fw={500} mb={4}>가로세로 비율</Text>
+            <Group gap="xs">
+              {(['square', 'vertical', 'horizontal'] as const).map(a => (
+                <Badge
+                  key={a}
+                  size="lg"
+                  variant={imageAspect === a ? 'filled' : 'outline'}
+                  style={{ cursor: imgBusy ? 'not-allowed' : 'pointer' }}
+                  onClick={() => !imgBusy && setImageAspect(a)}
+                >
+                  {a === 'square' ? '⬛ 1:1 (인스타·페북)' : a === 'vertical' ? '📱 9:16 (스토리·릴스)' : '🖥 16:9 (유튜브·X)'}
+                </Badge>
+              ))}
+            </Group>
+          </Box>
+          <Box>
+            <Text size="sm" fw={500} mb={4}>몇 장을 만들까요?</Text>
+            <Group gap="xs">
+              {([1, 3, 5, 10] as const).map(n => (
+                <Button
+                  key={n}
+                  size="compact-sm"
+                  variant={imageBatchCount === n ? 'filled' : 'light'}
+                  color="violet"
+                  onClick={() => setImageBatchCount(n)}
+                  disabled={imgBusy}
+                >
+                  {n}장{n > 1 ? ' (시도해보고 골라요)' : ''}
+                </Button>
+              ))}
+            </Group>
+            <Text size="xs" c="dimmed" mt={4}>
+              여러 장 선택 시 각 이미지는 약간씩 달라요 — 마음에 드는 것만 남기고 나머지는 X로 지우세요
+            </Text>
+          </Box>
+          {imgBatchProgress && (
+            <Box>
+              <Text size="xs" c="dimmed" mb={4}>생성 중... {imgBatchProgress.done}/{imgBatchProgress.total}</Text>
+              <Box style={{ height: 6, background: 'var(--mantine-color-default-border)', borderRadius: 3 }}>
+                <Box style={{
+                  width: `${(imgBatchProgress.done / imgBatchProgress.total) * 100}%`,
+                  height: '100%',
+                  background: 'var(--mantine-color-violet-6)',
+                  borderRadius: 3,
+                  transition: 'width 0.3s',
+                }} />
+              </Box>
+            </Box>
+          )}
+          <Box style={{ background: 'var(--mantine-color-default-hover)', borderRadius: 8, padding: 10 }}>
+            <Text size="11px" c="dimmed" lineClamp={3}>
+              💡 <strong>무료 엔진</strong>(Pollinations) 우선 사용. AI 키 등록 시 DALL-E 3 → Gemini Imagen 도 자동 사용.
+              영상 자동 생성은 곧 출시 예정 — 지금은 영상 파일을 직접 업로드해주세요.
+            </Text>
+          </Box>
           <Button
             onClick={handleGenerateImage}
             loading={imgBusy}
             leftSection={<IconSparkles size={16} />}
+            color="violet"
+            size="md"
           >
-            생성
+            {imageBatchCount === 1 ? '이미지 만들기' : `${imageBatchCount}장 한 번에 만들기`}
           </Button>
         </Stack>
       </Modal>

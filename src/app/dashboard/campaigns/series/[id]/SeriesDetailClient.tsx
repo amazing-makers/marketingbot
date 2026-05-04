@@ -20,30 +20,30 @@ import {
 } from '@/app/actions/seriesActions';
 
 const MODE_LABELS: Record<string, { label: string; emoji: string; color: string }> = {
-    POOL_VARY: { label: '사진풀 + AI 캡션 변형', emoji: '🎨', color: 'pink' },
-    AI_FRESH: { label: 'AI 매번 신규 생성', emoji: '✨', color: 'violet' },
-    POOL_SIMILAR: { label: '사진풀, 캡션 비슷', emoji: '🔄', color: 'blue' },
-    PARAPHRASE: { label: '본문 약간씩 변형', emoji: '📝', color: 'teal' },
+    POOL_VARY: { label: '내 사진 + 매번 다른 글', emoji: '🖼️', color: 'pink' },
+    AI_FRESH: { label: '전부 AI가 새로 만들기', emoji: '✨', color: 'violet' },
+    POOL_SIMILAR: { label: '내 사진 + 일관된 글', emoji: '🔁', color: 'blue' },
+    PARAPHRASE: { label: '글만 매번 살짝씩 다르게', emoji: '📝', color: 'teal' },
 };
 const STATUS_INFO: Record<string, { label: string; color: string }> = {
-    DRAFT: { label: '임시저장', color: 'gray' },
-    RUNNING: { label: '진행 중', color: 'green' },
-    PAUSED: { label: '일시정지', color: 'orange' },
-    COMPLETED: { label: '완료', color: 'blue' },
-    FAILED: { label: '실패', color: 'red' },
+    DRAFT: { label: '저장만 됨', color: 'gray' },
+    RUNNING: { label: '발행 중', color: 'green' },
+    PAUSED: { label: '잠시 멈춤', color: 'orange' },
+    COMPLETED: { label: '모두 완료', color: 'blue' },
+    FAILED: { label: '오류 발생', color: 'red' },
 };
 const TASK_STATUS: Record<string, { label: string; color: string; icon: any }> = {
-    PENDING: { label: '대기', color: 'gray', icon: IconClock },
-    RUNNING: { label: '실행 중', color: 'blue', icon: IconRefresh },
+    PENDING: { label: '예정', color: 'gray', icon: IconClock },
+    RUNNING: { label: '발행 중', color: 'blue', icon: IconRefresh },
     SUCCESS: { label: '성공', color: 'teal', icon: IconCheck },
     FAILED: { label: '실패', color: 'red', icon: IconAlertCircle },
-    CANCELLED: { label: '취소', color: 'gray', icon: IconX },
+    CANCELLED: { label: '취소됨', color: 'gray', icon: IconX },
 };
 const SCHEDULE_LABELS: Record<string, string> = {
-    INTERVAL: '시간 간격',
-    DAILY: '매일 정해진 시각',
-    WEEKLY: '주간 패턴',
-    FIXED_COUNT: 'N개 균등 분배',
+    INTERVAL: '몇 시간마다 1번',
+    DAILY: '매일 정해진 시간',
+    WEEKLY: '특정 요일에만',
+    FIXED_COUNT: '기간 안에 균등하게',
 };
 
 interface Props {
@@ -142,17 +142,17 @@ export default function SeriesDetailClient(initial: Props) {
                         </Tooltip>
                         {s.status === 'RUNNING' && (
                             <>
-                                <Button leftSection={<IconRefresh size={14} />} size="xs" variant="light" onClick={() => action('run', () => processSeriesOnce(s.id), '1회 실행 완료')} loading={busy === 'run'}>
-                                    지금 1회 실행
+                                <Button leftSection={<IconRefresh size={14} />} size="xs" variant="light" onClick={() => action('run', () => processSeriesOnce(s.id), '한 번 발행 완료')} loading={busy === 'run'}>
+                                    지금 한 번 발행
                                 </Button>
-                                <Button leftSection={<IconPlayerPause size={14} />} size="xs" color="orange" variant="light" onClick={() => action('pause', () => updateSeriesStatus(s.id, 'PAUSED'), '일시정지됨')} loading={busy === 'pause'}>
-                                    일시정지
+                                <Button leftSection={<IconPlayerPause size={14} />} size="xs" color="orange" variant="light" onClick={() => action('pause', () => updateSeriesStatus(s.id, 'PAUSED'), '잠시 멈췄어요')} loading={busy === 'pause'}>
+                                    잠시 멈추기
                                 </Button>
                             </>
                         )}
                         {(s.status === 'DRAFT' || s.status === 'PAUSED') && (
-                            <Button leftSection={<IconPlayerPlay size={14} />} size="xs" color="green" onClick={() => action('start', () => updateSeriesStatus(s.id, 'RUNNING'), '시작됨')} loading={busy === 'start'}>
-                                시작
+                            <Button leftSection={<IconPlayerPlay size={14} />} size="xs" color="green" onClick={() => action('start', () => updateSeriesStatus(s.id, 'RUNNING'), '발행 시작!')} loading={busy === 'start'}>
+                                발행 시작하기
                             </Button>
                         )}
                     </Group>
@@ -164,7 +164,7 @@ export default function SeriesDetailClient(initial: Props) {
                 <Card withBorder p="md" radius="md">
                     <Group justify="space-between" wrap="nowrap">
                         <Stack gap={2}>
-                            <Text size="xs" c="dimmed" fw={700}>완료 진행률</Text>
+                            <Text size="xs" c="dimmed" fw={700}>몇 번 올렸나요?</Text>
                             <Text fw={900} size="xl">{s.completedPosts}<Text span size="sm" c="dimmed">/{s.totalPosts}</Text></Text>
                         </Stack>
                         <RingProgress
@@ -178,9 +178,9 @@ export default function SeriesDetailClient(initial: Props) {
                 <Card withBorder p="md" radius="md">
                     <Group justify="space-between" wrap="nowrap">
                         <Stack gap={2}>
-                            <Text size="xs" c="dimmed" fw={700}>발행 성공률</Text>
+                            <Text size="xs" c="dimmed" fw={700}>잘 올라간 비율</Text>
                             <Text fw={900} size="xl">{Math.round(successRate)}%</Text>
-                            <Text size="9px" c="dimmed">{data.stats.success}/{data.stats.total} task</Text>
+                            <Text size="9px" c="dimmed">{data.stats.success}/{data.stats.total} 건</Text>
                         </Stack>
                         <RingProgress
                             size={56}
@@ -193,9 +193,9 @@ export default function SeriesDetailClient(initial: Props) {
                 <Card withBorder p="md" radius="md">
                     <Group justify="space-between" wrap="nowrap">
                         <Stack gap={2}>
-                            <Text size="xs" c="dimmed" fw={700}>대기 중</Text>
+                            <Text size="xs" c="dimmed" fw={700}>아직 안 올라간 것</Text>
                             <Text fw={900} size="xl" c="orange.7">{data.stats.pending}</Text>
-                            <Text size="9px" c="dimmed">PENDING task</Text>
+                            <Text size="9px" c="dimmed">예정 게시물</Text>
                         </Stack>
                         <ThemeIcon variant="light" color="orange" size={56} radius="xl">
                             <IconClock size={24} />
@@ -205,9 +205,9 @@ export default function SeriesDetailClient(initial: Props) {
                 <Card withBorder p="md" radius="md">
                     <Group justify="space-between" wrap="nowrap">
                         <Stack gap={2}>
-                            <Text size="xs" c="dimmed" fw={700}>실패</Text>
+                            <Text size="xs" c="dimmed" fw={700}>못 올린 것</Text>
                             <Text fw={900} size="xl" c="red.7">{data.stats.failed}</Text>
-                            <Text size="9px" c="dimmed">{s.failedPosts}회 시리즈 실패</Text>
+                            <Text size="9px" c="dimmed">{s.failedPosts}회 자동 발행 오류</Text>
                         </Stack>
                         <ThemeIcon variant="light" color="red" size={56} radius="xl">
                             <IconAlertCircle size={24} />

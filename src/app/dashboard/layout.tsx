@@ -89,19 +89,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     },
     {
       id: 'series',
-      label: '🤖 자동화 시리즈',
-      description: '한 번 설정 → 며칠/몇주 자동 발행 (사진풀·AI 신규)',
+      label: '🔁 예약 자동 발행',
+      description: '한 번 설정 → 며칠·몇주 동안 알아서 자동으로 게시',
       onClick: () => router.push('/dashboard/campaigns/series'),
       leftSection: <IconRobot size={18} />,
-      keywords: ['series', '자동화', '시리즈', 'auto'],
+      keywords: ['series', '자동', '시리즈', '예약', '반복', 'auto'],
     },
     {
       id: 'ab-test',
-      label: '🧪 A/B 테스트',
-      description: '같은 메시지 N개 변형 → 동시 발행 → 성과 비교',
+      label: '🧪 다양한 표현 비교',
+      description: '같은 내용을 여러 가지 표현으로 한 번에 게시 → 어떤 게 잘 되는지 비교',
       onClick: () => router.push('/dashboard/campaigns/ab'),
       leftSection: <IconBolt size={18} />,
-      keywords: ['ab', 'test', '실험', 'split'],
+      keywords: ['ab', 'test', '실험', '비교', 'split'],
     },
     {
       id: 'new-campaign',
@@ -282,7 +282,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <NavLink
               component={Link}
               href="/dashboard/campaigns/series"
-              label="자동화 시리즈"
+              label="예약 자동 발행"
               leftSection={<IconBolt size={18} stroke={1.5} />}
               active={!!pathname && pathname.includes('/series')}
             />

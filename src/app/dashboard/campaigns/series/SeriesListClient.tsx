@@ -15,25 +15,25 @@ import { updateSeriesStatus, deleteSeries, processSeriesOnce } from '@/app/actio
 import dayjs from 'dayjs';
 
 const MODE_LABELS: Record<string, { label: string; emoji: string; color: string }> = {
-    POOL_VARY: { label: '사진풀 + AI 캡션 변형', emoji: '🎨', color: 'pink' },
-    AI_FRESH: { label: 'AI 매번 신규 (이미지+캡션)', emoji: '✨', color: 'violet' },
-    POOL_SIMILAR: { label: '사진풀, 캡션 비슷', emoji: '🔄', color: 'blue' },
-    PARAPHRASE: { label: '본문 약간씩 변형', emoji: '📝', color: 'teal' },
+    POOL_VARY: { label: '내 사진 + 매번 다른 글', emoji: '🖼️', color: 'pink' },
+    AI_FRESH: { label: '전부 AI가 새로 만들기', emoji: '✨', color: 'violet' },
+    POOL_SIMILAR: { label: '내 사진 + 일관된 글', emoji: '🔁', color: 'blue' },
+    PARAPHRASE: { label: '글만 매번 살짝씩 다르게', emoji: '📝', color: 'teal' },
 };
 
 const SCHEDULE_LABELS: Record<string, string> = {
-    INTERVAL: '시간 간격',
+    INTERVAL: '몇 시간마다 1번',
     DAILY: '매일 정해진 시간',
-    WEEKLY: '주간 패턴',
-    FIXED_COUNT: 'N개 균등 분배',
+    WEEKLY: '특정 요일에만',
+    FIXED_COUNT: '기간 안에 균등하게',
 };
 
 const STATUS_INFO: Record<string, { label: string; color: string }> = {
-    DRAFT: { label: '임시저장', color: 'gray' },
-    RUNNING: { label: '진행 중', color: 'green' },
-    PAUSED: { label: '일시정지', color: 'orange' },
-    COMPLETED: { label: '완료', color: 'blue' },
-    FAILED: { label: '실패', color: 'red' },
+    DRAFT: { label: '저장만 됨', color: 'gray' },
+    RUNNING: { label: '발행 중', color: 'green' },
+    PAUSED: { label: '잠시 멈춤', color: 'orange' },
+    COMPLETED: { label: '모두 완료', color: 'blue' },
+    FAILED: { label: '오류 발생', color: 'red' },
 };
 
 interface Item {
@@ -72,23 +72,23 @@ export default function SeriesListClient({ items: initial }: { items: Item[] }) 
         <Stack gap="lg">
             <Group justify="space-between">
                 <Stack gap={0}>
-                    <Title order={2}>🤖 자동화 시리즈</Title>
-                    <Text size="sm" c="dimmed">한 번 설정 → 정해진 일정에 따라 자동 발행 (사진풀·AI 신규·paraphrase)</Text>
+                    <Title order={2}>🔁 예약 자동 발행</Title>
+                    <Text size="sm" c="dimmed">한 번만 설정해두면, 정해진 시간마다 알아서 게시물을 만들어 올려줘요</Text>
                 </Stack>
                 <Button component={Link} href="/dashboard/campaigns/series/new" leftSection={<IconPlus size={16} />}>
-                    새 시리즈
+                    새로 만들기
                 </Button>
             </Group>
 
             {items.length === 0 ? (
                 <Card withBorder p="xl" radius="md" bg="var(--mantine-color-default-hover)">
                     <Stack gap="md" align="center" py="xl">
-                        <div style={{ fontSize: 48 }}>⚙️</div>
+                        <div style={{ fontSize: 48 }}>⏰</div>
                         <Stack gap={4} align="center">
-                            <Text fw={800} size="lg">자동화 시리즈가 아직 없어요</Text>
-                            <Text size="sm" c="dimmed" ta="center" maw={500}>
-                                <strong>한 번 설정</strong>해두면 며칠~몇주 동안 매일·매주 정해진 시간에 자동으로 캠페인 생성·발행됩니다.<br />
-                                예: "사진 30장 풀 + 매일 9시·19시 발행 = 한 달치 콘텐츠 자동 운영"
+                            <Text fw={800} size="lg">아직 만든 자동 발행이 없어요</Text>
+                            <Text size="sm" c="dimmed" ta="center" maw={520}>
+                                <strong>한 번만 설정</strong>해두면 며칠·몇 주 동안 정해진 시간마다 자동으로 게시물을 만들어 올려줘요.<br />
+                                <strong>예시:</strong> "사진 30장 + 매일 오전 9시·저녁 7시 = 한 달치 게시물 자동 운영"
                             </Text>
                         </Stack>
                         <Button
@@ -99,7 +99,7 @@ export default function SeriesListClient({ items: initial }: { items: Item[] }) 
                             variant="gradient"
                             gradient={{ from: 'violet', to: 'blue' }}
                         >
-                            첫 시리즈 만들기
+                            첫 자동 발행 만들기
                         </Button>
                     </Stack>
                 </Card>
@@ -147,16 +147,16 @@ export default function SeriesListClient({ items: initial }: { items: Item[] }) 
                                         <Menu.Dropdown>
                                             {s.status === 'DRAFT' || s.status === 'PAUSED' ? (
                                                 <Menu.Item leftSection={<IconPlayerPlay size={14} />} onClick={() => handleStart(s.id)} disabled={isBusy}>
-                                                    시작
+                                                    발행 시작하기
                                                 </Menu.Item>
                                             ) : null}
                                             {s.status === 'RUNNING' && (
                                                 <>
                                                     <Menu.Item leftSection={<IconPlayerPause size={14} />} onClick={() => handlePause(s.id)} disabled={isBusy}>
-                                                        일시정지
+                                                        잠시 멈추기
                                                     </Menu.Item>
                                                     <Menu.Item leftSection={<IconRefresh size={14} />} onClick={() => handleRunNow(s.id)} disabled={isBusy}>
-                                                        지금 1회 실행
+                                                        지금 한 번 발행
                                                     </Menu.Item>
                                                 </>
                                             )}

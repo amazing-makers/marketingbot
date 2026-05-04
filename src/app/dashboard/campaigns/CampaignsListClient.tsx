@@ -27,7 +27,7 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
                     {campaign.status}
                 </Badge>
             </Table.Td>
-            <Table.Td>{campaign._count.tasks}개 채널</Table.Td>
+            <Table.Td>{campaign._count.tasks}곳</Table.Td>
             <Table.Td>
                 <Group gap="xs">
                     <IconCalendar size={14} color="gray" />
@@ -48,13 +48,16 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
     return (
         <Stack>
             <Group justify="space-between">
-                <Title order={2}>캠페인 관리</Title>
+                <Stack gap={0}>
+                    <Title order={2}>📋 게시물 관리</Title>
+                    <Text size="xs" c="dimmed">한 번 작성한 게시물 = 1개의 캠페인 (여러 채널 동시 발행 가능)</Text>
+                </Stack>
                 <Group gap="xs">
                     <Button component={Link} href="/dashboard/campaigns/calendar" variant="light" leftSection={<IconCalendarMonth size={16} />}>
-                        캘린더 보기
+                        캘린더로 보기
                     </Button>
                     <Button component={Link} href="/dashboard/campaigns/new" leftSection={<IconPlus size={16} />}>
-                        새 캠페인 작성
+                        새 게시물 작성
                     </Button>
                 </Group>
             </Group>
@@ -64,17 +67,17 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
                     <Stack gap="md" align="center" py="xl">
                         <div style={{ fontSize: 48 }}>📝</div>
                         <div style={{ textAlign: 'center' }}>
-                            <Text fw={800} size="lg">아직 생성된 캠페인이 없어요</Text>
+                            <Text fw={800} size="lg">아직 만든 게시물이 없어요</Text>
                             <Text size="sm" c="dimmed" mt={4}>
-                                AI 자동 작성 + 14언어 번역 + 5개 채널 동시 발행을 5분이면 시작할 수 있어요.
+                                AI 가 글을 자동으로 써주고, 14개 언어 자동 번역, 5개 SNS에 동시 발행 — 5분이면 시작!
                             </Text>
                         </div>
                         <Group gap="xs">
                             <Button component={Link} href="/dashboard/campaigns/new" leftSection={<IconPlus size={16} />}>
-                                첫 캠페인 작성
+                                첫 게시물 만들기
                             </Button>
                             <Button component={Link} href="/dashboard/campaigns/templates" variant="light">
-                                템플릿 둘러보기
+                                예시 템플릿 보기
                             </Button>
                         </Group>
                     </Stack>
@@ -84,11 +87,11 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
                     <Table verticalSpacing="md" highlightOnHover>
                         <Table.Thead>
                             <Table.Tr>
-                                <Table.Th>캠페인명</Table.Th>
+                                <Table.Th>게시물 이름</Table.Th>
                                 <Table.Th>상태</Table.Th>
-                                <Table.Th>대상</Table.Th>
-                                <Table.Th>예약일시</Table.Th>
-                                <Table.Th>생성일</Table.Th>
+                                <Table.Th>올리는 채널</Table.Th>
+                                <Table.Th>올릴 시간</Table.Th>
+                                <Table.Th>만든 날짜</Table.Th>
                                 <Table.Th />
                             </Table.Tr>
                         </Table.Thead>

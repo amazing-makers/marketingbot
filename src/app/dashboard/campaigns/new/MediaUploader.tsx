@@ -5,7 +5,7 @@ import {
     Loader, Tooltip, Button
 } from '@mantine/core';
 import { Dropzone, IMAGE_MIME_TYPE, MIME_TYPES } from '@mantine/dropzone';
-import { IconUpload, IconPhoto, IconX, IconVideo, IconRefresh, IconAlertCircle } from '@tabler/icons-react';
+import { IconUpload, IconPhoto, IconX, IconVideo, IconRefresh, IconAlertCircle, IconFolder } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { notifications } from '@mantine/notifications';
 import { uploadMediaToR2 } from '@/app/actions/storageActions';
@@ -127,8 +127,54 @@ export default function MediaUploader({ items, onChange, maxItems = 10, maxSizeM
 
     const totalSize = items.reduce((s, i) => s + i.sizeKb, 0);
 
+    // 폴더 통째 업로드 — <input webkitdirectory>
+    const folderInputRef = useRef<HTMLInputElement>(null);
+    const onFolderPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []).filter(f =>
+            f.type.startsWith('image/') || f.type.startsWith('video/')
+        );
+        if (files.length === 0) {
+            notifications.show({ color: 'orange', title: '이미지/영상 없음', message: '선택한 폴더에 이미지·영상 파일이 없어요.' });
+            return;
+        }
+        // 너무 많이 한번에 업로드 안 되게 — 첫 (maxItems - 현재) 만
+        const allowed = Math.max(0, maxItems - itemsRef.current.length);
+        const toUpload = files.slice(0, allowed);
+        if (toUpload.length < files.length) {
+            notifications.show({
+                color: 'orange',
+                title: '한도 도달',
+                message: `${files.length}개 중 ${toUpload.length}개만 추가됩니다 (한도 ${maxItems}개)`,
+            });
+        }
+        await handleDrop(toUpload);
+        // 입력 초기화 (같은 폴더 재선택 가능하게)
+        if (folderInputRef.current) folderInputRef.current.value = '';
+    };
+
     return (
         <Stack gap="sm">
+            {/* 폴더 통째 선택 — webkitdirectory 는 일반 input 으로만 가능 (Dropzone 미지원) */}
+            <input
+                ref={folderInputRef}
+                type="file"
+                multiple
+                style={{ display: 'none' }}
+                onChange={onFolderPick}
+                {...({ webkitdirectory: '', directory: '' } as any)}
+            />
+            <Group justify="flex-end" gap="xs">
+                <Button
+                    size="compact-xs"
+                    variant="light"
+                    color="grape"
+                    leftSection={<IconFolder size={12} />}
+                    onClick={() => folderInputRef.current?.click()}
+                    disabled={items.length >= maxItems}
+                >
+                    📁 폴더 통째 선택 (안의 모든 이미지·영상)
+                </Button>
+            </Group>
             <Dropzone
                 onDrop={handleDrop}
                 onReject={(rejected) => {
@@ -166,10 +212,13 @@ export default function MediaUploader({ items, onChange, maxItems = 10, maxSizeM
                     </Dropzone.Idle>
                     <Box>
                         <Text size="md" fw={700}>
-                            이미지·영상을 드래그해서 놓거나 <Text span c="blue" td="underline">클릭해서 선택</Text>
+                            여기에 사진·영상을 끌어다 놓거나 <Text span c="blue" td="underline">클릭해서 파일 선택</Text>
                         </Text>
                         <Text size="xs" c="dimmed" mt={4}>
-                            JPG · PNG · WebP · GIF · MP4 · WebM 지원 · 최대 {maxSizeMb}MB · {items.length}/{maxItems}개
+                            지원: JPG · PNG · WebP · GIF · MP4 · WebM · 한 파일 최대 {maxSizeMb}MB · 총 {items.length}/{maxItems}개
+                        </Text>
+                        <Text size="xs" c="grape.7" mt={2} fw={600}>
+                            💡 위의 "폴더 통째 선택" 버튼을 누르면 폴더 안의 모든 이미지·영상이 한 번에 추가돼요
                         </Text>
                     </Box>
                 </Group>
