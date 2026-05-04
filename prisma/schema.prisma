@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
   engineType = "library"
 }
 
@@ -47,15 +47,15 @@ enum ChannelType {
 // Zapier · Make · 자체 자동화 통합용.
 // rate limit: 분당 60회 · 일 200회 (UserWebhookHit 카운터로 추적).
 model UserWebhookToken {
-  id           String              @id @default(cuid())
-  userId       String
-  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token        String              @unique  // 32자 random hex
-  label        String?             // 사용자가 식별용 라벨 (예: "Zapier 연동")
-  enabled      Boolean             @default(true)
-  lastUsedAt   DateTime?
-  createdAt    DateTime            @default(now())
-  hits         UserWebhookHit[]
+  id         String           @id @default(cuid())
+  userId     String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String           @unique // 32자 random hex
+  label      String? // 사용자가 식별용 라벨 (예: "Zapier 연동")
+  enabled    Boolean          @default(true)
+  lastUsedAt DateTime?
+  createdAt  DateTime         @default(now())
+  hits       UserWebhookHit[]
 
   @@index([userId])
 }
@@ -63,13 +63,13 @@ model UserWebhookToken {
 // rate limit 카운터 — 분당/일별 키.
 // bucketKey: 'YYYYMMDDHHMM' (분) 또는 'YYYYMMDD' (일) — uniq 조합으로 incr.
 model UserWebhookHit {
-  id          String           @id @default(cuid())
-  tokenId     String
-  token       UserWebhookToken @relation(fields: [tokenId], references: [id], onDelete: Cascade)
-  bucketKey   String           // YYYYMMDDHHMM (분) 또는 YYYYMMDD (일)
-  bucketType  String           // 'minute' | 'day'
-  count       Int              @default(0)
-  updatedAt   DateTime         @updatedAt
+  id         String           @id @default(cuid())
+  tokenId    String
+  token      UserWebhookToken @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  bucketKey  String // YYYYMMDDHHMM (분) 또는 YYYYMMDD (일)
+  bucketType String // 'minute' | 'day'
+  count      Int              @default(0)
+  updatedAt  DateTime         @updatedAt
 
   @@unique([tokenId, bucketKey, bucketType])
   @@index([updatedAt])
@@ -78,13 +78,13 @@ model UserWebhookHit {
 // 캠페인 드래프트 — 작성 중 30초 idle 자동 저장 (sns-auto-platform drafts.py 포팅).
 // 같은 사용자 1개만 유지 (slot 'campaign'). 30일 후 자동 정리.
 model CampaignDraft {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  slot        String   @default("campaign")  // 'campaign' | 'post' | 'image' (확장용)
-  payload     Json     // form 전체 상태 (name/description/channelIds/content/scheduledAt 등)
-  updatedAt   DateTime @updatedAt
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slot      String   @default("campaign") // 'campaign' | 'post' | 'image' (확장용)
+  payload   Json // form 전체 상태 (name/description/channelIds/content/scheduledAt 등)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
 
   @@unique([userId, slot])
   @@index([updatedAt])
@@ -120,17 +120,24 @@ model User {
   // 추후 단계에서 workspaceId 컬럼 추가 (현재는 userId 유지 — 호환성).
   currentWorkspaceId String?
 
-  channels       MarketingChannel[]
-  campaigns      Campaign[]
-  agents         AgentInstance[]
-  licenses       License[]
-  aiConfig       UserAiConfig?
-  drafts         CampaignDraft[]
-  webhookTokens  UserWebhookToken[]
-  ownedWorkspaces Workspace[] @relation("WorkspaceOwner")
+  channels             MarketingChannel[]
+  campaigns            Campaign[]
+  agents               AgentInstance[]
+  licenses             License[]
+  aiConfig             UserAiConfig?
+  drafts               CampaignDraft[]
+  webhookTokens        UserWebhookToken[]
+  ownedWorkspaces      Workspace[]        @relation("WorkspaceOwner")
   workspaceMemberships WorkspaceMember[]
-  subscription   Subscription?
-  campaignSeries CampaignSeries[]
+  subscription         Subscription?
+  campaignSeries       CampaignSeries[]
+
+  // Phase 13 — 리셀러 추천 트래킹.
+  // referredByCodeId: 가입 시 ?ref=CODE 쿼리에서 해석된 ReferralCode.id.
+  // reseller: 이 사용자가 리셀러로 등록한 경우 1:1 관계.
+  referredByCodeId String?
+  referredByCode   ReferralCode? @relation("ReferredByCode", fields: [referredByCodeId], references: [id])
+  reseller         Reseller?
 
   emailPreferences Json @default("{\"failures\": true, \"weekly\": true, \"welcome\": true}")
 }
@@ -139,20 +146,20 @@ model User {
 // 향후 채널/캠페인/license 모델에 workspaceId 추가하여 데이터 분리.
 // 현재는 모델만 정의 + 사용자가 직접 워크스페이스 생성/전환 가능.
 model Workspace {
-  id        String            @id @default(cuid())
-  name      String
-  slug      String            @unique // URL 친화 식별자 (e.g., 'my-startup')
-  ownerId   String
-  owner     User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  id          String            @id @default(cuid())
+  name        String
+  slug        String            @unique // URL 친화 식별자 (e.g., 'my-startup')
+  ownerId     String
+  owner       User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   // 플랜·결제는 향후 Workspace 단위로 이전. 현재는 User 단위 라이센스 그대로.
-  plan      String            @default("FREE")
+  plan        String            @default("FREE")
   // 메타: 로고/색상/설명 (브랜드 정보)
-  logoUrl   String?
-  brandColor String?          @default("#1D1D1B")
+  logoUrl     String?
+  brandColor  String?           @default("#1D1D1B")
   description String?
-  members   WorkspaceMember[]
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  members     WorkspaceMember[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 
   @@index([ownerId])
 }
@@ -208,24 +215,24 @@ model License {
 }
 
 model MarketingChannel {
-  id                    String        @id @default(cuid())
-  userId                String
-  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type                  ChannelType
-  accountName           String
-  encryptedCredentials  String        @db.Text
-  status                ChannelStatus @default(PENDING_AUTH)
+  id                   String        @id @default(cuid())
+  userId               String
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type                 ChannelType
+  accountName          String
+  encryptedCredentials String        @db.Text
+  status               ChannelStatus @default(PENDING_AUTH)
   // 다지역 발행 — sns-auto-platform 의 "계정 region 별 자동 언어 라우팅" 포팅.
   // region: korea/usa/japan/china/europe/latam/middle_east/africa/india/southeast_asia/russia/oceania
   // language: ko/en/ja/zh/ar/es/pt/fr/de/ru/hi/id/th/vi
   // 한 캠페인이 여러 region 채널에 발행되면 translator.translateForRegions 가 자동 번역.
-  region                String        @default("korea")
-  language              String        @default("ko")
-  lastUsedAt            DateTime?
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
+  region               String        @default("korea")
+  language             String        @default("ko")
+  lastUsedAt           DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
-  scheduledTasks        ScheduledTask[]
+  scheduledTasks ScheduledTask[]
 
   @@index([userId])
   @@index([type])
@@ -233,42 +240,42 @@ model MarketingChannel {
 }
 
 model Campaign {
-  id           String          @id @default(cuid())
-  userId       String
-  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name         String
-  description  String?
-  status       String          @default("DRAFT")
-  scheduledAt  DateTime?
-  completedAt  DateTime?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  status      String    @default("DRAFT")
+  scheduledAt DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   // Phase 9: 자동화 시리즈가 만든 캠페인 — 정확한 매핑 (이전 description 매칭 대체)
-  seriesId     String?
-  series       CampaignSeries? @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  seriesId String?
+  series   CampaignSeries? @relation(fields: [seriesId], references: [id], onDelete: SetNull)
 
-  tasks        ScheduledTask[]
+  tasks ScheduledTask[]
 
   @@index([userId])
   @@index([seriesId])
 }
 
 model ScheduledTask {
-  id           String           @id @default(cuid())
-  campaignId   String
-  campaign     Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  channelId    String
-  channel      MarketingChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  content      String           @db.Text
-  mediaUrls    Json?
-  scheduledAt  DateTime
-  executedAt   DateTime?
-  status       TaskStatus       @default(PENDING)
-  errorLog     String?          @db.Text
-  agentId      String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id          String           @id @default(cuid())
+  campaignId  String
+  campaign    Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  channelId   String
+  channel     MarketingChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  content     String           @db.Text
+  mediaUrls   Json?
+  scheduledAt DateTime
+  executedAt  DateTime?
+  status      TaskStatus       @default(PENDING)
+  errorLog    String?          @db.Text
+  agentId     String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
   @@index([campaignId])
   @@index([channelId])
@@ -294,57 +301,57 @@ model ScheduledTask {
 //   - 다음 nextRunAt 계산해서 갱신
 //   - completedPosts >= totalPosts 면 status='COMPLETED'
 model CampaignSeries {
-  id             String    @id @default(cuid())
-  userId         String
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name           String
-  channelIds     Json      // string[] — 발행 대상 채널들
+  id                  String    @id @default(cuid())
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                String
+  channelIds          Json // string[] — 발행 대상 채널들
   // Phase 11 — 새 mode: POOL / AI_IMAGE / AI_VIDEO
   // 기존 호환: POOL_VARY/POOL_SIMILAR → POOL (captionStyle 로 분기), AI_FRESH → AI_IMAGE, PARAPHRASE → 미지원
-  mode           String    @default("POOL")
+  mode                String    @default("POOL")
   // POOL 모드 시 글 스타일 — VARY (매번 다른) / SIMILAR (일관)
-  captionStyle   String?   @default("VARY")
+  captionStyle        String?   @default("VARY")
   // 콘텐츠 카테고리 — SNS (짧은 글 + 1장) / BLOG (긴 글 + 여러 장)
-  contentCategory String?  @default("SNS")
-  scheduleType   String    @default("DAILY")     // INTERVAL / DAILY / WEEKLY / FIXED_COUNT
-  intervalHours  Int?      // INTERVAL 모드 (예: 3)
-  dailyTimes     Json?     // DAILY/WEEKLY 모드 — string[] (HH:mm 배열)
-  weeklyDays     Json?     // WEEKLY 모드 — number[] (0=일 ~ 6=토)
-  totalPosts     Int       @default(10)
-  completedPosts Int       @default(0)
-  failedPosts    Int       @default(0)
+  contentCategory     String?   @default("SNS")
+  scheduleType        String    @default("DAILY") // INTERVAL / DAILY / WEEKLY / FIXED_COUNT
+  intervalHours       Int? // INTERVAL 모드 (예: 3)
+  dailyTimes          Json? // DAILY/WEEKLY 모드 — string[] (HH:mm 배열)
+  weeklyDays          Json? // WEEKLY 모드 — number[] (0=일 ~ 6=토)
+  totalPosts          Int       @default(10)
+  completedPosts      Int       @default(0)
+  failedPosts         Int       @default(0)
   // 콘텐츠 소스
-  mediaPool      Json?     // string[] (R2 URL 배열) — POOL_VARY/POOL_SIMILAR 모드
-  contentSeed    String?   @db.Text // PARAPHRASE/POOL_SIMILAR/AI_FRESH 시드 본문
-  briefData      Json?     // ContentBrief (purpose/tone/audience/cta 등)
+  mediaPool           Json? // string[] (R2 URL 배열) — POOL_VARY/POOL_SIMILAR 모드
+  contentSeed         String?   @db.Text // PARAPHRASE/POOL_SIMILAR/AI_FRESH 시드 본문
+  briefData           Json? // ContentBrief (purpose/tone/audience/cta 등)
   // 일정
-  status         String    @default("DRAFT") // DRAFT / RUNNING / PAUSED / COMPLETED / FAILED
-  startAt        DateTime  @default(now())
-  endAt          DateTime?
-  nextRunAt      DateTime? // 다음 발행 시점 (cron 워커가 사용)
-  lastRunAt      DateTime?
-  lastError      String?   @db.Text
+  status              String    @default("DRAFT") // DRAFT / RUNNING / PAUSED / COMPLETED / FAILED
+  startAt             DateTime  @default(now())
+  endAt               DateTime?
+  nextRunAt           DateTime? // 다음 발행 시점 (cron 워커가 사용)
+  lastRunAt           DateTime?
+  lastError           String?   @db.Text
   // Phase 9 — 알림 한 번만 발송 (반복 알림 방지)
   notifiedCompletedAt DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  campaigns      Campaign[]
+  campaigns Campaign[]
 
   @@index([userId])
   @@index([status, nextRunAt])
 }
 
 model AgentInstance {
-  id          String    @id @default(cuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  machineId   String    @unique
-  name        String?
-  version     String
-  os          String?
-  lastSeenAt  DateTime  @default(now())
-  createdAt   DateTime  @default(now())
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  machineId  String   @unique
+  name       String?
+  version    String
+  os         String?
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
 
   @@index([userId])
 }
@@ -362,33 +369,33 @@ model AgentInstance {
 // - utm: 발행 시 자동 append할 UTM 파라미터
 // - monthlyBudgetUsd: 0=한도없음, >0이면 초과 시 유료 엔진 자동 skip
 model UserAiConfig {
-  id                   String   @id @default(cuid())
-  userId               String   @unique
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  aiPriority           Json     @default("[\"gemini\",\"groq\",\"ollama\",\"claude\"]")
-  aiModels             Json     @default("{}")
-  aiKeysEncrypted      String?  @db.Text
-  taskPriorities       Json     @default("{}")
-  translationPriority  Json     @default("[\"deepl\",\"libretranslate\",\"ai\"]")
-  deeplPro             Boolean  @default(false)
-  utm                  Json     @default("{}")
-  monthlyBudgetUsd     Float    @default(0)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aiPriority          Json     @default("[\"gemini\",\"groq\",\"ollama\",\"claude\"]")
+  aiModels            Json     @default("{}")
+  aiKeysEncrypted     String?  @db.Text
+  taskPriorities      Json     @default("{}")
+  translationPriority Json     @default("[\"deepl\",\"libretranslate\",\"ai\"]")
+  deeplPro            Boolean  @default(false)
+  utm                 Json     @default("{}")
+  monthlyBudgetUsd    Float    @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 // 번역 캐시 (sns-auto-platform Redis 'translate:cache:*' 를 Prisma로 포팅)
 // hash = md5("{sourceLang}|{targetLang}|{text}") — 같은 (src,tgt,text)는 캐시 재사용
 // expiresAt 기준 만료 (기본 30일). 만료된 행은 cron에서 정리.
 model TranslationCache {
-  id          String   @id @default(cuid())
-  hash        String   @unique
-  sourceLang  String
-  targetLang  String
-  translated  String   @db.Text
-  engine      String   // deepl/libretranslate/ai-groq/ai-claude/ai-ollama
-  createdAt   DateTime @default(now())
-  expiresAt   DateTime
+  id         String   @id @default(cuid())
+  hash       String   @unique
+  sourceLang String
+  targetLang String
+  translated String   @db.Text
+  engine     String // deepl/libretranslate/ai-groq/ai-claude/ai-ollama
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
 
   @@index([expiresAt])
 }
@@ -399,13 +406,78 @@ model TranslationCache {
 // engine: 'pollinations' | 'openai' | 'gemini' | 'groq' | 'claude' | 'ollama' | 'deepl' | 'libretranslate' | 'ai'
 model AiUsageCounter {
   id        String   @id @default(cuid())
-  scope     String   // 'global' or userId
-  kind      String   // image_gen / video_gen / translate / caption
+  scope     String // 'global' or userId
+  kind      String // image_gen / video_gen / translate / caption
   engine    String
   count     Int      @default(0)
-  monthKey  String   // 'YYYY-MM' for budget reset
+  monthKey  String // 'YYYY-MM' for budget reset
   updatedAt DateTime @updatedAt
 
   @@unique([scope, kind, engine, monthKey])
   @@index([scope, monthKey])
+}
+
+// ════════════════════════════════════════════════════════════
+//  Phase 13 — 리셀러 / 추천 (referral) 모델
+//
+// 모델: amakers.co.kr 가 직접 사용자와 계약, 리셀러는 추천 수수료만 받음 (affiliate 모델).
+//   - 리셀러 등록 → 자동으로 ReferralCode 1개 생성 (예: "DESIGN-KIM-A1B2")
+//   - 신규 사용자가 ?ref=CODE 로 가입하면 user.referredByCodeId 에 저장
+//   - 매월 1일 cron 이 지난달 사용자 결제액 × commissionRate 만큼 ReferralCommission 생성
+//   - 관리자가 PAID 처리 후 송금 (개인은 3.3% 원천징수, 사업자는 세금계산서)
+// ════════════════════════════════════════════════════════════
+
+model Reseller {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  contactEmail   String
+  taxStatus      String   @default("INDIVIDUAL") // INDIVIDUAL | BUSINESS
+  businessNumber String?
+  bankAccount    String?
+  commissionRate Float    @default(0.10) // 0.10 = 10%
+  status         String   @default("ACTIVE") // ACTIVE | SUSPENDED
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  referralCodes ReferralCode[]
+  commissions   ReferralCommission[]
+
+  @@index([status])
+}
+
+model ReferralCode {
+  id          String   @id @default(cuid())
+  code        String   @unique // ex: "DESIGN-KIM-A1B2"
+  resellerId  String
+  reseller    Reseller @relation(fields: [resellerId], references: [id], onDelete: Cascade)
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  referrals User[] @relation("ReferredByCode")
+
+  @@index([resellerId])
+  @@index([active])
+}
+
+model ReferralCommission {
+  id              String    @id @default(cuid())
+  resellerId      String
+  reseller        Reseller  @relation(fields: [resellerId], references: [id], onDelete: Cascade)
+  referredUserId  String
+  periodYearMonth String // "2026-05"
+  baseRevenue     Decimal   @db.Decimal(12, 2) // 해당 사용자의 월 결제액 (KRW)
+  commissionRate  Float
+  amount          Decimal   @db.Decimal(12, 2) // baseRevenue * commissionRate
+  status          String    @default("PENDING") // PENDING | PAID | CANCELLED
+  paidAt          DateTime?
+  notes           String?
+  createdAt       DateTime  @default(now())
+
+  @@unique([resellerId, referredUserId, periodYearMonth])
+  @@index([resellerId, status])
+  @@index([periodYearMonth])
 }

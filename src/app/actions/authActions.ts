@@ -15,6 +15,8 @@ export async function registerUser(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const name = formData.get("name") as string;
+  // Phase 13 — 리셀러 추천 코드 (선택, 가입 폼 hidden input 또는 ?ref= 쿼리에서 전달)
+  const referralCode = (formData.get("referralCode") as string | null)?.trim() || null;
 
   // 유효성 검사
   const validatedFields = registerSchema.safeParse({ email, password, name });
@@ -35,6 +37,18 @@ export async function registerUser(formData: FormData) {
     // 비밀번호 해싱
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // 추천 코드 해석 (있으면) — invalid/inactive 면 null 처리하고 가입은 진행
+    let referredByCodeId: string | null = null;
+    if (referralCode) {
+      const code = await prisma.referralCode.findUnique({
+        where: { code: referralCode.toUpperCase() },
+        select: { id: true, active: true, reseller: { select: { status: true } } },
+      });
+      if (code?.active && code.reseller?.status === 'ACTIVE') {
+        referredByCodeId = code.id;
+      }
+    }
+
     // 트랜잭션: 유저 생성 + 라이선스 부여
     const result = await prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
@@ -42,6 +56,7 @@ export async function registerUser(formData: FormData) {
           email,
           password: hashedPassword,
           name,
+          referredByCodeId,
         },
       });
 

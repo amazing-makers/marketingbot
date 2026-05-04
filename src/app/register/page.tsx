@@ -1,14 +1,38 @@
 "use client";
 
-import { TextInput, PasswordInput, Button, Paper, Title, Container, Stack, Anchor, Text } from '@mantine/core';
+import { TextInput, PasswordInput, Button, Paper, Title, Container, Stack, Anchor, Text, Badge, Group } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import { registerUser } from '@/app/actions/authActions';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useEffect, useState, Suspense } from 'react';
 
-export default function RegisterPage() {
+function RegisterPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const refFromUrl = (searchParams.get('ref') || '').trim().toUpperCase();
+  const [referralCode, setReferralCode] = useState(refFromUrl);
+
+  // localStorage 백업 — ?ref= 가 있으면 30일 보관 (SNS 거쳐 오는 사용자 대비)
+  useEffect(() => {
+    if (refFromUrl) {
+      try {
+        localStorage.setItem('amakers_ref', refFromUrl);
+        localStorage.setItem('amakers_ref_at', String(Date.now()));
+      } catch { /* SSR 환경 무시 */ }
+    } else {
+      try {
+        const stored = localStorage.getItem('amakers_ref');
+        const storedAt = Number(localStorage.getItem('amakers_ref_at') || 0);
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+        if (stored && Date.now() - storedAt < thirtyDaysMs) {
+          setReferralCode(stored);
+        }
+      } catch { /* ignore */ }
+    }
+  }, [refFromUrl]);
+
   const form = useForm({
     initialValues: {
       name: '',
@@ -27,6 +51,7 @@ export default function RegisterPage() {
     formData.append('name', values.name);
     formData.append('email', values.email);
     formData.append('password', values.password);
+    if (referralCode) formData.append('referralCode', referralCode);
 
     const result = await registerUser(formData);
 
@@ -37,6 +62,8 @@ export default function RegisterPage() {
         color: 'red',
       });
     } else {
+      // 가입 성공 시 referral 토큰 정리
+      try { localStorage.removeItem('amakers_ref'); localStorage.removeItem('amakers_ref_at'); } catch { /* ignore */ }
       notifications.show({
         title: '회원가입 성공',
         message: '로그인 페이지로 이동합니다.',
@@ -56,26 +83,34 @@ export default function RegisterPage() {
         </Anchor>
       </Text>
 
+      {referralCode && (
+        <Group justify="center" mt="md">
+          <Badge color="violet" variant="light" size="lg">
+            🎁 추천 코드 적용됨: {referralCode}
+          </Badge>
+        </Group>
+      )}
+
       <Paper withBorder shadow="md" p={30} mt={30} radius="md">
         <form onSubmit={form.onSubmit(handleSubmit)}>
           <Stack>
-            <TextInput 
-              label="이름" 
-              placeholder="홍길동" 
-              required 
-              {...form.getInputProps('name')} 
+            <TextInput
+              label="이름"
+              placeholder="홍길동"
+              required
+              {...form.getInputProps('name')}
             />
-            <TextInput 
-              label="이메일" 
-              placeholder="hello@amakers.co.kr" 
-              required 
-              {...form.getInputProps('email')} 
+            <TextInput
+              label="이메일"
+              placeholder="hello@amakers.co.kr"
+              required
+              {...form.getInputProps('email')}
             />
-            <PasswordInput 
-              label="비밀번호" 
-              placeholder="비밀번호를 입력하세요" 
-              required 
-              {...form.getInputProps('password')} 
+            <PasswordInput
+              label="비밀번호"
+              placeholder="비밀번호를 입력하세요"
+              required
+              {...form.getInputProps('password')}
             />
             <Button fullWidth mt="xl" type="submit">
               가입하기
@@ -84,5 +119,13 @@ export default function RegisterPage() {
         </form>
       </Paper>
     </Container>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<Container size={420} my={40}><Text>로딩중...</Text></Container>}>
+      <RegisterPageInner />
+    </Suspense>
   );
 }
