@@ -5,7 +5,7 @@ import {
     Loader, Tooltip, Button
 } from '@mantine/core';
 import { Dropzone, IMAGE_MIME_TYPE, MIME_TYPES } from '@mantine/dropzone';
-import { IconUpload, IconPhoto, IconX, IconVideo, IconRefresh, IconAlertCircle, IconFolder } from '@tabler/icons-react';
+import { IconUpload, IconPhoto, IconX, IconVideo, IconRefresh, IconAlertCircle, IconFolder, IconWand } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { notifications } from '@mantine/notifications';
 import { uploadMediaToR2 } from '@/app/actions/storageActions';
@@ -30,9 +30,11 @@ interface Props {
     maxItems?: number;
     /** 최대 파일 크기 MB (기본 25 — Vercel serverless body 한도 고려) */
     maxSizeMb?: number;
+    /** "변형 만들기" 버튼 콜백 — 받은 dataUrl 을 시드로 N장 변형 생성 (page 가 처리) */
+    onCreateVariations?: (sourceItem: MediaItem) => void;
 }
 
-export default function MediaUploader({ items, onChange, maxItems = 10, maxSizeMb = 25 }: Props) {
+export default function MediaUploader({ items, onChange, maxItems = 10, maxSizeMb = 25, onCreateVariations }: Props) {
     const [dragActive, setDragActive] = useState(false);
 
     // 비동기 업로드 콜백에서 최신 items 참조용 ref
@@ -307,18 +309,33 @@ export default function MediaUploader({ items, onChange, maxItems = 10, maxSizeM
                                     </Box>
                                 )}
 
-                                {/* 우상단 X */}
-                                <Tooltip label="제거" withArrow>
-                                    <ActionIcon
-                                        size="sm"
-                                        variant="filled"
-                                        color="dark"
-                                        style={{ position: 'absolute', top: 4, right: 4, opacity: 0.85 }}
-                                        onClick={() => remove(item.id)}
-                                    >
-                                        <IconX size={12} />
-                                    </ActionIcon>
-                                </Tooltip>
+                                {/* 우상단 X + 변형 (이미지 + onCreateVariations 있을 때만) */}
+                                <Group gap={4} style={{ position: 'absolute', top: 4, right: 4 }}>
+                                    {item.type === 'image' && onCreateVariations && !item.uploading && (
+                                        <Tooltip label="이 이미지의 변형 4장 만들기" withArrow>
+                                            <ActionIcon
+                                                size="sm"
+                                                variant="filled"
+                                                color="violet"
+                                                style={{ opacity: 0.85 }}
+                                                onClick={() => onCreateVariations(item)}
+                                            >
+                                                <IconWand size={12} />
+                                            </ActionIcon>
+                                        </Tooltip>
+                                    )}
+                                    <Tooltip label="제거" withArrow>
+                                        <ActionIcon
+                                            size="sm"
+                                            variant="filled"
+                                            color="dark"
+                                            style={{ opacity: 0.85 }}
+                                            onClick={() => remove(item.id)}
+                                        >
+                                            <IconX size={12} />
+                                        </ActionIcon>
+                                    </Tooltip>
+                                </Group>
 
                                 {/* 좌상단 R2 / inline 표시 */}
                                 {item.storage && !item.uploading && (

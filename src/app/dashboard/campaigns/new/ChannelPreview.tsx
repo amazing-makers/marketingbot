@@ -62,9 +62,13 @@ interface Props {
     channels: PreviewChannel[];
     content: string;
     media: MediaItem[];
+    /** 번역 미리보기 (channelId → translated text). 없으면 content 그대로 표시. */
+    translations?: Record<string, { language: string; translated: string; sameAsSource: boolean }>;
+    /** 번역 진행 중 여부 */
+    translating?: boolean;
 }
 
-export default function ChannelPreview({ channels, content, media }: Props) {
+export default function ChannelPreview({ channels, content, media, translations, translating }: Props) {
     if (channels.length === 0) {
         return (
             <Paper withBorder p="lg" radius="md" bg="var(--mantine-color-default-hover)">
@@ -88,8 +92,12 @@ export default function ChannelPreview({ channels, content, media }: Props) {
                 const limit = CHANNEL_LIMITS[channel.type] || { maxChars: 5000, recommendedHashtags: 5, brand: 'gray' };
                 const Icon = CHANNEL_ICONS[channel.type];
                 const label = CHANNEL_LABELS[channel.type] || channel.type;
-                const exceeds = content.length > limit.maxChars;
-                const ratio = Math.min(100, (content.length / limit.maxChars) * 100);
+                // 번역된 본문 사용 (있으면). 없으면 원본 content
+                const tr = translations?.[channel.id];
+                const displayContent = tr ? tr.translated : content;
+                const isTranslated = tr && !tr.sameAsSource;
+                const exceeds = displayContent.length > limit.maxChars;
+                const ratio = Math.min(100, (displayContent.length / limit.maxChars) * 100);
 
                 return (
                     <Paper key={channel.id} withBorder radius="md" p={0} style={{
@@ -104,9 +112,17 @@ export default function ChannelPreview({ channels, content, media }: Props) {
                                 {Icon ? <Icon size={16} stroke={2} /> : null}
                                 <Text size="xs" fw={700}>{label}</Text>
                                 <Text size="10px" c="dimmed">@{channel.accountName}</Text>
+                                {isTranslated && (
+                                    <Badge size="xs" color="violet" variant="light">
+                                        🌐 {tr.language.toUpperCase()} 번역
+                                    </Badge>
+                                )}
+                                {translating && tr && !tr.sameAsSource && (
+                                    <Badge size="xs" color="gray" variant="dot">번역 중...</Badge>
+                                )}
                             </Group>
                             <Badge size="xs" color={exceeds ? 'red' : ratio > 80 ? 'orange' : 'gray'} variant="light">
-                                {content.length} / {limit.maxChars.toLocaleString()}
+                                {displayContent.length} / {limit.maxChars.toLocaleString()}
                             </Badge>
                         </Group>
 
@@ -114,7 +130,7 @@ export default function ChannelPreview({ channels, content, media }: Props) {
                         <PreviewByType
                             channelType={channel.type}
                             accountName={channel.accountName}
-                            content={content}
+                            content={displayContent}
                             media={media}
                             exceeds={exceeds}
                             limit={limit.maxChars}

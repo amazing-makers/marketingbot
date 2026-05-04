@@ -15,10 +15,14 @@ import { updateSeriesStatus, deleteSeries, processSeriesOnce } from '@/app/actio
 import dayjs from 'dayjs';
 
 const MODE_LABELS: Record<string, { label: string; emoji: string; color: string }> = {
+    // Phase 11 신규
+    POOL: { label: '내 사진/영상 사용', emoji: '🖼️', color: 'pink' },
+    AI_IMAGE: { label: 'AI 이미지 생성 발행', emoji: '🎨', color: 'violet' },
+    AI_VIDEO: { label: 'AI 영상 생성 발행 (곧 출시)', emoji: '🎬', color: 'grape' },
+    // 호환 — 기존 mode 값 (마이그레이션 안 된 경우 대비)
     POOL_VARY: { label: '내 사진 + 매번 다른 글', emoji: '🖼️', color: 'pink' },
-    AI_FRESH: { label: '전부 AI가 새로 만들기', emoji: '✨', color: 'violet' },
     POOL_SIMILAR: { label: '내 사진 + 일관된 글', emoji: '🔁', color: 'blue' },
-    PARAPHRASE: { label: '글만 매번 살짝씩 다르게', emoji: '📝', color: 'teal' },
+    AI_FRESH: { label: 'AI 이미지 생성 발행', emoji: '🎨', color: 'violet' },
 };
 
 const SCHEDULE_LABELS: Record<string, string> = {

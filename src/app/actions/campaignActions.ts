@@ -14,6 +14,64 @@ async function getSessionUser() {
 }
 
 /**
+ * 다국가 번역 미리보기 (Phase 11) — 캠페인 작성 폼 미리보기 패널용.
+ *
+ * 채널 N개 중 sourceLanguage 와 다른 채널들의 본문을 자동 번역해서 반환.
+ * 같은 언어면 번역 skip (원문 그대로).
+ *
+ * 결과: { channelId: { language, translated, sameAsSource } }
+ */
+export async function previewTranslation(input: {
+    text: string;
+    channelIds: string[];
+    sourceLanguage?: string;
+}): Promise<Record<string, { language: string; translated: string; sameAsSource: boolean }>> {
+    const user = await getSessionUser();
+    if (!input.text?.trim()) return {};
+    const sourceLang = input.sourceLanguage || 'ko';
+
+    const channels = await prisma.marketingChannel.findMany({
+        where: { id: { in: input.channelIds }, userId: user.id! },
+        select: { id: true, type: true, language: true, region: true },
+    });
+
+    const result: Record<string, { language: string; translated: string; sameAsSource: boolean }> = {};
+
+    // 같은 언어 채널들 — 한 번에 처리 (번역 X)
+    // 다른 언어 채널들 — 각각 번역 (translateText 가 캐시 사용해서 같은 lang 끼리는 1회만)
+    const seenLangs = new Map<string, string>(); // lang → translated text (캐시)
+
+    for (const ch of channels) {
+        const lang = ch.language || 'ko';
+        if (lang === sourceLang) {
+            result[ch.id] = { language: lang, translated: input.text, sameAsSource: true };
+            continue;
+        }
+        if (seenLangs.has(lang)) {
+            result[ch.id] = { language: lang, translated: seenLangs.get(lang)!, sameAsSource: false };
+            continue;
+        }
+        try {
+            const translated = await translateText({
+                text: input.text,
+                targetLang: lang,
+                sourceLang,
+                platform: ch.type.toLowerCase(),
+                region: ch.region || '',
+                userId: user.id!,
+            });
+            seenLangs.set(lang, translated);
+            result[ch.id] = { language: lang, translated, sameAsSource: false };
+        } catch (e) {
+            console.warn(`[previewTranslation] ${lang} 번역 실패:`, e);
+            result[ch.id] = { language: lang, translated: `[번역 실패] ${input.text}`, sameAsSource: false };
+        }
+    }
+
+    return result;
+}
+
+/**
  * 콘텐츠 캘린더 — 사용자의 모든 ScheduledTask 를 from~to 범위에서 조회.
  * 일자(YYYY-MM-DD)별로 그룹핑하여 캘린더 그리드에 바로 사용 가능한 형태로 반환.
  *

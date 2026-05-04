@@ -16,9 +16,11 @@ async function getSessionUser() {
 }
 
 // ════════════════════════════════════════════════════════════
-//  타입
+//  타입 (Phase 11 — 모드 재구성)
 // ════════════════════════════════════════════════════════════
-export type SeriesMode = 'POOL_VARY' | 'AI_FRESH' | 'POOL_SIMILAR' | 'PARAPHRASE';
+export type SeriesMode = 'POOL' | 'AI_IMAGE' | 'AI_VIDEO';
+export type CaptionStyle = 'VARY' | 'SIMILAR'; // POOL 모드용
+export type ContentCategory = 'SNS' | 'BLOG';
 export type ScheduleType = 'INTERVAL' | 'DAILY' | 'WEEKLY' | 'FIXED_COUNT';
 export type SeriesStatus = 'DRAFT' | 'RUNNING' | 'PAUSED' | 'COMPLETED' | 'FAILED';
 
@@ -26,6 +28,8 @@ export interface CreateSeriesInput {
     name: string;
     channelIds: string[];
     mode: SeriesMode;
+    captionStyle?: CaptionStyle;       // POOL 모드 시 글 스타일
+    contentCategory?: ContentCategory; // SNS / BLOG
     scheduleType: ScheduleType;
     intervalHours?: number;
     dailyTimes?: string[];   // 'HH:mm' 형식
@@ -72,6 +76,8 @@ export async function createSeries(input: CreateSeriesInput): Promise<{ id: stri
             name: input.name.trim(),
             channelIds: input.channelIds as any,
             mode: input.mode,
+            captionStyle: input.captionStyle || (input.mode === 'POOL' ? 'VARY' : undefined),
+            contentCategory: input.contentCategory || 'SNS',
             scheduleType: input.scheduleType,
             intervalHours: input.intervalHours,
             dailyTimes: input.dailyTimes as any,
@@ -422,91 +428,118 @@ export async function processSeriesOnce(seriesId: string): Promise<{ ok: boolean
 }
 
 /**
- * 모드별 콘텐츠 생성.
- * 반환: { content (텍스트 본문), mediaUrls (이미지 URL 배열) }
+ * 모드별 콘텐츠 생성 (Phase 11).
+ *
+ * mode:
+ *   POOL       — 사용자 사진풀에서 N장 선택 (BLOG 면 여러 장, SNS 면 1장)
+ *   AI_IMAGE   — AI 가 이미지 생성 (BLOG 면 N장, SNS 면 1장)
+ *   AI_VIDEO   — 향후 출시 (현재는 fallback to AI_IMAGE)
+ *
+ * captionStyle (POOL 모드만):
+ *   VARY     — 매번 다른 글 (기본)
+ *   SIMILAR  — 비슷한 톤·스타일 (브랜드 일관성)
+ *
+ * contentCategory:
+ *   SNS  — 짧은 글 + 이미지 1장 (instagram 포맷)
+ *   BLOG — 긴 글 + 이미지 여러 장 (naver_blog 포맷)
  */
 async function produceContent(series: any): Promise<{ content: string; mediaUrls: string[] }> {
     const mode = series.mode as SeriesMode;
+    const captionStyle = (series.captionStyle as CaptionStyle) || 'VARY';
+    const category = (series.contentCategory as ContentCategory) || 'SNS';
     const brief = (series.briefData as ContentBrief) || undefined;
     const seed = series.contentSeed || '';
     const pool = (series.mediaPool as string[]) || [];
 
-    // ── 미디어 결정 ──
+    // 카테고리별 이미지 개수
+    const imagesNeeded = category === 'BLOG' ? 5 : 1;
+    // 카테고리별 platform 키 (캡션 포맷 결정)
+    const platforms = category === 'BLOG' ? ['naver_blog'] : ['instagram'];
+
+    // ── 1. 미디어 결정 ──
     let mediaUrls: string[] = [];
-    if (mode === 'POOL_VARY' || mode === 'POOL_SIMILAR') {
-        // 풀에서 1장 선택 (라운드로빈: completedPosts 인덱스)
+    if (mode === 'POOL') {
+        // 풀에서 N장 선택 — 라운드로빈으로 시작점 결정
         if (pool.length > 0) {
-            const idx = series.completedPosts % pool.length;
-            mediaUrls = [pool[idx]];
-        }
-    } else if (mode === 'AI_FRESH') {
-        // AI 이미지 생성 (R2 설정 시 업로드)
-        try {
-            const imgPrompt = seed || `${brief?.industry || '마케팅'} 콘텐츠 — ${brief?.tone || 'modern'} 스타일`;
-            const imgRes = await generateImage({
-                prompt: imgPrompt,
-                width: 1024, height: 1024,
-                userId: series.userId,
-            });
-            if (isR2Configured()) {
-                try {
-                    const uploaded = await uploadToR2({
-                        data: imgRes.bytes,
-                        keyPrefix: `users/${series.userId}/series/${series.id}`,
-                        contentType: imgRes.mimeType,
-                    });
-                    mediaUrls = [uploaded.url];
-                } catch {
-                    // R2 실패 → media 없이
-                }
+            const start = (series.completedPosts * imagesNeeded) % pool.length;
+            for (let i = 0; i < Math.min(imagesNeeded, pool.length); i++) {
+                mediaUrls.push(pool[(start + i) % pool.length]);
             }
-            // R2 미설정이면 mediaUrls 비어있게 (data URL 은 외부 publisher 에 첨부 불가)
-        } catch (e) {
-            console.warn('[series] AI 이미지 생성 실패:', e);
+        }
+    } else if (mode === 'AI_IMAGE' || mode === 'AI_VIDEO') {
+        // AI 이미지 N장 생성 (AI_VIDEO 도 일단 이미지로 — 영상 출시 전 폴백)
+        const imgPrompt = seed || `${brief?.industry || '마케팅'} 콘텐츠 — ${brief?.tone || 'modern'} 스타일`;
+        for (let i = 0; i < imagesNeeded; i++) {
+            try {
+                const variantPrompt = imagesNeeded > 1
+                    ? `${imgPrompt} (variant ${i + 1}/${imagesNeeded})`
+                    : imgPrompt;
+                const imgRes = await generateImage({
+                    prompt: variantPrompt,
+                    width: 1024,
+                    height: category === 'BLOG' ? 768 : 1024, // 블로그는 16:12 (가로), SNS 는 정사각
+                    userId: series.userId,
+                });
+                if (isR2Configured()) {
+                    try {
+                        const uploaded = await uploadToR2({
+                            data: imgRes.bytes,
+                            keyPrefix: `users/${series.userId}/series/${series.id}`,
+                            contentType: imgRes.mimeType,
+                        });
+                        mediaUrls.push(uploaded.url);
+                    } catch {
+                        // R2 실패 — 이 이미지는 skip
+                    }
+                }
+                // R2 미설정 시 mediaUrls 비어있음 (data URL 은 외부 publisher 에 첨부 불가)
+            } catch (e) {
+                console.warn(`[series] AI 이미지 ${i + 1}/${imagesNeeded} 실패:`, e);
+            }
         }
     }
-    // PARAPHRASE 는 이미지 없음
 
-    // ── 본문 결정 ──
+    // ── 2. 본문 결정 ──
     let content = '';
+    const isSimilarStyle = mode === 'POOL' && captionStyle === 'SIMILAR' && !!seed;
 
-    if (mode === 'POOL_SIMILAR' || mode === 'PARAPHRASE') {
-        // 같은 톤 — seed 기반으로 약간 paraphrase
-        const platforms = ['instagram'];
-        try {
-            const r = await generateCaption({
-                platforms,
-                userHint: `다음 본문을 의미는 동일하게 유지하되 표현을 자연스럽게 바꿔서 다시 작성하세요. 너무 다르면 안 됨, 약간만 변형:\n\n"${seed || brief?.industry || '오늘의 콘텐츠'}"`,
-                language: 'ko',
-                userId: series.userId,
-                brief,
-            });
-            const first = Object.values(r)[0];
-            content = first?.text || seed;
-        } catch {
-            content = seed;
-        }
-    } else {
-        // POOL_VARY / AI_FRESH — 매번 새 캡션
-        const platforms = ['instagram'];
-        try {
-            const r = await generateCaption({
-                platforms,
-                userHint: seed || `${brief?.industry || '신선한'} 콘텐츠`,
-                language: 'ko',
-                userId: series.userId,
-                brief,
-                imageDataUrl: mediaUrls[0] && mediaUrls[0].startsWith('http') ? undefined : undefined, // 향후 fetch 가능
-            });
-            const first = Object.values(r)[0];
+    try {
+        const userHint = isSimilarStyle
+            ? `다음 본문의 의미·톤·스타일을 유지하되 표현만 자연스럽게 약간 바꿔서 다시 작성하세요 (너무 다르면 안 됨):\n\n"${seed}"`
+            : (seed || `${brief?.industry || '신선한'} 콘텐츠`);
+
+        const r = await generateCaption({
+            platforms,
+            userHint,
+            language: 'ko',
+            userId: series.userId,
+            brief,
+        });
+        const first = Object.values(r)[0];
+
+        if (category === 'BLOG' && first) {
+            // 블로그 포맷: title + intro + sections + conclusion
+            const blog = first as any;
+            const parts: string[] = [];
+            if (blog.title) parts.push(blog.title);
+            if (blog.intro) parts.push('\n' + blog.intro);
+            if (Array.isArray(blog.sections)) {
+                for (const s of blog.sections) {
+                    parts.push(`\n## ${s.heading || ''}\n${s.body || ''}`);
+                }
+            }
+            if (blog.conclusion) parts.push('\n' + blog.conclusion);
+            content = parts.filter(Boolean).join('\n');
+            if (blog.hashtags?.length) content += '\n\n' + blog.hashtags.map((t: string) => `#${t}`).join(' ');
+        } else {
+            // SNS 포맷
             content = first?.text || seed || '새 콘텐츠';
-            // 해시태그 합치기
             if (first?.hashtags?.length) {
                 content += '\n\n' + first.hashtags.map((t: string) => `#${t}`).join(' ');
             }
-        } catch {
-            content = seed || '새 콘텐츠';
         }
+    } catch {
+        content = seed || '새 콘텐츠';
     }
 
     return { content: content.trim(), mediaUrls };

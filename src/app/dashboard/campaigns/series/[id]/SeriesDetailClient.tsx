@@ -20,10 +20,14 @@ import {
 } from '@/app/actions/seriesActions';
 
 const MODE_LABELS: Record<string, { label: string; emoji: string; color: string }> = {
+    // Phase 11
+    POOL: { label: '내 사진/영상 사용', emoji: '🖼️', color: 'pink' },
+    AI_IMAGE: { label: 'AI 이미지 생성 발행', emoji: '🎨', color: 'violet' },
+    AI_VIDEO: { label: 'AI 영상 생성 발행', emoji: '🎬', color: 'grape' },
+    // 호환
     POOL_VARY: { label: '내 사진 + 매번 다른 글', emoji: '🖼️', color: 'pink' },
-    AI_FRESH: { label: '전부 AI가 새로 만들기', emoji: '✨', color: 'violet' },
     POOL_SIMILAR: { label: '내 사진 + 일관된 글', emoji: '🔁', color: 'blue' },
-    PARAPHRASE: { label: '글만 매번 살짝씩 다르게', emoji: '📝', color: 'teal' },
+    AI_FRESH: { label: 'AI 이미지 생성 발행', emoji: '🎨', color: 'violet' },
 };
 const STATUS_INFO: Record<string, { label: string; color: string }> = {
     DRAFT: { label: '저장만 됨', color: 'gray' },

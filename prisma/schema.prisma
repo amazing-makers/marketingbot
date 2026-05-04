@@ -299,7 +299,13 @@ model CampaignSeries {
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   name           String
   channelIds     Json      // string[] — 발행 대상 채널들
-  mode           String    @default("POOL_VARY") // POOL_VARY / AI_FRESH / POOL_SIMILAR / PARAPHRASE
+  // Phase 11 — 새 mode: POOL / AI_IMAGE / AI_VIDEO
+  // 기존 호환: POOL_VARY/POOL_SIMILAR → POOL (captionStyle 로 분기), AI_FRESH → AI_IMAGE, PARAPHRASE → 미지원
+  mode           String    @default("POOL")
+  // POOL 모드 시 글 스타일 — VARY (매번 다른) / SIMILAR (일관)
+  captionStyle   String?   @default("VARY")
+  // 콘텐츠 카테고리 — SNS (짧은 글 + 1장) / BLOG (긴 글 + 여러 장)
+  contentCategory String?  @default("SNS")
   scheduleType   String    @default("DAILY")     // INTERVAL / DAILY / WEEKLY / FIXED_COUNT
   intervalHours  Int?      // INTERVAL 모드 (예: 3)
   dailyTimes     Json?     // DAILY/WEEKLY 모드 — string[] (HH:mm 배열)

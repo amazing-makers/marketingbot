@@ -17,7 +17,7 @@ import {
   IconWorld, IconPencil, IconCalendar, IconCloudUpload, IconWand
 } from '@tabler/icons-react';
 import { listChannels } from '@/app/actions/channelActions';
-import { createCampaign, createSplitCampaign, loadCampaignDraft, saveCampaignDraft, clearCampaignDraft, suggestPrimeTimeForChannels } from '@/app/actions/campaignActions';
+import { createCampaign, createSplitCampaign, loadCampaignDraft, saveCampaignDraft, clearCampaignDraft, suggestPrimeTimeForChannels, previewTranslation } from '@/app/actions/campaignActions';
 import { generateCampaignCaption, generateCampaignImage } from '@/app/actions/aiContentActions';
 import { MarketingChannel } from '@prisma/client';
 import { getTemplateById, applyTemplateVariables } from '@/lib/campaign-templates';
@@ -82,6 +82,10 @@ function NewCampaignPageInner() {
   // 첨부 미디어 — Dropzone + AI 이미지 모두 동일 배열에 들어옴
   const [media, setMedia] = useState<MediaItem[]>([]);
 
+  // 번역 미리보기 (Phase 11) — 우측 ChannelPreview 가 사용
+  const [translations, setTranslations] = useState<Record<string, { language: string; translated: string; sameAsSource: boolean }>>({});
+  const [translating, setTranslating] = useState(false);
+
   // 드래프트 자동 저장 state
   const [draftStatus, setDraftStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [draftLastSaved, setDraftLastSaved] = useState<Date | null>(null);
@@ -138,6 +142,33 @@ function NewCampaignPageInner() {
     () => Array.from(new Set(selectedChannels.map(c => (c as any).language || 'ko'))),
     [selectedChannels],
   );
+
+  // 번역 미리보기 (Phase 11) — content/channelIds 변경 시 1.5초 debounced 호출
+  useEffect(() => {
+    const text = form.values.content?.trim();
+    const channelIds = form.values.channelIds;
+    if (!text || channelIds.length === 0 || !form.values.autoTranslate) {
+      setTranslations({});
+      return;
+    }
+    setTranslating(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await previewTranslation({
+          text,
+          channelIds,
+          sourceLanguage: form.values.sourceLanguage,
+        });
+        setTranslations(r);
+      } catch {
+        setTranslations({});
+      } finally {
+        setTranslating(false);
+      }
+    }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.values.content, form.values.channelIds.join(','), form.values.sourceLanguage, form.values.autoTranslate]);
 
   // 템플릿 적용 (template + channels 로딩 후 1회)
   useEffect(() => {
@@ -287,6 +318,20 @@ function NewCampaignPageInner() {
     await navigator.clipboard.writeText(formatCaption(cap.text, cap.hashtags));
     setCopiedKey(channelId);
     setTimeout(() => setCopiedKey(null), 1500);
+  };
+
+  // ════ AI 이미지 변형 (기존 이미지 → AI 가 4장 변형) ════
+  // sourceItem 의 dataUrl 을 vision 분석 → 비슷한 분위기로 4장 새로 생성
+  const handleCreateVariations = async (source: MediaItem) => {
+    setImagePrompt(`(이전 이미지의 변형) 다음 분위기·구도·색감을 참고한 새 이미지`);
+    setImageBatchCount(3);
+    imageModalCtl.open();
+    notifications.show({
+      color: 'violet',
+      title: '🪄 변형 모드',
+      message: '이 이미지의 변형 3장을 만들어요. 프롬프트에 추가 설명을 적고 "만들기" 누르세요.',
+      autoClose: 6000,
+    });
   };
 
   // ════ AI 이미지 생성 (1장 또는 N장 일괄) → media 배열 자동 추가 ════
@@ -719,7 +764,7 @@ function NewCampaignPageInner() {
                   AI 이미지 생성
                 </Button>
               </Group>
-              <MediaUploader items={media} onChange={setMedia} />
+              <MediaUploader items={media} onChange={setMedia} onCreateVariations={handleCreateVariations} />
             </Box>
 
             {/* ── STEP 4: 시간 + 옵션 ── */}
@@ -860,6 +905,8 @@ function NewCampaignPageInner() {
                 url: m.url,
                 dataUrl: m.dataUrl,
               }))}
+              translations={translations}
+              translating={translating}
             />
           </Box>
         </Grid.Col>
