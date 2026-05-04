@@ -163,11 +163,18 @@ export async function getSeriesDetail(id: string) {
     });
     if (!series) throw new Error('시리즈 미존재');
 
-    // 이 시리즈에서 만들어진 캠페인들 (description 매칭으로 단순 식별 — 향후 series.id 컬럼 추가 시 정확)
+    // 이 시리즈에서 만들어진 캠페인들 — seriesId FK 정확 매칭 (Phase 9).
+    // 이전 버전 (description 매칭) 호환을 위해 OR 조건도 유지.
     const campaigns = await prisma.campaign.findMany({
         where: {
             userId: user.id!,
-            name: { startsWith: `[시리즈] ${series.name}` },
+            OR: [
+                { seriesId: series.id },
+                {
+                    seriesId: null,
+                    name: { startsWith: `[시리즈] ${series.name}` },
+                },
+            ],
         },
         include: {
             tasks: {
@@ -319,11 +326,12 @@ export async function processSeriesOnce(seriesId: string): Promise<{ ok: boolean
         // ── 1. 콘텐츠 결정 (모드별) ──
         const result = await produceContent(series);
 
-        // ── 2. 캠페인 1개 생성 ──
+        // ── 2. 캠페인 1개 생성 (seriesId FK 사용 — Phase 9) ──
         const campaign = await prisma.$transaction(async (tx) => {
             const c = await tx.campaign.create({
                 data: {
                     userId: series.userId,
+                    seriesId: series.id, // 정확한 FK
                     name: `[시리즈] ${series.name} #${series.completedPosts + 1}`,
                     description: `시리즈 자동 생성 (모드: ${series.mode})`,
                     status: 'SCHEDULED',
@@ -389,6 +397,15 @@ export async function processSeriesOnce(seriesId: string): Promise<{ ok: boolean
                 lastError: null,
             },
         });
+
+        // 시리즈 완료 시 이메일 알림 (한 번만)
+        if (newStatus === 'COMPLETED' && !series.notifiedCompletedAt) {
+            try {
+                await sendSeriesCompletedNotification(seriesId);
+            } catch (e) {
+                console.warn('[series] 완료 알림 발송 실패:', e);
+            }
+        }
 
         return { ok: true, tasksCreated: channels.length };
     } catch (e: any) {
@@ -571,6 +588,56 @@ export async function createAbTest(input: {
 
     revalidatePath('/dashboard/campaigns');
     return { campaignIds, variants };
+}
+
+/**
+ * 시리즈 완료 이메일 발송 (한 번만 — notifiedCompletedAt 플래그로 중복 방지).
+ */
+async function sendSeriesCompletedNotification(seriesId: string): Promise<void> {
+    const series = await prisma.campaignSeries.findUnique({
+        where: { id: seriesId },
+        include: {
+            user: { select: { email: true, name: true, emailPreferences: true } },
+            campaigns: { include: { tasks: { select: { status: true } } } },
+        },
+    });
+    if (!series || !series.user.email) return;
+    // 이미 발송됐으면 skip
+    if (series.notifiedCompletedAt) return;
+
+    // 사용자 알림 환경설정 확인 (failures 키 활용 — 시리즈 완료/실패도 같은 카테고리로)
+    const prefs = (series.user.emailPreferences as any) || {};
+    if (prefs.failures === false) return;
+
+    const allTasks = series.campaigns.flatMap(c => c.tasks);
+    const successCount = allTasks.filter(t => t.status === 'SUCCESS').length;
+    const failedTaskCount = allTasks.filter(t => t.status === 'FAILED').length;
+
+    const { sendEmail } = await import('@/lib/email/send');
+    const { SeriesCompletedEmail } = await import('@/lib/email/templates/SeriesCompleted');
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://marketingbot.co.kr';
+
+    await sendEmail({
+        to: series.user.email,
+        subject: `🤖 시리즈 "${series.name}" 완료 — ${series.completedPosts}/${series.totalPosts} 발행`,
+        react: SeriesCompletedEmail({
+            userName: series.user.name || series.user.email,
+            seriesName: series.name,
+            seriesId: series.id,
+            totalPosts: series.totalPosts,
+            completedPosts: series.completedPosts,
+            failedPosts: series.failedPosts,
+            successCount,
+            failedTaskCount,
+            appUrl,
+        }),
+    });
+
+    // 발송 플래그 갱신
+    await prisma.campaignSeries.update({
+        where: { id: seriesId },
+        data: { notifiedCompletedAt: new Date() },
+    });
 }
 
 /**

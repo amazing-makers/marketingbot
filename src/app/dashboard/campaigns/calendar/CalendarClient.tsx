@@ -56,6 +56,9 @@ interface Entry {
     region: string | null;
     status: string;
     scheduledAt: string;
+    seriesId?: string | null;
+    seriesName?: string | null;
+    seriesMode?: string | null;
 }
 
 export default function CalendarClient() {
@@ -210,21 +213,30 @@ export default function CalendarClient() {
                                     {entries.slice(0, 3).map((e) => {
                                         const color = CHANNEL_COLORS[e.channelType] || 'gray';
                                         const time = dayjs(e.scheduledAt).format('HH:mm');
+                                        const isSeries = !!e.seriesId;
+                                        const tooltipLabel = isSeries
+                                            ? `${time} · ${e.channelType} · 🤖 시리즈 "${e.seriesName}"`
+                                            : `${time} · ${e.channelType} (${e.accountName}) · ${e.campaignName}`;
                                         return (
                                             <Tooltip
                                                 key={e.taskId}
-                                                label={`${time} · ${e.channelType} (${e.accountName}) · ${e.campaignName}`}
+                                                label={tooltipLabel}
                                                 withArrow
                                                 position="top"
                                             >
                                                 <Paper
                                                     component={Link}
-                                                    href={`/dashboard/campaigns/${e.campaignId}`}
+                                                    href={isSeries
+                                                        ? `/dashboard/campaigns/series/${e.seriesId}`
+                                                        : `/dashboard/campaigns/${e.campaignId}`
+                                                    }
                                                     radius={4}
                                                     p={3}
                                                     style={{
                                                         borderLeft: `3px solid var(--mantine-color-${color}-6)`,
-                                                        background: `var(--mantine-color-${color}-0)`,
+                                                        background: isSeries
+                                                            ? 'var(--mantine-color-violet-0)'
+                                                            : `var(--mantine-color-${color}-0)`,
                                                         textDecoration: 'none',
                                                         cursor: 'pointer',
                                                         opacity: e.status === 'SUCCESS' ? 0.6 : 1,
@@ -234,8 +246,11 @@ export default function CalendarClient() {
                                                         <Text size="9px" fw={700} c={`${color}.7`} style={{ minWidth: 28 }}>
                                                             {time}
                                                         </Text>
+                                                        {isSeries && (
+                                                            <Text size="9px" style={{ lineHeight: 1 }}>🤖</Text>
+                                                        )}
                                                         <Text size="10px" c="dark" lineClamp={1} style={{ flex: 1 }}>
-                                                            {e.campaignName}
+                                                            {isSeries ? e.seriesName : e.campaignName}
                                                         </Text>
                                                         {e.status !== 'PENDING' && (
                                                             <Box style={{
@@ -275,8 +290,12 @@ export default function CalendarClient() {
                             <Text size="xs" c="dimmed">{s.label}</Text>
                         </Group>
                     ))}
+                    <Group gap={4}>
+                        <Text size="xs">🤖</Text>
+                        <Text size="xs" c="dimmed">시리즈</Text>
+                    </Group>
                     <Box style={{ flex: 1 }} />
-                    <Text size="xs" c="dimmed">셀 클릭 → 캠페인 상세 · "+" 버튼 → 그 날짜로 새 캠페인 작성</Text>
+                    <Text size="xs" c="dimmed">셀 클릭 → 캠페인/시리즈 상세 · "+" → 새 캠페인</Text>
                 </Group>
             </Paper>
         </Stack>

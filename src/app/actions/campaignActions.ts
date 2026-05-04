@@ -28,7 +28,13 @@ export async function listCalendarEntries(input: { from: Date; to: Date }) {
       scheduledAt: { gte: input.from, lte: input.to },
     },
     include: {
-      campaign: { select: { id: true, name: true, status: true } },
+      campaign: {
+        select: {
+          id: true, name: true, status: true,
+          seriesId: true,
+          series: { select: { id: true, name: true, mode: true } },
+        },
+      },
       channel: { select: { id: true, type: true, accountName: true, region: true } },
     },
     orderBy: { scheduledAt: 'asc' },
@@ -45,6 +51,9 @@ export async function listCalendarEntries(input: { from: Date; to: Date }) {
     region: string | null;
     status: string;
     scheduledAt: string; // ISO
+    seriesId: string | null;
+    seriesName: string | null;
+    seriesMode: string | null;
   };
   const byDay: Record<string, Entry[]> = {};
   for (const t of tasks) {
@@ -60,6 +69,9 @@ export async function listCalendarEntries(input: { from: Date; to: Date }) {
       region: t.channel.region,
       status: t.status,
       scheduledAt: t.scheduledAt.toISOString(),
+      seriesId: t.campaign.seriesId,
+      seriesName: t.campaign.series?.name || null,
+      seriesMode: t.campaign.series?.mode || null,
     });
   }
   return byDay;

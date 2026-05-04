@@ -244,9 +244,14 @@ model Campaign {
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
+  // Phase 9: 자동화 시리즈가 만든 캠페인 — 정확한 매핑 (이전 description 매칭 대체)
+  seriesId     String?
+  series       CampaignSeries? @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+
   tasks        ScheduledTask[]
 
   @@index([userId])
+  @@index([seriesId])
 }
 
 model ScheduledTask {
@@ -313,8 +318,12 @@ model CampaignSeries {
   nextRunAt      DateTime? // 다음 발행 시점 (cron 워커가 사용)
   lastRunAt      DateTime?
   lastError      String?   @db.Text
+  // Phase 9 — 알림 한 번만 발송 (반복 알림 방지)
+  notifiedCompletedAt DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+
+  campaigns      Campaign[]
 
   @@index([userId])
   @@index([status, nextRunAt])
