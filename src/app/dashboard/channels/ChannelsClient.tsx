@@ -12,10 +12,12 @@ import {
   IconBrandInstagram, IconBrandFacebook, IconBrandX, IconBrandTiktok,
   IconBrandYoutube, IconMail, IconMessage, IconBrandThreads,
   IconSettings, IconBrandLinkedin, IconBrandPinterest, IconBrandTelegram,
-  IconBrandWhatsapp, IconBrandWordpress, IconExternalLink
+  IconBrandWhatsapp, IconBrandWordpress, IconExternalLink, IconBrandDiscord,
+  IconBrandLine, IconBrandWeibo, IconBrandVk, IconBrandKakoTalk,
+  IconCheck, IconAlertCircle, IconRefresh, IconLoader, IconClock
 } from '@tabler/icons-react';
 import { Anchor } from '@mantine/core';
-import { createChannel, deleteChannel } from '@/app/actions/channelActions';
+import { createChannel, deleteChannel, verifyChannelConnection } from '@/app/actions/channelActions';
 import { ChannelType, MarketingChannel } from '@prisma/client';
 
 const CHANNEL_ICONS: Record<string, any> = {
@@ -26,27 +28,50 @@ const CHANNEL_ICONS: Record<string, any> = {
   TIKTOK: IconBrandTiktok,
   YOUTUBE: IconBrandYoutube,
   THREADS: IconBrandThreads,
-  KAKAO: IconMessage,
+  KAKAO: IconBrandKakoTalk,
   EMAIL: IconMail,
   SMS: IconMessage,
-  NAVER_BLOG: IconSettings,
+  NAVER_BLOG: IconSettings, // tabler 에 네이버 브랜드 아이콘 없음
   NAVER_CAFE: IconSettings,
-  // 글로벌 SNS (P3-a 추가)
-  WEIBO: IconSettings,
-  XIAOHONGSHU: IconSettings,
-  VK: IconSettings,
-  LINE: IconMessage,
+  // 글로벌 SNS
+  WEIBO: IconBrandWeibo,
+  XIAOHONGSHU: IconSettings, // 샤오훙슈 아이콘 없음
+  VK: IconBrandVk,
+  LINE: IconBrandLine,
   WHATSAPP: IconBrandWhatsapp,
   PINTEREST: IconBrandPinterest,
   DOUYIN: IconBrandTiktok,
   LINKEDIN: IconBrandLinkedin,
   // 블로그
-  TISTORY: IconSettings,
+  TISTORY: IconSettings, // tabler 에 티스토리 브랜드 아이콘 없음
+
   WORDPRESS: IconBrandWordpress,
-  // HTTP-only API 채널 (P3-g 추가)
+  // HTTP-only API
   TELEGRAM: IconBrandTelegram,
-  // Discord (Phase 5 — webhook URL 만으로 발행)
-  DISCORD: IconSettings,
+  DISCORD: IconBrandDiscord,
+};
+
+// 채널별 브랜드 컬러 (카드 좌측 보더 + 아이콘 배경)
+const CHANNEL_BRAND_COLORS: Record<string, string> = {
+  INSTAGRAM: 'pink', FACEBOOK: 'blue', X: 'dark', TIKTOK: 'dark',
+  YOUTUBE: 'red', THREADS: 'dark', KAKAO: 'yellow', EMAIL: 'gray',
+  SMS: 'gray', NAVER_BLOG: 'green', NAVER_CAFE: 'green',
+  WEIBO: 'red', XIAOHONGSHU: 'red', VK: 'blue', LINE: 'green',
+  WHATSAPP: 'green', PINTEREST: 'red', DOUYIN: 'pink',
+  LINKEDIN: 'blue', TISTORY: 'orange', WORDPRESS: 'gray',
+  TELEGRAM: 'cyan', DISCORD: 'indigo',
+};
+
+// 채널별 한국어 라벨 (UI 노출용)
+const CHANNEL_LABELS: Record<string, string> = {
+  INSTAGRAM: '인스타그램', FACEBOOK: '페이스북', X: 'X (트위터)',
+  TIKTOK: '틱톡', YOUTUBE: '유튜브', THREADS: '스레드',
+  KAKAO: '카카오톡', EMAIL: '이메일', SMS: '문자',
+  NAVER_BLOG: '네이버 블로그', NAVER_CAFE: '네이버 카페',
+  WEIBO: '웨이보', XIAOHONGSHU: '샤오훙슈', VK: 'VK',
+  LINE: '라인', WHATSAPP: '왓츠앱', PINTEREST: '핀터레스트',
+  DOUYIN: '도우인', LINKEDIN: '링크드인', TISTORY: '티스토리',
+  WORDPRESS: '워드프레스', TELEGRAM: '텔레그램', DISCORD: '디스코드',
 };
 
 const REGION_OPTIONS = [
@@ -92,6 +117,8 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
   const [channels, setChannels] = useState(initialChannels);
   const [opened, setOpened] = useState(false);
   const [loading, setLoading] = useState(false);
+  // 채널별 검증 진행 상태 (UI loading spinner)
+  const [verifying, setVerifying] = useState<Record<string, boolean>>({});
 
   const form = useForm({
     initialValues: {
@@ -189,11 +216,93 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
       setChannels([newChannel, ...channels]);
       setOpened(false);
       form.reset();
-      notifications.show({ title: '성공', message: '채널이 추가되었습니다.', color: 'green' });
-    } catch (error) {
-      notifications.show({ title: '오류', message: '채널 추가 중 실패했습니다.', color: 'red' });
+
+      // 1차 알림: 추가 완료
+      const channelLabel = CHANNEL_LABELS[newChannel.type] || newChannel.type;
+      notifications.show({
+        id: `add-${newChannel.id}`,
+        title: `✅ ${channelLabel} 채널 추가됨`,
+        message: '연동 상태 확인 중...',
+        color: 'blue',
+        loading: true,
+        autoClose: false,
+        withCloseButton: false,
+      });
+
+      // 2차: 백그라운드 verify 호출 → 결과 반영
+      runVerify(newChannel.id, true);
+    } catch (error: any) {
+      notifications.show({
+        title: '오류',
+        message: error?.message || '채널 추가 중 실패했습니다.',
+        color: 'red',
+      });
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * 채널 연동 검증 (수동 재검증 + 추가 직후 자동).
+   * fromAdd=true 면 위에서 띄운 loading notification 을 update 로 마무리.
+   */
+  const runVerify = async (channelId: string, fromAdd = false) => {
+    setVerifying((s) => ({ ...s, [channelId]: true }));
+    try {
+      const r = await verifyChannelConnection(channelId);
+      const ch = channels.find((c) => c.id === channelId);
+      const label = ch ? (CHANNEL_LABELS[ch.type] || ch.type) : '채널';
+
+      // 카드 status 즉시 갱신 (서버는 이미 갱신됨, UI만 sync)
+      if (r.newStatus) {
+        setChannels((prev) => prev.map((c) =>
+          c.id === channelId ? { ...c, status: r.newStatus as any } : c
+        ));
+      }
+
+      const notifId = fromAdd ? `add-${channelId}` : `verify-${channelId}`;
+      if (r.ok && r.newStatus === 'ACTIVE') {
+        notifications.update({
+          id: notifId,
+          title: `✅ ${label} 연동 완료`,
+          message: r.detail || '연동이 정상 확인되었습니다.',
+          color: 'teal',
+          icon: <IconCheck size={18} />,
+          loading: false,
+          autoClose: 5000,
+          withCloseButton: true,
+        });
+      } else if (r.newStatus === 'PENDING_AUTH') {
+        notifications.update({
+          id: notifId,
+          title: `⏳ ${label} 에이전트 대기`,
+          message: r.detail || '데스크톱 에이전트가 첫 발행 시 검증합니다.',
+          color: 'orange',
+          icon: <IconClock size={18} />,
+          loading: false,
+          autoClose: 7000,
+          withCloseButton: true,
+        });
+      } else {
+        notifications.update({
+          id: notifId,
+          title: `⚠️ ${label} 연동 실패`,
+          message: r.error || '자격증명을 다시 확인하세요.',
+          color: 'red',
+          icon: <IconAlertCircle size={18} />,
+          loading: false,
+          autoClose: 8000,
+          withCloseButton: true,
+        });
+      }
+    } catch (e: any) {
+      notifications.show({
+        title: '연동 검증 오류',
+        message: e?.message || '검증 중 오류 발생',
+        color: 'red',
+      });
+    } finally {
+      setVerifying((s) => ({ ...s, [channelId]: false }));
     }
   };
 
@@ -220,22 +329,41 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
       {channels.length === 0 && (
         <Card withBorder p="xl" radius="md" bg="var(--mantine-color-default-hover)">
           <Stack gap="md" align="center" py="xl">
-            <div style={{ fontSize: 48 }}>🔌</div>
+            <div style={{ fontSize: 48 }}>🚀</div>
             <div style={{ textAlign: 'center' }}>
-              <Text fw={800} size="lg">아직 연결된 채널이 없어요</Text>
-              <Text size="sm" c="dimmed" mt={4}>가장 빠르게 시작하려면 <strong>Discord webhook</strong> 또는 <strong>Telegram bot</strong> 추가를 추천드려요. 5분이면 완료!</Text>
+              <Text fw={800} size="lg">아직 연결된 마케팅 채널이 없어요</Text>
+              <Text size="sm" c="dimmed" mt={4}>
+                가장 인기 있는 <strong>인스타그램</strong>이나 <strong>틱톡</strong>으로 시작해보세요. 5분이면 완료!
+              </Text>
             </div>
             <Group gap="xs">
-              <Button leftSection={<IconPlus size={16} />} onClick={() => { form.setFieldValue('type', 'DISCORD' as any); setOpened(true); }} color="indigo">
-                Discord 추가
+              <Button
+                leftSection={<IconBrandInstagram size={18} />}
+                onClick={() => { form.setFieldValue('type', 'INSTAGRAM' as any); setOpened(true); }}
+                color="pink"
+                variant="gradient"
+                gradient={{ from: 'pink', to: 'orange', deg: 45 }}
+              >
+                인스타그램 추가
               </Button>
-              <Button leftSection={<IconPlus size={16} />} onClick={() => { form.setFieldValue('type', 'TELEGRAM' as any); setOpened(true); }} color="cyan" variant="light">
-                Telegram 추가
+              <Button
+                leftSection={<IconBrandTiktok size={18} />}
+                onClick={() => { form.setFieldValue('type', 'TIKTOK' as any); setOpened(true); }}
+                color="dark"
+              >
+                틱톡 추가
               </Button>
-              <Button leftSection={<IconPlus size={16} />} onClick={() => setOpened(true)} variant="subtle">
+              <Button
+                leftSection={<IconPlus size={16} />}
+                onClick={() => setOpened(true)}
+                variant="light"
+              >
                 다른 채널 보기
               </Button>
             </Group>
+            <Text size="xs" c="dimmed" mt="sm">
+              인스타·틱톡·페이스북·유튜브·X 등 <strong>22개 채널</strong> 지원
+            </Text>
           </Stack>
         </Card>
       )}
@@ -243,20 +371,61 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
         {channels.map((channel) => {
           const Icon = CHANNEL_ICONS[channel.type] || IconSettings;
+          const brandColor = CHANNEL_BRAND_COLORS[channel.type] || 'gray';
+          const label = CHANNEL_LABELS[channel.type] || channel.type;
+          const isVerifying = !!verifying[channel.id];
+          // 상태 라벨/색
+          const statusInfo: Record<string, { label: string; color: string; icon: any }> = {
+            ACTIVE: { label: '연동 완료', color: 'teal', icon: IconCheck },
+            PENDING_AUTH: { label: '에이전트 대기', color: 'orange', icon: IconClock },
+            ERROR: { label: '연동 실패', color: 'red', icon: IconAlertCircle },
+            PAUSED: { label: '일시정지', color: 'gray', icon: IconClock },
+          };
+          const s = statusInfo[channel.status] || { label: channel.status, color: 'gray', icon: IconClock };
+          const StatusIcon = s.icon;
+
           return (
-            <Card key={channel.id} withBorder padding="lg" radius="md">
-              <Group justify="space-between" mb="xs">
-                <Icon size={30} stroke={1.5} color="var(--mantine-color-blue-filled)" />
-                <Menu position="bottom-end" shadow="md">
+            <Card
+              key={channel.id}
+              withBorder
+              padding="lg"
+              radius="md"
+              style={{ borderLeft: `4px solid var(--mantine-color-${brandColor}-${brandColor === 'dark' ? '7' : '6'})` }}
+            >
+              <Group justify="space-between" mb="xs" wrap="nowrap">
+                <Group gap="sm" wrap="nowrap">
+                  {/* 컬러 박스 안에 흰색 아이콘 */}
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 10,
+                    background: `var(--mantine-color-${brandColor}-${brandColor === 'dark' ? '8' : '6'})`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                  }}>
+                    <Icon size={24} stroke={1.7} color="white" />
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <Text size="xs" c="dimmed" fw={600} truncate>{label}</Text>
+                    <Text fw={700} size="md" truncate>{channel.accountName}</Text>
+                  </div>
+                </Group>
+                <Menu position="bottom-end" shadow="md" withinPortal>
                   <Menu.Target>
                     <ActionIcon variant="subtle" color="gray">
                       <IconDotsVertical size={16} />
                     </ActionIcon>
                   </Menu.Target>
                   <Menu.Dropdown>
+                    <Menu.Item
+                      leftSection={isVerifying ? <IconLoader size={14} /> : <IconRefresh size={14} />}
+                      onClick={() => runVerify(channel.id)}
+                      disabled={isVerifying}
+                    >
+                      {isVerifying ? '검증 중...' : '연동 다시 확인'}
+                    </Menu.Item>
                     <Menu.Item leftSection={<IconEdit size={14} />}>편집</Menu.Item>
-                    <Menu.Item 
-                      leftSection={<IconTrash size={14} />} 
+                    <Menu.Divider />
+                    <Menu.Item
+                      leftSection={<IconTrash size={14} />}
                       color="red"
                       onClick={() => handleDelete(channel.id)}
                     >
@@ -266,16 +435,16 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
                 </Menu>
               </Group>
 
-              <Text fw={700} size="lg">{channel.accountName}</Text>
-              <Group mt="xs" gap="xs">
-                <Badge variant="light" color={channel.status === 'ACTIVE' ? 'green' : 'orange'}>
-                  {channel.type}
-                </Badge>
-                <Badge variant="dot" color={channel.status === 'ACTIVE' ? 'green' : 'yellow'}>
-                  {channel.status}
+              <Group mt="md" gap="xs">
+                <Badge
+                  variant={channel.status === 'ACTIVE' ? 'filled' : 'light'}
+                  color={s.color}
+                  leftSection={<StatusIcon size={10} />}
+                >
+                  {s.label}
                 </Badge>
                 {(channel as any).region && (
-                  <Badge variant="outline" color="blue" size="sm">
+                  <Badge variant="dot" color="gray" size="sm">
                     {REGION_OPTIONS.find(r => r.value === (channel as any).region)?.label.split(' ')[0] || (channel as any).region}
                     {' · '}
                     {(channel as any).language?.toUpperCase()}
@@ -307,8 +476,8 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
                 onChange={handleRegionChange}
               />
               <Select
-                label="발행 언어"
-                description="이 채널에 게시될 본문 언어 (자동 번역됨)"
+                label="이 채널에 게시될 언어 (자동번역)"
+                description="원본과 다르면 DeepL/AI가 자동으로 번역해서 발행합니다"
                 data={LANGUAGE_OPTIONS}
                 searchable
                 {...form.getInputProps('language')}

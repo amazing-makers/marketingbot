@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, Suspense } from 'react';
 import {
   TextInput, Textarea, Button, Paper, Title, Container,
   Stack, MultiSelect, Group, Text, Badge, ActionIcon, Tooltip, Box, Divider, SimpleGrid,
-  Modal, Card, Image, Loader, Anchor
+  Modal, Card, Loader, Anchor, Grid, ThemeIcon
 } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
 import { useForm } from '@mantine/form';
@@ -12,13 +12,36 @@ import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { IconBulb, IconX, IconSparkles, IconPhoto, IconCopy, IconCheck, IconDownload } from '@tabler/icons-react';
+import {
+  IconBulb, IconX, IconSparkles, IconPhoto, IconCopy, IconCheck,
+  IconWorld, IconPencil, IconCalendar, IconCloudUpload
+} from '@tabler/icons-react';
 import { listChannels } from '@/app/actions/channelActions';
 import { createCampaign, createSplitCampaign, loadCampaignDraft, saveCampaignDraft, clearCampaignDraft, suggestPrimeTimeForChannels } from '@/app/actions/campaignActions';
 import { generateCampaignCaption, generateCampaignImage } from '@/app/actions/aiContentActions';
 import { MarketingChannel } from '@prisma/client';
 import { getTemplateById, applyTemplateVariables } from '@/lib/campaign-templates';
 import dayjs from 'dayjs';
+import MediaUploader, { type MediaItem } from './MediaUploader';
+import ChannelPreview from './ChannelPreview';
+
+// 섹션 헤더 헬퍼 (시각 구분)
+function SectionHeader({ step, icon: Icon, title, desc }: { step: number; icon: any; title: string; desc?: string }) {
+  return (
+    <Group gap="sm" mb="xs">
+      <ThemeIcon size={32} radius="md" variant="light" color="blue">
+        <Icon size={18} stroke={1.7} />
+      </ThemeIcon>
+      <Stack gap={0}>
+        <Group gap={4}>
+          <Text size="10px" fw={700} c="blue.6">STEP {step}</Text>
+        </Group>
+        <Text fw={700} size="md">{title}</Text>
+        {desc && <Text size="11px" c="dimmed">{desc}</Text>}
+      </Stack>
+    </Group>
+  );
+}
 
 function NewCampaignPageInner() {
   const router = useRouter();
@@ -53,7 +76,9 @@ function NewCampaignPageInner() {
   const [imagePrompt, setImagePrompt] = useState('');
   const [imageAspect, setImageAspect] = useState<'square' | 'vertical' | 'horizontal'>('square');
   const [imgBusy, setImgBusy] = useState(false);
-  const [imgPreview, setImgPreview] = useState<{ dataUrl: string; engine: string; sizeKb: number } | null>(null);
+
+  // 첨부 미디어 — Dropzone + AI 이미지 모두 동일 배열에 들어옴
+  const [media, setMedia] = useState<MediaItem[]>([]);
 
   // 드래프트 자동 저장 state
   const [draftStatus, setDraftStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -235,40 +260,63 @@ function NewCampaignPageInner() {
     setTimeout(() => setCopiedKey(null), 1500);
   };
 
-  // ════ AI 이미지 생성 ════
+  // ════ AI 이미지 생성 → media 배열에 자동 추가 ════
   const handleGenerateImage = async () => {
     if (!imagePrompt.trim()) {
       notifications.show({ color: 'orange', title: '프롬프트 필요', message: '이미지 설명을 입력하세요.' });
       return;
     }
     setImgBusy(true);
-    setImgPreview(null);
     try {
       const r = await generateCampaignImage({ prompt: imagePrompt, aspect: imageAspect });
-      if (r.success && r.dataUrl) {
-        setImgPreview({ dataUrl: r.dataUrl, engine: r.engine!, sizeKb: r.sizeKb! });
-        notifications.show({ color: 'green', title: `${r.engine} 생성`, message: `${r.sizeKb}KB · 미리보기 가능` });
-      } else {
+      if (!r.success || !r.dataUrl) {
         notifications.show({ color: 'red', title: '생성 실패', message: r.error || '엔진 모두 실패' });
+        return;
       }
+      // media 에 즉시 추가 (R2 url 또는 dataUrl 폴백)
+      const newItem: MediaItem = {
+        id: `ai-${Date.now()}`,
+        type: 'image',
+        name: `ai-${imageAspect}-${Date.now()}.png`,
+        sizeKb: r.sizeKb!,
+        uploading: false,
+        dataUrl: r.dataUrl,
+        url: r.url,
+        storage: r.storage,
+      };
+      setMedia(prev => [...prev, newItem]);
+      imageModalCtl.close();
+      setImagePrompt('');
+      notifications.show({
+        color: 'teal',
+        title: `🎨 AI 이미지 생성 완료 (${r.engine})`,
+        message: r.storage === 'r2'
+          ? `R2 업로드 완료 — 캠페인에 자동 첨부됐어요. ${r.sizeKb}KB`
+          : `${r.sizeKb}KB · R2 미설정이라 inline 미리보기 (R2 키 등록 시 자동 업로드)`,
+        autoClose: 5000,
+      });
     } finally {
       setImgBusy(false);
     }
   };
 
-  const downloadImage = () => {
-    if (!imgPreview) return;
-    const a = document.createElement('a');
-    a.href = imgPreview.dataUrl;
-    a.download = `marketingbot-${Date.now()}.png`;
-    a.click();
-  };
-
   const handleSubmit = async (values: typeof form.values) => {
+    // 업로드 진행 중인 미디어가 있으면 차단
+    if (media.some(m => m.uploading)) {
+      notifications.show({ color: 'orange', title: '미디어 업로드 중', message: '업로드가 끝난 후 발행해주세요.' });
+      return;
+    }
+    // 외부 URL 만 mediaUrls 로 전달 (Telegram/Discord/WordPress 등이 photoUrl 로 받음).
+    // dataUrl 만 있는 항목 (R2 미설정 inline) 도 일단 dataUrl 그대로 전달 — 발행 시 publisher 가
+    // 외부 http URL 이 아니면 첨부 skip 하거나 에러. 향후 R2 설정 안내.
+    const mediaUrls = media
+      .filter(m => !m.failed)
+      .map(m => m.url || m.dataUrl)
+      .filter((u): u is string => !!u);
+
     setLoading(true);
     try {
       if (values.splitMode) {
-        // 분할 발행 모드 — N개 황금시간대로 자동 예약
         const result = await createSplitCampaign({
           name: values.name,
           description: values.description,
@@ -277,11 +325,12 @@ function NewCampaignPageInner() {
           sourceLanguage: values.sourceLanguage,
           autoTranslate: values.autoTranslate,
           splitCount: values.splitCount,
+          mediaUrls,
         });
         await clearCampaignDraft().catch(() => {});
         notifications.show({
           title: '🎯 분할 발행 예약',
-          message: `${result.region} 황금시간대 ${result.splitCount}회 × ${values.channelIds.length}채널 = ${result.totalTasks}건 예약됨`,
+          message: `${result.region} 황금시간대 ${result.splitCount}회 × ${values.channelIds.length}채널 = ${result.totalTasks}건${mediaUrls.length ? ` · 미디어 ${mediaUrls.length}개 첨부` : ''}`,
           color: 'violet',
           autoClose: 7000,
         });
@@ -294,9 +343,16 @@ function NewCampaignPageInner() {
           sourceLanguage: values.sourceLanguage,
           autoTranslate: values.autoTranslate,
           scheduledAt: values.scheduledAt,
+          mediaUrls,
         });
         await clearCampaignDraft().catch(() => {});
-        notifications.show({ title: '성공', message: '캠페인이 예약되었습니다.', color: 'green' });
+        notifications.show({
+          title: '✅ 캠페인 예약 완료',
+          message: mediaUrls.length
+            ? `${values.channelIds.length}개 채널 · 미디어 ${mediaUrls.length}개 첨부`
+            : `${values.channelIds.length}개 채널 발행 예약`,
+          color: 'green',
+        });
       }
       router.push('/dashboard/campaigns');
     } catch (error: any) {
@@ -315,11 +371,11 @@ function NewCampaignPageInner() {
   };
 
   return (
-    <Container size="md">
+    <Container size="xl">
       <Group justify="space-between" align="flex-end" mb="xl">
         <Stack gap={0}>
-          <Title order={2}>새 캠페인 작성</Title>
-          <Text c="dimmed">채널을 선택하고 콘텐츠를 작성하여 멀티 채널 발행을 예약하세요.</Text>
+          <Title order={2}>✨ 새 캠페인 작성</Title>
+          <Text c="dimmed">채널 → 콘텐츠 → 미디어 → 시간 순서로 작성하면 우측에 실시간 미리보기가 나타납니다.</Text>
         </Stack>
         {!template && (
           <Button
@@ -357,33 +413,44 @@ function NewCampaignPageInner() {
         </Paper>
       )}
 
-      <Paper withBorder shadow="md" p={30} radius="md">
-        <form onSubmit={form.onSubmit(handleSubmit)}>
-          <Stack gap="lg">
-            <TextInput
-              label="캠페인 이름"
-              placeholder="2026 봄 시즌 프로모션"
-              required
-              {...form.getInputProps('name')}
-            />
+      <Grid>
+        <Grid.Col span={{ base: 12, lg: 8 }}>
+          <Paper withBorder shadow="sm" p={{ base: 16, sm: 24 }} radius="md">
+            <form onSubmit={form.onSubmit(handleSubmit)}>
+              <Stack gap="xl">
 
-            <Textarea
-              label="캠페인 설명 (선택)"
-              placeholder="캠페인에 대한 메모를 남겨주세요."
-              {...form.getInputProps('description')}
-            />
-
-            <MultiSelect
-              label="발행 대상 채널"
-              placeholder="채널을 선택하세요"
-              data={channels.map(c => ({
-                value: c.id,
-                label: `[${c.type}] ${c.accountName} · ${((c as any).region || 'korea')} · ${((c as any).language || 'ko').toUpperCase()}`,
-              }))}
-              required
-              searchable
-              {...form.getInputProps('channelIds')}
-            />
+                {/* ── STEP 1: 채널 선택 ── */}
+                <Box>
+                  <SectionHeader step={1} icon={IconWorld} title="발행 대상 채널" desc="멀티 선택 가능 — 선택한 채널 모두에 자동 발행됩니다" />
+                  <Stack gap="sm">
+                    <TextInput
+                      label="캠페인 이름"
+                      placeholder="2026 봄 시즌 프로모션"
+                      required
+                      {...form.getInputProps('name')}
+                    />
+                    <Textarea
+                      label="캠페인 설명 (선택, 본인 메모용)"
+                      placeholder="이 캠페인의 목적이나 메모를 남겨주세요."
+                      autosize
+                      minRows={1}
+                      maxRows={3}
+                      {...form.getInputProps('description')}
+                    />
+                    <MultiSelect
+                      label="발행 채널"
+                      placeholder={channels.length === 0 ? '먼저 /dashboard/channels 에서 채널을 추가하세요' : '채널을 선택하세요'}
+                      data={channels.map(c => ({
+                        value: c.id,
+                        label: `[${c.type}] ${c.accountName} · ${((c as any).region || 'korea')} · ${((c as any).language || 'ko').toUpperCase()}`,
+                      }))}
+                      required
+                      searchable
+                      disabled={channels.length === 0}
+                      {...form.getInputProps('channelIds')}
+                    />
+                  </Stack>
+                </Box>
 
             {targetLanguages.length > 1 && (
               <Paper withBorder p="sm" radius="md" bg="blue.0">
@@ -424,9 +491,15 @@ function NewCampaignPageInner() {
               </Box>
             )}
 
+            {/* ── STEP 2: 콘텐츠 본문 ── */}
             <Box>
-              <Group justify="space-between" mb={6}>
-                <Text size="sm" fw={500}>{template ? '발행 콘텐츠 본문 (변수 입력 시 자동 갱신)' : '발행 콘텐츠 본문'}</Text>
+              <SectionHeader
+                step={2}
+                icon={IconPencil}
+                title="콘텐츠 본문"
+                desc="채널별 한도는 우측 미리보기에 실시간 표시"
+              />
+              <Group justify="flex-end" mb={6}>
                 <Group gap="xs">
                   <Button
                     size="compact-sm"
@@ -437,50 +510,58 @@ function NewCampaignPageInner() {
                   >
                     AI 캡션 생성
                   </Button>
-                  <Button
-                    size="compact-sm"
-                    variant="light"
-                    color="teal"
-                    leftSection={<IconPhoto size={14} />}
-                    onClick={() => imageModalCtl.open()}
-                  >
-                    AI 이미지 생성
-                  </Button>
                 </Group>
               </Group>
               <Textarea
-                placeholder="인스타그램이나 블로그에 게시될 실제 텍스트를 입력하세요."
-                minRows={8}
+                placeholder="인스타그램·블로그에 게시될 실제 텍스트를 입력하세요. 길게 써도 OK — 채널별 한도는 자동 미리보기에 표시됩니다.&#10;&#10;💡 팁: 첫 줄을 후킹 문장으로, 본문은 가치 → CTA 순서, 마지막에 #해시태그"
+                minRows={12}
+                autosize
+                maxRows={30}
                 required
+                styles={{ input: { fontSize: 14, lineHeight: 1.6 } }}
                 {...form.getInputProps('content')}
               />
-              <Text size="xs" c="dimmed" mt={4}>
-                AI 키 없으면 무료 엔진(Gemini/Groq) 자동 시도. 키 등록은 <Anchor component={Link} href="/dashboard/settings/ai" size="xs">환경설정 → AI 엔진</Anchor>.
-              </Text>
+              <Group justify="space-between" mt={4}>
+                <Text size="xs" c="dimmed">
+                  AI 키 없으면 무료 엔진(Gemini/Groq) 자동 시도. <Anchor component={Link} href="/dashboard/settings/ai" size="xs">키 등록</Anchor>
+                </Text>
+                <Text size="xs" c={form.values.content.length > 5000 ? 'orange.7' : 'dimmed'} fw={600}>
+                  {form.values.content.length.toLocaleString()}자
+                </Text>
+              </Group>
             </Box>
 
-            {imgPreview && (
-              <Paper withBorder p="sm" radius="md">
-                <Group justify="space-between" mb="xs">
-                  <Group gap="xs">
-                    <Badge color="teal" variant="light">{imgPreview.engine}</Badge>
-                    <Text size="xs" c="dimmed">{imgPreview.sizeKb}KB</Text>
-                  </Group>
-                  <Group gap={4}>
-                    <ActionIcon variant="subtle" onClick={downloadImage} title="다운로드">
-                      <IconDownload size={14} />
-                    </ActionIcon>
-                    <ActionIcon variant="subtle" color="red" onClick={() => setImgPreview(null)} title="제거">
-                      <IconX size={14} />
-                    </ActionIcon>
-                  </Group>
-                </Group>
-                <Image src={imgPreview.dataUrl} radius="sm" alt="AI 생성 이미지" />
-                <Text size="xs" c="dimmed" mt={4}>
-                  ⚠️ 이미지는 미리보기 단계 — 캠페인 저장 시 자동 업로드는 미구현 (R2 통합 예정). 다운로드 후 채널별 미디어로 재업로드 필요.
-                </Text>
-              </Paper>
-            )}
+            {/* ── STEP 3: 미디어 첨부 ── */}
+            <Box>
+              <SectionHeader
+                step={3}
+                icon={IconCloudUpload}
+                title="미디어 (사진·영상)"
+                desc="드래그앤드롭 또는 AI 생성 — Telegram/Discord/WordPress/X 등은 첨부된 첫 이미지 자동 사용"
+              />
+              <Group justify="flex-end" mb={6}>
+                <Button
+                  size="compact-sm"
+                  variant="light"
+                  color="teal"
+                  leftSection={<IconSparkles size={14} />}
+                  onClick={() => imageModalCtl.open()}
+                >
+                  AI 이미지 생성
+                </Button>
+              </Group>
+              <MediaUploader items={media} onChange={setMedia} />
+            </Box>
+
+            {/* ── STEP 4: 시간 + 옵션 ── */}
+            <Box>
+              <SectionHeader
+                step={4}
+                icon={IconCalendar}
+                title="발행 시간"
+                desc="단일 시각 또는 황금시간대 자동·분할 모드"
+              />
+            </Box>
 
             {/* 분할 발행 토글 (Phase 6) */}
             <Paper withBorder p="sm" radius="md" bg={form.values.splitMode ? 'violet.0' : undefined}>
@@ -591,6 +672,29 @@ function NewCampaignPageInner() {
           </Stack>
         </form>
       </Paper>
+        </Grid.Col>
+
+        {/* 우측 — 채널별 실시간 미리보기 (sticky) */}
+        <Grid.Col span={{ base: 12, lg: 4 }}>
+          <Box style={{ position: 'sticky', top: 76 }}>
+            <ChannelPreview
+              channels={selectedChannels.map(c => ({
+                id: c.id,
+                type: c.type,
+                accountName: c.accountName,
+                region: (c as any).region,
+                language: (c as any).language,
+              }))}
+              content={form.values.content}
+              media={media.map(m => ({
+                type: m.type,
+                url: m.url,
+                dataUrl: m.dataUrl,
+              }))}
+            />
+          </Box>
+        </Grid.Col>
+      </Grid>
 
       {/* ════ AI 캡션 결과 모달 ════ */}
       <Modal

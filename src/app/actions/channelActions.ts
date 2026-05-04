@@ -105,7 +105,6 @@ export async function deleteChannel(id: string) {
 
 /**
  * Telegram bot token 유효성 빠른 검증 — getMe 호출.
- * 채널 등록 전 토큰 오타/만료 즉시 발견.
  */
 export async function verifyTelegramToken(botToken: string): Promise<{
   ok: boolean;
@@ -115,4 +114,131 @@ export async function verifyTelegramToken(botToken: string): Promise<{
   await getSessionUser();
   const { verifyTelegramCredentials } = await import("@/lib/publishers/telegram");
   return verifyTelegramCredentials(botToken);
+}
+
+/**
+ * 통합 채널 자격증명 검증 — 채널 추가 직후 자동 호출.
+ *
+ * 클라우드 publisher 6종 (Telegram/Discord/LinkedIn/X/YouTube/WordPress) 은
+ * 실제 API 호출로 검증.
+ *
+ * 에이전트 채널 (Instagram/Facebook/Threads/Naver 등) 은 브라우저 자동화라
+ * 즉시 검증 불가 → 'pending_agent' 반환 (에이전트가 첫 발행 시 검증).
+ *
+ * 검증 결과 따라 channel.status 자동 갱신:
+ *   - 성공 → ACTIVE
+ *   - 실패 → ERROR (errorLog 에 사유)
+ *   - 에이전트 대기 → PENDING_AUTH
+ */
+export async function verifyChannelConnection(channelId: string): Promise<{
+  ok: boolean;
+  detail?: string;
+  channelType?: string;
+  newStatus?: 'ACTIVE' | 'ERROR' | 'PENDING_AUTH';
+  error?: string;
+}> {
+  const user = await getSessionUser();
+  const channel = await prisma.marketingChannel.findFirst({
+    where: { id: channelId, userId: user.id! },
+  });
+  if (!channel) return { ok: false, error: '채널을 찾을 수 없습니다' };
+
+  const { decryptJSON } = await import("@/lib/crypto/aes");
+  let creds: any;
+  try {
+    creds = decryptJSON(channel.encryptedCredentials);
+  } catch (e: any) {
+    await prisma.marketingChannel.update({
+      where: { id: channelId },
+      data: { status: 'ERROR' },
+    });
+    return { ok: false, error: '자격증명 복호화 실패', newStatus: 'ERROR', channelType: channel.type };
+  }
+
+  let result: { ok: boolean; detail?: string; error?: string };
+
+  switch (channel.type) {
+    case 'TELEGRAM': {
+      const { verifyTelegramCredentials } = await import("@/lib/publishers/telegram");
+      const r = await verifyTelegramCredentials(creds.botToken);
+      result = r.ok
+        ? { ok: true, detail: `봇 @${r.username} 연결 성공` }
+        : { ok: false, error: r.error };
+      break;
+    }
+    case 'DISCORD': {
+      const { verifyDiscordCredentials } = await import("@/lib/publishers/discord");
+      const r = await verifyDiscordCredentials(creds.webhookUrl);
+      result = r.ok
+        ? { ok: true, detail: `웹후크 "${r.name}" 연결 성공 (channel: ${r.channelId})` }
+        : { ok: false, error: r.error };
+      break;
+    }
+    case 'LINKEDIN': {
+      const { verifyLinkedInCredentials } = await import("@/lib/publishers/linkedin");
+      const r = await verifyLinkedInCredentials(creds.accessToken);
+      result = r.ok
+        ? { ok: true, detail: `${r.name || '계정'} 인증 성공` }
+        : { ok: false, error: r.error };
+      break;
+    }
+    case 'X': {
+      const { verifyXCredentials } = await import("@/lib/publishers/x");
+      const r = await verifyXCredentials(creds.accessToken);
+      result = r.ok
+        ? { ok: true, detail: `@${r.username} 인증 성공` }
+        : { ok: false, error: r.error };
+      break;
+    }
+    case 'YOUTUBE': {
+      const { verifyYouTubeCredentials } = await import("@/lib/publishers/youtube");
+      const r = await verifyYouTubeCredentials(creds.accessToken);
+      result = r.ok
+        ? { ok: true, detail: `채널 "${r.channelTitle}" (구독자 ${r.subscribers?.toLocaleString() || 0}명) 인증 성공` }
+        : { ok: false, error: r.error };
+      break;
+    }
+    case 'WORDPRESS': {
+      const { verifyWordPressCredentials } = await import("@/lib/publishers/wordpress");
+      const r = await verifyWordPressCredentials({
+        siteUrl: creds.siteUrl,
+        username: creds.username,
+        appPassword: creds.appPassword,
+      });
+      result = r.ok
+        ? { ok: true, detail: `${creds.siteUrl} (${r.username || creds.username}) 인증 성공` }
+        : { ok: false, error: r.error };
+      break;
+    }
+    default: {
+      // 에이전트 채널 (Instagram/Facebook/Threads/Naver/카카오 등)
+      // 브라우저 자동화라 즉시 검증 불가 — 첫 발행 시 에이전트가 검증
+      await prisma.marketingChannel.update({
+        where: { id: channelId },
+        data: { status: 'PENDING_AUTH' },
+      });
+      return {
+        ok: true,
+        detail: '에이전트가 첫 발행 시 로그인 검증합니다. 데스크톱 에이전트가 설치·실행 중인지 확인해주세요.',
+        newStatus: 'PENDING_AUTH',
+        channelType: channel.type,
+      };
+    }
+  }
+
+  // 결과 반영
+  const newStatus: 'ACTIVE' | 'ERROR' = result.ok ? 'ACTIVE' : 'ERROR';
+  await prisma.marketingChannel.update({
+    where: { id: channelId },
+    data: { status: newStatus },
+  });
+  revalidatePath('/dashboard/channels');
+
+  return {
+    ok: result.ok,
+    detail: result.detail,
+    error: result.error,
+    newStatus,
+    channelType: channel.type,
+  };
 }
