@@ -217,6 +217,29 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
         </Button>
       </Group>
 
+      {channels.length === 0 && (
+        <Card withBorder p="xl" radius="md" bg="var(--mantine-color-default-hover)">
+          <Stack gap="md" align="center" py="xl">
+            <div style={{ fontSize: 48 }}>🔌</div>
+            <div style={{ textAlign: 'center' }}>
+              <Text fw={800} size="lg">아직 연결된 채널이 없어요</Text>
+              <Text size="sm" c="dimmed" mt={4}>가장 빠르게 시작하려면 <strong>Discord webhook</strong> 또는 <strong>Telegram bot</strong> 추가를 추천드려요. 5분이면 완료!</Text>
+            </div>
+            <Group gap="xs">
+              <Button leftSection={<IconPlus size={16} />} onClick={() => { form.setFieldValue('type', 'DISCORD' as any); setOpened(true); }} color="indigo">
+                Discord 추가
+              </Button>
+              <Button leftSection={<IconPlus size={16} />} onClick={() => { form.setFieldValue('type', 'TELEGRAM' as any); setOpened(true); }} color="cyan" variant="light">
+                Telegram 추가
+              </Button>
+              <Button leftSection={<IconPlus size={16} />} onClick={() => setOpened(true)} variant="subtle">
+                다른 채널 보기
+              </Button>
+            </Group>
+          </Stack>
+        </Card>
+      )}
+
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
         {channels.map((channel) => {
           const Icon = CHANNEL_ICONS[channel.type] || IconSettings;

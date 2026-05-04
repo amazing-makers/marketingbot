@@ -13,6 +13,58 @@ async function getSessionUser() {
   return session.user;
 }
 
+/**
+ * 콘텐츠 캘린더 — 사용자의 모든 ScheduledTask 를 from~to 범위에서 조회.
+ * 일자(YYYY-MM-DD)별로 그룹핑하여 캘린더 그리드에 바로 사용 가능한 형태로 반환.
+ *
+ * 한 task = 한 채널 발행. 같은 캠페인이라도 채널이 여러 개면 task 도 여러 개.
+ * UI 에서는 캠페인 단위 또는 task 단위 모두 표시 가능하도록 둘 다 포함.
+ */
+export async function listCalendarEntries(input: { from: Date; to: Date }) {
+  const user = await getSessionUser();
+  const tasks = await prisma.scheduledTask.findMany({
+    where: {
+      campaign: { userId: user.id! },
+      scheduledAt: { gte: input.from, lte: input.to },
+    },
+    include: {
+      campaign: { select: { id: true, name: true, status: true } },
+      channel: { select: { id: true, type: true, accountName: true, region: true } },
+    },
+    orderBy: { scheduledAt: 'asc' },
+  });
+
+  // 일자별 그룹핑 (YYYY-MM-DD 기준 — UTC 기준 직렬화 후 클라이언트에서 로컬 변환)
+  type Entry = {
+    taskId: string;
+    campaignId: string;
+    campaignName: string;
+    campaignStatus: string;
+    channelType: string;
+    accountName: string;
+    region: string | null;
+    status: string;
+    scheduledAt: string; // ISO
+  };
+  const byDay: Record<string, Entry[]> = {};
+  for (const t of tasks) {
+    const day = t.scheduledAt.toISOString().slice(0, 10);
+    if (!byDay[day]) byDay[day] = [];
+    byDay[day].push({
+      taskId: t.id,
+      campaignId: t.campaignId,
+      campaignName: t.campaign.name,
+      campaignStatus: t.campaign.status,
+      channelType: t.channel.type,
+      accountName: t.channel.accountName,
+      region: t.channel.region,
+      status: t.status,
+      scheduledAt: t.scheduledAt.toISOString(),
+    });
+  }
+  return byDay;
+}
+
 export async function listCampaigns() {
   const user = await getSessionUser();
   return await prisma.campaign.findMany({

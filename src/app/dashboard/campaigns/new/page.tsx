@@ -26,6 +26,16 @@ function NewCampaignPageInner() {
   const templateId = searchParams.get('template');
   const template = useMemo(() => (templateId ? getTemplateById(templateId) : null), [templateId]);
 
+  // 캘린더에서 "+" 클릭 시 ?date=YYYY-MM-DD 로 진입 — 그 날짜 9시 prefill
+  const dateParam = searchParams.get('date');
+  const initialScheduledAt = useMemo(() => {
+    if (dateParam) {
+      const d = new Date(`${dateParam}T09:00:00`);
+      if (!isNaN(d.getTime())) return d;
+    }
+    return new Date(Date.now() + 10 * 60 * 1000);
+  }, [dateParam]);
+
   const [channels, setChannels] = useState<MarketingChannel[]>([]);
   const [loading, setLoading] = useState(false);
   const [variableValues, setVariableValues] = useState<Record<string, string>>({});
@@ -70,7 +80,7 @@ function NewCampaignPageInner() {
       content: '',
       sourceLanguage: 'ko',
       autoTranslate: true,
-      scheduledAt: new Date(Date.now() + 10 * 60 * 1000),
+      scheduledAt: initialScheduledAt,
       // 분할 발행 모드 (Phase 6)
       splitMode: false,
       splitCount: 3,

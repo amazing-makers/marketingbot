@@ -49,7 +49,7 @@ export default function RootLayout({
         <SessionProvider>
           <PostHogProvider>
             <PostHogIdentify />
-            <MantineProvider defaultColorScheme="light">
+            <MantineProvider defaultColorScheme="auto">
               <Notifications />
               {children}
             </MantineProvider>

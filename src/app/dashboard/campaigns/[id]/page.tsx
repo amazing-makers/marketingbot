@@ -8,7 +8,6 @@ import {
   IconRefresh, IconBolt
 } from '@tabler/icons-react';
 import { revalidatePath } from 'next/cache';
-import Link from 'next/link';
 import dayjs from 'dayjs';
 
 export default async function CampaignDetailPage({ params }: { params: { id: string } }) {
@@ -39,7 +38,7 @@ export default async function CampaignDetailPage({ params }: { params: { id: str
   return (
     <Stack>
       <Breadcrumbs mb="xs">
-        <Anchor component={Link} href="/dashboard/campaigns">캠페인 목록</Anchor>
+        <Anchor component="a" href="/dashboard/campaigns">캠페인 목록</Anchor>
         <Text size="sm">상세 정보</Text>
       </Breadcrumbs>
 
