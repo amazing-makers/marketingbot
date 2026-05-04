@@ -78,6 +78,17 @@ function NewCampaignPageInner() {
   const [imageBatchCount, setImageBatchCount] = useState<1 | 3 | 5 | 10>(1);
   const [imgBusy, setImgBusy] = useState(false);
   const [imgBatchProgress, setImgBatchProgress] = useState<{ done: number; total: number } | null>(null);
+  // 생성된 이미지 인라인 미리보기 (모달 안에서 보여주기 → 사용자가 적용/재생성/삭제 선택)
+  type PendingImage = {
+    id: string;
+    dataUrl: string;
+    url?: string;
+    storage: 'r2' | 'inline';
+    sizeKb: number;
+    engine?: string;
+    selected: boolean;
+  };
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
 
   // 첨부 미디어 — Dropzone + AI 이미지 모두 동일 배열에 들어옴
   const [media, setMedia] = useState<MediaItem[]>([]);
@@ -90,6 +101,9 @@ function NewCampaignPageInner() {
   const [draftStatus, setDraftStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [draftLastSaved, setDraftLastSaved] = useState<Date | null>(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
+
+  // 발행 전 최종 확인 모달
+  const [reviewModal, reviewModalCtl] = useDisclosure(false);
 
   useEffect(() => {
     listChannels().then(setChannels);
@@ -323,6 +337,7 @@ function NewCampaignPageInner() {
   // ════ AI 이미지 변형 (기존 이미지 → AI 가 4장 변형) ════
   // sourceItem 의 dataUrl 을 vision 분석 → 비슷한 분위기로 4장 새로 생성
   const handleCreateVariations = async (source: MediaItem) => {
+    setPendingImages([]);
     setImagePrompt(`(이전 이미지의 변형) 다음 분위기·구도·색감을 참고한 새 이미지`);
     setImageBatchCount(3);
     imageModalCtl.open();
@@ -334,7 +349,7 @@ function NewCampaignPageInner() {
     });
   };
 
-  // ════ AI 이미지 생성 (1장 또는 N장 일괄) → media 배열 자동 추가 ════
+  // ════ AI 이미지 생성 (1장 또는 N장 일괄) → 미리보기 갤러리에 추가 (모달 안에서 확인 후 적용) ════
   const handleGenerateImage = async () => {
     if (!imagePrompt.trim()) {
       notifications.show({ color: 'orange', title: '프롬프트 필요', message: '이미지 설명을 입력하세요.' });
@@ -344,32 +359,29 @@ function NewCampaignPageInner() {
     setImgBatchProgress({ done: 0, total: imageBatchCount });
     let succeeded = 0;
     let lastEngine: string | undefined;
-    let lastStorage: 'r2' | 'inline' = 'inline';
 
     try {
       // 직렬 호출 (병렬 시 무료 엔진 rate limit 위험)
       for (let i = 0; i < imageBatchCount; i++) {
         try {
-          // 같은 프롬프트면 비슷한 결과 → 변형 시드 추가
           const variantPrompt = imageBatchCount > 1
             ? `${imagePrompt} (variant ${i + 1}/${imageBatchCount})`
             : imagePrompt;
           const r = await generateCampaignImage({ prompt: variantPrompt, aspect: imageAspect });
           if (r.success && r.dataUrl) {
-            const newItem: MediaItem = {
+            const newItem: PendingImage = {
               id: `ai-${Date.now()}-${i}`,
-              type: 'image',
-              name: `ai-${imageAspect}-${Date.now()}-${i + 1}.png`,
-              sizeKb: r.sizeKb!,
-              uploading: false,
               dataUrl: r.dataUrl,
               url: r.url,
               storage: r.storage,
+              sizeKb: r.sizeKb!,
+              engine: r.engine,
+              selected: true, // 기본 모두 선택됨
             };
-            setMedia(prev => [...prev, newItem]);
+            // 생성 즉시 갤러리에 추가 (사용자가 진행 상황을 볼 수 있도록)
+            setPendingImages(prev => [...prev, newItem]);
             succeeded++;
             lastEngine = r.engine;
-            lastStorage = r.storage;
           } else if (r.error) {
             console.warn(`[ai-image ${i + 1}/${imageBatchCount}]`, r.error);
           }
@@ -382,21 +394,59 @@ function NewCampaignPageInner() {
       if (succeeded === 0) {
         notifications.show({ color: 'red', title: '모두 실패', message: 'AI 이미지 생성 모두 실패. 키/할당량 확인' });
       } else {
-        imageModalCtl.close();
-        setImagePrompt('');
         notifications.show({
           color: 'teal',
-          title: `🎨 AI 이미지 ${succeeded}/${imageBatchCount}장 생성됨 (${lastEngine})`,
-          message: lastStorage === 'r2'
-            ? `R2 업로드 완료 — 자동 첨부됐어요`
-            : `inline 미리보기 (R2 키 등록 시 자동 업로드 활성화)`,
-          autoClose: 5000,
+          title: `🎨 ${succeeded}/${imageBatchCount}장 생성됨 — 아래에서 마음에 드는 것을 선택하세요`,
+          message: lastEngine ? `엔진: ${lastEngine}` : '',
+          autoClose: 4000,
         });
       }
     } finally {
       setImgBusy(false);
       setImgBatchProgress(null);
     }
+  };
+
+  // ════ 선택한 미리보기 이미지를 미디어로 적용 ════
+  const handleApplyPendingImages = () => {
+    const selected = pendingImages.filter(p => p.selected);
+    if (selected.length === 0) {
+      notifications.show({ color: 'orange', title: '선택 없음', message: '추가할 이미지를 선택하세요.' });
+      return;
+    }
+    const newItems: MediaItem[] = selected.map((p, idx) => ({
+      id: p.id,
+      type: 'image' as const,
+      name: `ai-${imageAspect}-${p.id}-${idx + 1}.png`,
+      sizeKb: p.sizeKb,
+      uploading: false,
+      dataUrl: p.dataUrl,
+      url: p.url,
+      storage: p.storage,
+    }));
+    setMedia(prev => [...prev, ...newItems]);
+    const r2Count = selected.filter(p => p.storage === 'r2').length;
+    notifications.show({
+      color: 'teal',
+      title: `✅ ${selected.length}장 첨부됨`,
+      message: r2Count === selected.length ? 'R2 업로드 완료 — 외부 채널 자동 첨부' : `${selected.length - r2Count}장 inline (R2 키 등록 시 자동 업로드)`,
+      autoClose: 4000,
+    });
+    setPendingImages([]);
+    setImagePrompt('');
+    imageModalCtl.close();
+  };
+
+  const togglePendingSelection = (id: string) => {
+    setPendingImages(prev => prev.map(p => p.id === id ? { ...p, selected: !p.selected } : p));
+  };
+
+  const discardPendingImage = (id: string) => {
+    setPendingImages(prev => prev.filter(p => p.id !== id));
+  };
+
+  const clearAllPending = () => {
+    setPendingImages([]);
   };
 
   const handleSubmit = async (values: typeof form.values) => {
@@ -759,7 +809,7 @@ function NewCampaignPageInner() {
                   variant="light"
                   color="teal"
                   leftSection={<IconSparkles size={14} />}
-                  onClick={() => imageModalCtl.open()}
+                  onClick={() => { setPendingImages([]); imageModalCtl.open(); }}
                 >
                   AI 이미지 생성
                 </Button>
@@ -880,7 +930,27 @@ function NewCampaignPageInner() {
               </Group>
               <Group gap="xs">
                 <Button variant="subtle" onClick={() => router.back()}>취소</Button>
-                <Button type="submit" loading={loading} size="md">캠페인 생성 및 예약</Button>
+                <Button
+                  type="button"
+                  size="md"
+                  variant="light"
+                  color="blue"
+                  leftSection={<IconCheck size={16} />}
+                  onClick={() => {
+                    const errors = form.validate();
+                    if (errors.hasErrors) {
+                      notifications.show({ color: 'orange', title: '입력 확인', message: '필수 항목을 모두 채워주세요.' });
+                      return;
+                    }
+                    if (media.some(m => m.uploading)) {
+                      notifications.show({ color: 'orange', title: '미디어 업로드 중', message: '업로드가 끝난 후 진행해주세요.' });
+                      return;
+                    }
+                    reviewModalCtl.open();
+                  }}
+                >
+                  🔍 발행 전 한번 더 확인
+                </Button>
               </Group>
             </Group>
           </Stack>
@@ -964,12 +1034,156 @@ function NewCampaignPageInner() {
         )}
       </Modal>
 
+      {/* ════ 발행 전 최종 확인 모달 ════ */}
+      <Modal
+        opened={reviewModal}
+        onClose={() => !loading && reviewModalCtl.close()}
+        title={<Group gap={6}><IconCheck size={18} /><Text fw={700}>🔍 발행 전 최종 확인</Text></Group>}
+        size="xl"
+        closeOnClickOutside={!loading}
+        withCloseButton={!loading}
+      >
+        <Stack gap="md">
+          <Box style={{ background: 'var(--mantine-color-blue-0)', padding: 12, borderRadius: 8 }}>
+            <Text size="xs" c="blue.9">
+              💡 아래 내용으로 발행됩니다. 확인 후 "✅ 이대로 발행하기"를 누르거나, "← 수정하기"로 돌아가세요.
+            </Text>
+          </Box>
+
+          {/* 기본 정보 */}
+          <Card withBorder radius="md" p="md">
+            <Text size="sm" fw={700} mb="xs">📋 기본 정보</Text>
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+              <Box><Text size="xs" c="dimmed">캠페인 이름</Text><Text fw={600} size="sm">{form.values.name}</Text></Box>
+              <Box><Text size="xs" c="dimmed">발행 채널</Text><Text fw={600} size="sm">{form.values.channelIds.length}개</Text></Box>
+              <Box><Text size="xs" c="dimmed">예약 시간</Text><Text fw={600} size="sm">{dayjs(form.values.scheduledAt).format('YYYY-MM-DD HH:mm')}</Text></Box>
+              <Box>
+                <Text size="xs" c="dimmed">발행 방식</Text>
+                <Text fw={600} size="sm">
+                  {form.values.splitMode ? `🎯 분할 발행 (${form.values.splitCount}회 황금시간대)` : '⏱ 단일 예약'}
+                </Text>
+              </Box>
+            </SimpleGrid>
+          </Card>
+
+          {/* 본문 */}
+          <Card withBorder radius="md" p="md">
+            <Group justify="space-between" mb="xs">
+              <Text size="sm" fw={700}>📝 본문 ({form.values.content.length}자)</Text>
+              {form.values.autoTranslate && Object.keys(translations).length > 0 && (
+                <Badge color="cyan" variant="light" size="sm">
+                  🌐 {Object.keys(translations).length}개 채널 자동 번역됨
+                </Badge>
+              )}
+            </Group>
+            <Box style={{ background: 'var(--mantine-color-default-hover)', padding: 12, borderRadius: 6 }}>
+              <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
+                {form.values.content || <Text component="span" c="dimmed">(빈 본문)</Text>}
+              </Text>
+            </Box>
+          </Card>
+
+          {/* 미디어 */}
+          {media.length > 0 && (
+            <Card withBorder radius="md" p="md">
+              <Text size="sm" fw={700} mb="xs">
+                🖼️ 첨부 미디어 ({media.length}장)
+                {media.some(m => !m.url && !m.dataUrl?.startsWith('http')) && (
+                  <Text component="span" size="xs" c="orange" ml="xs">⚠️ inline 미디어는 외부 채널 첨부 불가 (R2 키 등록 필요)</Text>
+                )}
+              </Text>
+              <SimpleGrid cols={{ base: 3, sm: 5 }} spacing="xs">
+                {media.slice(0, 10).map(m => (
+                  <Box
+                    key={m.id}
+                    style={{
+                      aspectRatio: '1/1',
+                      overflow: 'hidden',
+                      borderRadius: 6,
+                      border: '1px solid var(--mantine-color-default-border)',
+                      position: 'relative',
+                    }}
+                  >
+                    {m.type === 'image' && (m.dataUrl || m.url) ? (
+                      <img src={m.dataUrl || m.url} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: 'var(--mantine-color-gray-1)', fontSize: 24 }}>
+                        🎬
+                      </Box>
+                    )}
+                  </Box>
+                ))}
+                {media.length > 10 && (
+                  <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', aspectRatio: '1/1', background: 'var(--mantine-color-default-hover)', borderRadius: 6 }}>
+                    <Text size="sm" fw={700}>+{media.length - 10}</Text>
+                  </Box>
+                )}
+              </SimpleGrid>
+            </Card>
+          )}
+
+          {/* 채널별 번역 미리보기 */}
+          {form.values.autoTranslate && Object.keys(translations).length > 0 && (
+            <Card withBorder radius="md" p="md">
+              <Text size="sm" fw={700} mb="xs">🌐 채널별 발행 내용</Text>
+              <Stack gap="xs">
+                {form.values.channelIds.map(chId => {
+                  const ch = channels.find(c => c.id === chId);
+                  if (!ch) return null;
+                  const t = translations[chId];
+                  const finalText = t && !t.sameAsSource ? t.translated : form.values.content;
+                  return (
+                    <Box key={chId} style={{ background: 'var(--mantine-color-default-hover)', padding: 10, borderRadius: 6 }}>
+                      <Group gap={6} mb={4}>
+                        <Badge size="sm" variant="light">{ch.type}</Badge>
+                        <Text size="xs" fw={600}>{ch.accountName}</Text>
+                        {t && !t.sameAsSource && (
+                          <Badge size="xs" color="cyan" variant="light">🌐 {(t.language || 'EN').toUpperCase()}</Badge>
+                        )}
+                      </Group>
+                      <Text size="xs" lineClamp={3} style={{ whiteSpace: 'pre-wrap' }}>
+                        {finalText}
+                      </Text>
+                    </Box>
+                  );
+                })}
+              </Stack>
+            </Card>
+          )}
+
+          <Group justify="space-between" mt="md">
+            <Button variant="subtle" onClick={() => reviewModalCtl.close()} disabled={loading}>
+              ← 수정하기
+            </Button>
+            <Button
+              color="violet"
+              variant="gradient"
+              gradient={{ from: 'violet', to: 'blue' }}
+              size="md"
+              leftSection={<IconCheck size={16} />}
+              loading={loading}
+              onClick={async () => {
+                await handleSubmit(form.values);
+                if (!loading) reviewModalCtl.close();
+              }}
+            >
+              ✅ 이대로 발행하기
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
       {/* ════ AI 이미지 생성 모달 ════ */}
       <Modal
         opened={imageModal}
-        onClose={() => !imgBusy && imageModalCtl.close()}
+        onClose={() => {
+          if (imgBusy) return;
+          if (pendingImages.length > 0 && !confirm('생성된 이미지가 있어요. 적용하지 않고 닫으면 사라집니다. 정말 닫을까요?')) return;
+          setPendingImages([]);
+          imageModalCtl.close();
+        }}
         title={<Group gap={6}><IconPhoto size={18} /><Text fw={700}>🎨 AI로 이미지 만들기</Text></Group>}
-        size="md"
+        size="lg"
         closeOnClickOutside={!imgBusy}
         withCloseButton={!imgBusy}
       >
@@ -1017,7 +1231,7 @@ function NewCampaignPageInner() {
               ))}
             </Group>
             <Text size="xs" c="dimmed" mt={4}>
-              여러 장 선택 시 각 이미지는 약간씩 달라요 — 마음에 드는 것만 남기고 나머지는 X로 지우세요
+              여러 장을 만들면 아래에 한꺼번에 보여드려요 — 마음에 드는 것만 골라서 첨부하세요
             </Text>
           </Box>
           {imgBatchProgress && (
@@ -1034,21 +1248,123 @@ function NewCampaignPageInner() {
               </Box>
             </Box>
           )}
+
+          {/* ── 생성 결과 미리보기 갤러리 ── */}
+          {pendingImages.length > 0 && (
+            <Box>
+              <Group justify="space-between" mb="xs">
+                <Group gap={6}>
+                  <Text size="sm" fw={700}>🖼️ 생성된 이미지 ({pendingImages.filter(p => p.selected).length}/{pendingImages.length}장 선택됨)</Text>
+                </Group>
+                <Group gap={4}>
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    onClick={() => setPendingImages(prev => prev.map(p => ({ ...p, selected: true })))}
+                  >전체 선택</Button>
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    color="gray"
+                    onClick={() => setPendingImages(prev => prev.map(p => ({ ...p, selected: false })))}
+                  >전체 해제</Button>
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    color="red"
+                    onClick={clearAllPending}
+                  >🗑 모두 버리기</Button>
+                </Group>
+              </Group>
+              <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="sm">
+                {pendingImages.map(p => (
+                  <Card
+                    key={p.id}
+                    withBorder
+                    p={4}
+                    radius="md"
+                    onClick={() => togglePendingSelection(p.id)}
+                    style={{
+                      cursor: 'pointer',
+                      borderColor: p.selected ? 'var(--mantine-color-violet-6)' : undefined,
+                      borderWidth: p.selected ? 2 : 1,
+                      position: 'relative',
+                      background: p.selected ? 'var(--mantine-color-violet-0)' : undefined,
+                    }}
+                  >
+                    <Box style={{ position: 'relative', aspectRatio: imageAspect === 'square' ? '1/1' : imageAspect === 'vertical' ? '9/16' : '16/9', overflow: 'hidden', borderRadius: 4 }}>
+                      <img
+                        src={p.dataUrl}
+                        alt="AI generated"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      />
+                      {p.selected && (
+                        <Box style={{
+                          position: 'absolute', top: 4, left: 4,
+                          background: 'var(--mantine-color-violet-6)',
+                          color: 'white', borderRadius: '50%',
+                          width: 22, height: 22,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                        }}>
+                          <IconCheck size={14} />
+                        </Box>
+                      )}
+                      <ActionIcon
+                        size="sm"
+                        variant="filled"
+                        color="red"
+                        radius="xl"
+                        onClick={(e) => { e.stopPropagation(); discardPendingImage(p.id); }}
+                        style={{ position: 'absolute', top: 4, right: 4 }}
+                      >
+                        <IconX size={12} />
+                      </ActionIcon>
+                    </Box>
+                    <Group gap={4} mt={4} justify="space-between">
+                      <Text size="10px" c="dimmed" truncate>{p.engine || 'ai'}</Text>
+                      <Badge size="xs" color={p.storage === 'r2' ? 'teal' : 'gray'} variant="light">
+                        {p.storage === 'r2' ? 'R2' : 'inline'}
+                      </Badge>
+                    </Group>
+                  </Card>
+                ))}
+              </SimpleGrid>
+            </Box>
+          )}
+
           <Box style={{ background: 'var(--mantine-color-default-hover)', borderRadius: 8, padding: 10 }}>
             <Text size="11px" c="dimmed" lineClamp={3}>
               💡 <strong>무료 엔진</strong>(Pollinations) 우선 사용. AI 키 등록 시 DALL-E 3 → Gemini Imagen 도 자동 사용.
               영상 자동 생성은 곧 출시 예정 — 지금은 영상 파일을 직접 업로드해주세요.
             </Text>
           </Box>
-          <Button
-            onClick={handleGenerateImage}
-            loading={imgBusy}
-            leftSection={<IconSparkles size={16} />}
-            color="violet"
-            size="md"
-          >
-            {imageBatchCount === 1 ? '이미지 만들기' : `${imageBatchCount}장 한 번에 만들기`}
-          </Button>
+
+          <Group grow>
+            <Button
+              onClick={handleGenerateImage}
+              loading={imgBusy}
+              leftSection={<IconSparkles size={16} />}
+              color="violet"
+              variant={pendingImages.length > 0 ? 'light' : 'filled'}
+              size="md"
+            >
+              {pendingImages.length > 0
+                ? (imageBatchCount === 1 ? '🔄 다시 만들기' : `🔄 ${imageBatchCount}장 더 만들기`)
+                : (imageBatchCount === 1 ? '이미지 만들기' : `${imageBatchCount}장 한 번에 만들기`)}
+            </Button>
+            {pendingImages.length > 0 && (
+              <Button
+                onClick={handleApplyPendingImages}
+                color="teal"
+                size="md"
+                leftSection={<IconCheck size={16} />}
+                disabled={imgBusy || pendingImages.filter(p => p.selected).length === 0}
+              >
+                ✅ 선택한 {pendingImages.filter(p => p.selected).length}장 첨부하기
+              </Button>
+            )}
+          </Group>
         </Stack>
       </Modal>
     </Container>

@@ -11,7 +11,8 @@ import {
   IconDashboard, IconPlus, IconUserCircle, IconSettings,
   IconLogout, IconWorld, IconCalendarEvent,
   IconSun, IconMoon, IconSearch, IconCalendarMonth, IconRobot,
-  IconChartBar, IconKey, IconWebhook, IconBolt, IconUsers, IconCreditCard
+  IconChartBar, IconKey, IconWebhook, IconBolt, IconUsers, IconCreditCard,
+  IconCoin
 } from '@tabler/icons-react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
@@ -270,7 +271,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               href="/dashboard/campaigns"
               label="캠페인 관리"
               leftSection={<IconCalendarEvent size={18} stroke={1.5} />}
-              active={!!pathname && pathname.startsWith('/dashboard/campaigns') && !pathname.includes('calendar')}
+              active={
+                !!pathname &&
+                pathname.startsWith('/dashboard/campaigns') &&
+                !pathname.includes('/calendar') &&
+                !pathname.includes('/series') &&
+                !pathname.includes('/ab') &&
+                !pathname.includes('/templates')
+              }
             />
             <NavLink
               component={Link}
@@ -301,6 +309,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               active={pathname === '/dashboard/agent'}
             />
             <Divider my="sm" />
+            <NavLink
+              component={Link}
+              href="/dashboard/reseller"
+              label="🤝 리셀러 프로그램"
+              leftSection={<IconCoin size={18} stroke={1.5} />}
+              active={!!pathname && pathname.startsWith('/dashboard/reseller')}
+            />
             <NavLink
               component={Link}
               href="/dashboard/settings/billing"

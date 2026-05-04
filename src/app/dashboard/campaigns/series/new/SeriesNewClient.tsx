@@ -3,17 +3,21 @@
 import {
     Container, Title, Text, Stack, Group, TextInput, Textarea, Select,
     MultiSelect, NumberInput, Button, Paper, Card, Box, Badge, SimpleGrid,
-    Divider, Anchor, Stepper
+    Divider, Anchor, ThemeIcon, Modal, Loader, ActionIcon
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { DateTimePicker } from '@mantine/dates';
+import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { IconSparkles, IconRocket, IconClock, IconCalendar, IconCheck } from '@tabler/icons-react';
+import {
+    IconRocket, IconWorld, IconCategory, IconClockHour9, IconRosetteDiscountCheck,
+    IconEye, IconRefresh, IconCheck
+} from '@tabler/icons-react';
 import { listChannels } from '@/app/actions/channelActions';
-import { createSeries } from '@/app/actions/seriesActions';
+import { createSeries, previewSeriesContent } from '@/app/actions/seriesActions';
 import MediaUploader, { type MediaItem } from '../../new/MediaUploader';
 import { MarketingChannel } from '@prisma/client';
 
@@ -42,6 +46,22 @@ const MODE_OPTIONS = [
     },
 ];
 
+// 섹션 헤더 (캠페인 작성 폼과 동일한 스타일)
+function SectionHeader({ step, icon: Icon, title, desc }: { step: number; icon: any; title: string; desc?: string }) {
+    return (
+        <Group gap="sm" mb="xs">
+            <ThemeIcon size={32} radius="md" variant="light" color="blue">
+                <Icon size={18} stroke={1.7} />
+            </ThemeIcon>
+            <Stack gap={0}>
+                <Text size="10px" fw={700} c="blue.6">STEP {step}</Text>
+                <Text fw={700} size="md">{title}</Text>
+                {desc && <Text size="11px" c="dimmed">{desc}</Text>}
+            </Stack>
+        </Group>
+    );
+}
+
 const CATEGORY_OPTIONS = [
     {
         value: 'SNS',
@@ -64,12 +84,19 @@ const SCHEDULE_OPTIONS = [
     { value: 'FIXED_COUNT', label: '🎯 기간 안에 균등하게 (예: 5일 동안 30개)' },
 ];
 
+type PreviewSample = { index: number; content: string; mediaUrls: string[]; error?: string; loading?: boolean };
+
 export default function SeriesNewClient() {
     const router = useRouter();
-    const [step, setStep] = useState(0);
     const [channels, setChannels] = useState<MarketingChannel[]>([]);
     const [mediaPool, setMediaPool] = useState<MediaItem[]>([]);
     const [submitting, setSubmitting] = useState(false);
+
+    // 샘플 미리보기 (실제 시리즈 만들기 전 N 개 미리 생성)
+    const [previewModal, previewModalCtl] = useDisclosure(false);
+    const [previewLoading, setPreviewLoading] = useState(false);
+    const [previewSamples, setPreviewSamples] = useState<PreviewSample[]>([]);
+    const [previewSampleCount, setPreviewSampleCount] = useState<3 | 5>(3);
 
     useEffect(() => { listChannels().then(setChannels); }, []);
 
@@ -98,6 +125,64 @@ export default function SeriesNewClient() {
             briefBrandName: '',
         },
     });
+
+    // 샘플 N 개 미리 생성 (실제 시리즈는 안 만듦)
+    const buildPreviewInput = () => {
+        const v = form.values;
+        const mediaPoolUrls = mediaPool.filter(m => m.url).map(m => m.url!);
+        const brief: any = {};
+        if (v.briefPurpose) brief.purpose = v.briefPurpose;
+        if (v.briefTone) brief.tone = v.briefTone;
+        if (v.briefAudience) brief.audience = v.briefAudience;
+        if (v.briefIndustry) brief.industry = v.briefIndustry;
+        return {
+            mode: v.mode,
+            captionStyle: v.mode === 'POOL' ? v.captionStyle : undefined,
+            contentCategory: v.contentCategory,
+            mediaPool: mediaPoolUrls.length > 0 ? mediaPoolUrls : undefined,
+            contentSeed: v.contentSeed.trim() || undefined,
+            briefData: Object.keys(brief).length > 0 ? brief : undefined,
+        };
+    };
+
+    const handlePreview = async () => {
+        const v = form.values;
+        if (!v.name || v.channelIds.length === 0) {
+            notifications.show({ color: 'orange', title: '입력 필요', message: '이름과 채널을 먼저 선택하세요.' });
+            return;
+        }
+        if (v.mode === 'POOL') {
+            const poolUrls = mediaPool.filter(m => m.url);
+            if (poolUrls.length === 0) {
+                notifications.show({ color: 'orange', title: '사진 필요', message: '"내 사진/영상 사용" 모드는 R2 업로드된 사진이 필요해요.' });
+                return;
+            }
+        }
+        previewModalCtl.open();
+        setPreviewLoading(true);
+        setPreviewSamples([]);
+        try {
+            const input = buildPreviewInput();
+            const samples = await previewSeriesContent(input as any, previewSampleCount);
+            setPreviewSamples(samples);
+        } catch (e: any) {
+            notifications.show({ color: 'red', title: '미리보기 실패', message: e?.message || '샘플 생성 실패' });
+        } finally {
+            setPreviewLoading(false);
+        }
+    };
+
+    const handleRegenerateSample = async (index: number) => {
+        setPreviewSamples(prev => prev.map(s => s.index === index ? { ...s, loading: true } : s));
+        try {
+            const input = buildPreviewInput();
+            const samples = await previewSeriesContent(input as any, 1);
+            setPreviewSamples(prev => prev.map(s => s.index === index ? { ...samples[0], index } : s));
+        } catch (e: any) {
+            notifications.show({ color: 'red', title: '재생성 실패', message: e?.message || '실패' });
+            setPreviewSamples(prev => prev.map(s => s.index === index ? { ...s, loading: false } : s));
+        }
+    };
 
     const handleSubmit = async () => {
         setSubmitting(true);
@@ -168,15 +253,10 @@ export default function SeriesNewClient() {
                 </Text>
             </Stack>
 
-            <Stepper active={step} onStepClick={setStep} mb="xl">
-                <Stepper.Step label="1. 기본 정보" description="이름·채널" />
-                <Stepper.Step label="2. 어떻게 만들지" description="사진·글 방식" />
-                <Stepper.Step label="3. 언제 올릴지" description="시간·횟수" />
-                <Stepper.Step label="4. 확인·시작" description="검토 후 발행" />
-            </Stepper>
-
-            <Paper withBorder p="lg" radius="md">
-                {step === 0 && (
+            <Stack gap="lg">
+                {/* ── STEP 1: 기본 정보 ── */}
+                <Paper withBorder p="lg" radius="md">
+                    <SectionHeader step={1} icon={IconWorld} title="기본 정보" desc="시리즈 이름과 어디에 올릴지" />
                     <Stack gap="md">
                         <TextInput
                             label="이 자동 발행의 이름 (나만 보는 것)"
@@ -239,9 +319,11 @@ export default function SeriesNewClient() {
                             <TextInput label="어떤 업종/분야인가요?" placeholder="예: 카페, IT, 헬스장" {...form.getInputProps('briefIndustry')} />
                         </SimpleGrid>
                     </Stack>
-                )}
+                </Paper>
 
-                {step === 1 && (
+                {/* ── STEP 2: 발행 종류와 만드는 방식 ── */}
+                <Paper withBorder p="lg" radius="md">
+                    <SectionHeader step={2} icon={IconCategory} title="발행 종류와 만드는 방식" desc="SNS·블로그 분류와 사진/AI 방식 선택" />
                     <Stack gap="md">
                         {/* 카테고리 선택 (SNS / BLOG) */}
                         <Box>
@@ -427,9 +509,11 @@ export default function SeriesNewClient() {
                             </>
                         )}
                     </Stack>
-                )}
+                </Paper>
 
-                {step === 2 && (
+                {/* ── STEP 3: 예약 일정 ── */}
+                <Paper withBorder p="lg" radius="md">
+                    <SectionHeader step={3} icon={IconClockHour9} title="언제 자동 발행?" desc="간격·시간·요일·총 횟수 설정" />
                     <Stack gap="md">
                         <Select
                             label="언제 올릴까요?"
@@ -489,11 +573,12 @@ export default function SeriesNewClient() {
                             />
                         </SimpleGrid>
                     </Stack>
-                )}
+                </Paper>
 
-                {step === 3 && (
+                {/* ── STEP 4: 마지막 확인 ── */}
+                <Paper withBorder p="lg" radius="md">
+                    <SectionHeader step={4} icon={IconRosetteDiscountCheck} title="마지막 확인" desc="아래 정보로 자동 발행을 시작합니다" />
                     <Stack gap="md">
-                        <Text size="sm" fw={700}>마지막 확인</Text>
                         <Card withBorder radius="md" p="md">
                             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
                                 <Box><Text size="xs" c="dimmed">이름</Text><Text fw={600}>{form.values.name || '미입력'}</Text></Box>
@@ -520,31 +605,163 @@ export default function SeriesNewClient() {
                             <label htmlFor="startNow"><Text size="sm">만들자마자 바로 시작하기 (체크 해제 시 저장만)</Text></label>
                         </Group>
                     </Stack>
-                )}
+                </Paper>
 
-                {/* 네비 */}
-                <Group justify="space-between" mt="xl">
-                    <Button variant="subtle" disabled={step === 0} onClick={() => setStep(step - 1)}>
-                        ← 이전
-                    </Button>
-                    {step < 3 ? (
-                        <Button onClick={() => setStep(step + 1)} disabled={step === 0 && (form.values.channelIds.length === 0 || !form.values.name)}>
-                            다음 →
-                        </Button>
-                    ) : (
+                {/* 제출 버튼 */}
+                <Group justify="space-between" mt="md" wrap="wrap">
+                    <Group gap="xs">
+                        <Text size="xs" c="dimmed">실제 만들기 전에 한번 확인해보세요</Text>
+                        <Select
+                            size="xs"
+                            data={[{ value: '3', label: '3개' }, { value: '5', label: '5개' }]}
+                            value={String(previewSampleCount)}
+                            onChange={(v) => setPreviewSampleCount((Number(v) || 3) as 3 | 5)}
+                            allowDeselect={false}
+                            w={80}
+                        />
                         <Button
-                            leftSection={<IconRocket size={16} />}
-                            onClick={handleSubmit}
-                            loading={submitting}
+                            variant="light"
+                            color="blue"
+                            leftSection={<IconEye size={16} />}
+                            onClick={handlePreview}
+                            loading={previewLoading}
+                            disabled={!form.values.name || form.values.channelIds.length === 0}
+                        >
+                            🔍 샘플 미리 만들어보기
+                        </Button>
+                    </Group>
+                    <Button
+                        size="lg"
+                        leftSection={<IconRocket size={18} />}
+                        onClick={handleSubmit}
+                        loading={submitting}
+                        disabled={!form.values.name || form.values.channelIds.length === 0}
+                        color="violet"
+                        variant="gradient"
+                        gradient={{ from: 'violet', to: 'blue' }}
+                    >
+                        {form.values.startNow ? '🚀 만들고 바로 시작하기' : '💾 일단 저장만 하기'}
+                    </Button>
+                </Group>
+            </Stack>
+
+            {/* ════ 샘플 미리보기 모달 ════ */}
+            <Modal
+                opened={previewModal}
+                onClose={() => !previewLoading && previewModalCtl.close()}
+                title={
+                    <Group gap={6}>
+                        <IconEye size={18} />
+                        <Text fw={700}>🔍 샘플 미리보기 — 실제 자동 발행 시 이런 게시물이 만들어져요</Text>
+                    </Group>
+                }
+                size="xl"
+                closeOnClickOutside={!previewLoading}
+                withCloseButton={!previewLoading}
+            >
+                <Stack gap="md">
+                    <Box style={{ background: 'var(--mantine-color-blue-0)', borderRadius: 8, padding: 12 }}>
+                        <Text size="xs" c="blue.9">
+                            💡 이 샘플은 <strong>실제로 발행되지 않아요</strong>. AI 가 만들어본 예시일 뿐 — 마음에 들면 아래 "✅ 좋아요, 시작하기"로 자동 발행을 켜고, 마음에 안 들면 닫고 설정을 다시 조정하세요.
+                        </Text>
+                    </Box>
+
+                    {previewLoading && previewSamples.length === 0 && (
+                        <Box style={{ textAlign: 'center', padding: 40 }}>
+                            <Loader color="blue" />
+                            <Text size="sm" c="dimmed" mt="sm">샘플 {previewSampleCount}개 만드는 중... (15-30초 정도 걸려요)</Text>
+                        </Box>
+                    )}
+
+                    {previewSamples.length > 0 && (
+                        <Stack gap="md">
+                            {previewSamples.map((s) => (
+                                <Card key={s.index} withBorder radius="md" p="md">
+                                    <Group justify="space-between" mb="sm">
+                                        <Badge color="violet" variant="light" size="lg">샘플 {s.index + 1}</Badge>
+                                        <Button
+                                            size="compact-sm"
+                                            variant="subtle"
+                                            color="blue"
+                                            leftSection={<IconRefresh size={14} />}
+                                            onClick={() => handleRegenerateSample(s.index)}
+                                            loading={s.loading}
+                                            disabled={previewLoading}
+                                        >
+                                            다시 만들기
+                                        </Button>
+                                    </Group>
+
+                                    {s.loading && (
+                                        <Group gap="xs"><Loader size="xs" /><Text size="sm" c="dimmed">새 샘플 만드는 중...</Text></Group>
+                                    )}
+
+                                    {!s.loading && s.error && (
+                                        <Text size="sm" c="red">⚠️ 생성 실패: {s.error}</Text>
+                                    )}
+
+                                    {!s.loading && !s.error && (
+                                        <>
+                                            {s.mediaUrls.length > 0 && (
+                                                <SimpleGrid cols={{ base: 2, sm: s.mediaUrls.length === 1 ? 1 : Math.min(s.mediaUrls.length, 5) }} spacing="xs" mb="sm">
+                                                    {s.mediaUrls.map((url, idx) => (
+                                                        <Box
+                                                            key={idx}
+                                                            style={{
+                                                                aspectRatio: form.values.contentCategory === 'BLOG' ? '4/3' : '1/1',
+                                                                overflow: 'hidden',
+                                                                borderRadius: 6,
+                                                                border: '1px solid var(--mantine-color-default-border)',
+                                                            }}
+                                                        >
+                                                            <img src={url} alt={`sample ${s.index} media ${idx}`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                                        </Box>
+                                                    ))}
+                                                </SimpleGrid>
+                                            )}
+                                            {s.mediaUrls.length === 0 && form.values.mode !== 'POOL' && (
+                                                <Box style={{ background: 'var(--mantine-color-orange-0)', padding: 8, borderRadius: 6, marginBottom: 8 }}>
+                                                    <Text size="xs" c="orange.9">
+                                                        ⚠️ AI 이미지가 만들어지지 않았어요 — R2 스토리지 미설정 또는 AI 키 없음. 이미지 없이 글만 발행됩니다.
+                                                    </Text>
+                                                </Box>
+                                            )}
+                                            <Box style={{ background: 'var(--mantine-color-default-hover)', padding: 10, borderRadius: 6 }}>
+                                                <Text size="sm" style={{ whiteSpace: 'pre-wrap' }} lineClamp={form.values.contentCategory === 'BLOG' ? 12 : 6}>
+                                                    {s.content || '(빈 내용)'}
+                                                </Text>
+                                            </Box>
+                                        </>
+                                    )}
+                                </Card>
+                            ))}
+                        </Stack>
+                    )}
+
+                    <Group justify="space-between" mt="md">
+                        <Button
+                            variant="subtle"
+                            onClick={() => previewModalCtl.close()}
+                            disabled={previewLoading}
+                        >
+                            ← 설정 다시 조정하기
+                        </Button>
+                        <Button
                             color="violet"
                             variant="gradient"
                             gradient={{ from: 'violet', to: 'blue' }}
+                            leftSection={<IconCheck size={16} />}
+                            disabled={previewLoading || previewSamples.length === 0 || previewSamples.every(s => s.error)}
+                            onClick={() => {
+                                previewModalCtl.close();
+                                handleSubmit();
+                            }}
                         >
-                            {form.values.startNow ? '🚀 만들고 바로 시작하기' : '💾 일단 저장만 하기'}
+                            ✅ 좋아요, 자동 발행 시작하기
                         </Button>
-                    )}
-                </Group>
-            </Paper>
+                    </Group>
+                </Stack>
+            </Modal>
         </Container>
     );
 }

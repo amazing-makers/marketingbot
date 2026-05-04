@@ -443,6 +443,40 @@ export async function processSeriesOnce(seriesId: string): Promise<{ ok: boolean
  *   SNS  — 짧은 글 + 이미지 1장 (instagram 포맷)
  *   BLOG — 긴 글 + 이미지 여러 장 (naver_blog 포맷)
  */
+/**
+ * 시리즈를 실제로 만들기 전에 샘플 N개를 미리 생성해서 사용자가 확인할 수 있게 함.
+ * DB 에 저장하지 않고 produceContent 만 N 회 실행해서 결과만 반환.
+ */
+export async function previewSeriesContent(
+    input: Pick<CreateSeriesInput, 'mode' | 'captionStyle' | 'contentCategory' | 'mediaPool' | 'contentSeed' | 'briefData'>,
+    sampleCount: number = 3,
+): Promise<Array<{ index: number; content: string; mediaUrls: string[]; error?: string }>> {
+    const user = await getSessionUser();
+    const N = Math.min(Math.max(sampleCount, 1), 5);
+
+    const fakeSeries = {
+        id: `preview-${Date.now()}`,
+        userId: user.id!,
+        mode: input.mode,
+        captionStyle: input.captionStyle,
+        contentCategory: input.contentCategory,
+        mediaPool: input.mediaPool || [],
+        contentSeed: input.contentSeed || '',
+        briefData: input.briefData,
+    };
+
+    const results: Array<{ index: number; content: string; mediaUrls: string[]; error?: string }> = [];
+    for (let i = 0; i < N; i++) {
+        try {
+            const r = await produceContent({ ...fakeSeries, completedPosts: i });
+            results.push({ index: i, content: r.content, mediaUrls: r.mediaUrls });
+        } catch (e: any) {
+            results.push({ index: i, content: '', mediaUrls: [], error: e?.message || '생성 실패' });
+        }
+    }
+    return results;
+}
+
 async function produceContent(series: any): Promise<{ content: string; mediaUrls: string[] }> {
     const mode = series.mode as SeriesMode;
     const captionStyle = (series.captionStyle as CaptionStyle) || 'VARY';
