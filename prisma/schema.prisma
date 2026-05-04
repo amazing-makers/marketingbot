@@ -129,6 +129,7 @@ model User {
   webhookTokens  UserWebhookToken[]
   ownedWorkspaces Workspace[] @relation("WorkspaceOwner")
   workspaceMemberships WorkspaceMember[]
+  subscription   Subscription?
 
   emailPreferences Json @default("{\"failures\": true, \"weekly\": true, \"welcome\": true}")
 }
@@ -168,6 +169,29 @@ model WorkspaceMember {
 
   @@unique([workspaceId, userId])
   @@index([userId])
+}
+
+// Stripe 구독 (Phase 12) — User 1개당 1개 활성 subscription.
+// plan: FREE / STARTER / PRO / BUSINESS
+// 이벤트 처리: /api/stripe/webhook 가 customer.subscription.* 처리해서 갱신.
+// 만료/취소 시 plan='FREE' 로 자동 강등.
+model Subscription {
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  stripePriceId        String?
+  plan                 String    @default("FREE") // FREE / STARTER / PRO / BUSINESS
+  status               String    @default("active") // active / trialing / past_due / canceled / unpaid
+  currentPeriodEnd     DateTime?
+  trialEndsAt          DateTime?
+  cancelAtPeriodEnd    Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([stripeCustomerId])
+  @@index([status])
 }
 
 model License {

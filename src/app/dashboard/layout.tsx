@@ -9,14 +9,15 @@ import { Spotlight, spotlight } from '@mantine/spotlight';
 import '@mantine/spotlight/styles.css';
 import {
   IconDashboard, IconPlus, IconUserCircle, IconSettings,
-  IconLogout, IconWorld, IconCalendarEvent, IconDownload,
+  IconLogout, IconWorld, IconCalendarEvent,
   IconSun, IconMoon, IconSearch, IconCalendarMonth, IconRobot,
-  IconChartBar, IconKey, IconWebhook, IconBolt, IconUsers
+  IconChartBar, IconKey, IconWebhook, IconBolt, IconUsers, IconCreditCard
 } from '@tabler/icons-react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import HeaderLicense from '@/components/HeaderLicense';
+import CopilotSidebar from '@/components/copilot/CopilotSidebar';
 
 function DarkModeToggle() {
   const { colorScheme, setColorScheme } = useMantineColorScheme({ keepTransitions: true });
@@ -121,6 +122,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       description: 'Gemini / Groq / DeepL 키 + 사용량',
       onClick: () => router.push('/dashboard/settings/ai'),
       leftSection: <IconKey size={18} />,
+    },
+    {
+      id: 'billing',
+      label: '결제·구독',
+      description: '플랜 변경, 결제 정보, 사용 한도',
+      onClick: () => router.push('/dashboard/settings/billing'),
+      leftSection: <IconCreditCard size={18} />,
+      keywords: ['plan', 'subscription', 'pricing', '구독', '결제'],
+    },
+    {
+      id: 'pricing',
+      label: '가격제 보기',
+      description: '4개 플랜 비교',
+      onClick: () => router.push('/pricing'),
+      leftSection: <IconCreditCard size={18} />,
     },
     {
       id: 'webhooks',
@@ -264,10 +280,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Divider my="sm" />
             <NavLink
               component={Link}
+              href="/dashboard/settings/billing"
+              label="결제·구독"
+              leftSection={<IconCreditCard size={18} stroke={1.5} />}
+              active={!!pathname && pathname.includes('/billing')}
+            />
+            <NavLink
+              component={Link}
               href="/dashboard/settings"
               label="환경 설정"
               leftSection={<IconSettings size={18} stroke={1.5} />}
-              active={!!pathname && pathname.startsWith('/dashboard/settings')}
+              active={!!pathname && pathname.startsWith('/dashboard/settings') && !pathname.includes('/billing')}
             />
           </Stack>
 
@@ -284,6 +307,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <AppShell.Main>{children}</AppShell.Main>
       </AppShell>
+      {/* AI 코파일럿 — 우하단 floating 버튼 + 우측 Drawer (Cursor 스타일) */}
+      <CopilotSidebar />
     </>
   );
 }

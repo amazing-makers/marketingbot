@@ -41,6 +41,7 @@
     "recharts": "^3.8.1",
     "resend": "^6.12.2",
     "sharp": "^0.33.5",
+    "stripe": "^17.7.0",
     "zod": "^4.4.1"
   },
   "devDependencies": {

@@ -603,4 +603,38 @@ ${targetLanguage === 'ar' ? '아랍어는 RTL 방향 고려.' : ''}
 }
 
 // 외부에서 짧은 텍스트 생성 (해시태그 번역 등)에 재사용할 수 있도록 노출
-export const _internal = { groqGenerate, ollamaGenerate, claudeGenerate };
+export const _internal = { groqGenerate, ollamaGenerate, claudeGenerate, geminiGenerate };
+
+/**
+ * 단순 chat (코파일럿용) — system + user message → 한 번 호출.
+ * 엔진 우선순위: groq → gemini → ollama → claude (모두 무료/저비용 우선).
+ */
+export async function chatRaw(input: {
+    systemPrompt?: string;
+    userMessage: string;
+    userId?: string | null;
+    maxChars?: number;
+}): Promise<string> {
+    const fullPrompt = input.systemPrompt
+        ? `${input.systemPrompt}\n\n사용자 질문:\n${input.userMessage}\n\n답변:`
+        : input.userMessage;
+
+    const order: Array<keyof typeof _internal> = ['groqGenerate', 'geminiGenerate', 'ollamaGenerate', 'claudeGenerate'];
+    let lastError: any;
+    for (const fnName of order) {
+        const fn = _internal[fnName];
+        try {
+            const result = await fn({ prompt: fullPrompt, userId: input.userId });
+            if (result?.trim()) {
+                const text = result.trim();
+                return input.maxChars && text.length > input.maxChars
+                    ? text.slice(0, input.maxChars) + '…'
+                    : text;
+            }
+        } catch (e: any) {
+            lastError = e;
+            console.warn(`[chatRaw] ${fnName} 실패:`, e?.message);
+        }
+    }
+    throw new Error(`AI 엔진 모두 실패. 마지막 오류: ${lastError?.message || '알 수 없음'}. /dashboard/settings/ai 에서 무료 키(Gemini·Groq) 등록 후 다시 시도해주세요.`);
+}
