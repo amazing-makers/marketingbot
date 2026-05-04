@@ -2,7 +2,7 @@
 
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { generateCaption, type CaptionResult, PLATFORM_FORMATS } from '@/lib/ai/caption';
+import { generateCaption, type CaptionResult, type ContentBrief, PLATFORM_FORMATS } from '@/lib/ai/caption';
 import { generateImage } from '@/lib/ai/image-gen';
 import { isR2Configured, uploadToR2 } from '@/lib/storage/r2';
 import type { ChannelType } from '@prisma/client';
@@ -42,10 +42,12 @@ export interface GenerateCampaignCaptionInput {
     userHint: string;
     /** 선택된 채널 ID 배열 */
     channelIds: string[];
-    /** 첨부 이미지 (data URL 또는 file 경로) — 선택 */
+    /** 첨부 이미지 (data URL) — 있으면 vision 모델로 분석해서 캡션 생성 */
     imageDataUrl?: string;
     /** 출력 언어 — 기본 한국어. 다른 언어는 region 자동 라우팅 단계에서 처리. */
     language?: string;
+    /** Phase 8-1: 콘텐츠 브리프 — 콘텐츠 유형/톤/타겟/CTA 등 */
+    brief?: ContentBrief;
 }
 
 /**
@@ -72,15 +74,13 @@ export async function generateCampaignCaption(input: GenerateCampaignCaptionInpu
         // 채널 type 별로 platform 키 결정 (중복 제거)
         const platforms = Array.from(new Set(channels.map(c => CHANNEL_TO_PLATFORM[c.type])));
 
-        // 이미지 data URL → 임시 base64 변환 (파일 없이 메모리만 사용)
-        // 현재 lib/ai/caption.ts 의 generateCaption 은 mediaPath 파일 경로 기반이라
-        // data URL 직접 분석은 미지원 — 향후 함수 시그니처 확장 시 처리.
-        // (이번 라운드: 텍스트 캡션만, vision 은 R2 업로드 통합 후.)
         const result = await generateCaption({
             platforms,
             userHint: input.userHint,
             language: input.language || 'ko',
             userId: session.user.id,
+            brief: input.brief,            // Phase 8-1: 캠페인 브리프 적용
+            imageDataUrl: input.imageDataUrl, // 이미지 있으면 vision 분석
         });
 
         // 채널 ID → 캡션 매핑 (같은 type 의 여러 채널은 같은 캡션 공유)

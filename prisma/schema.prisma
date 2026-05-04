@@ -130,6 +130,7 @@ model User {
   ownedWorkspaces Workspace[] @relation("WorkspaceOwner")
   workspaceMemberships WorkspaceMember[]
   subscription   Subscription?
+  campaignSeries CampaignSeries[]
 
   emailPreferences Json @default("{\"failures\": true, \"weekly\": true, \"welcome\": true}")
 }
@@ -267,6 +268,56 @@ model ScheduledTask {
   @@index([campaignId])
   @@index([channelId])
   @@index([status, scheduledAt])
+}
+
+// 자동화 시리즈 (Phase 8-2) — 한 번 설정하면 며칠/몇주 동안 자동 발행.
+//
+// mode 옵션:
+//   POOL_VARY:     사용자가 mediaPool 업로드 → 매번 1장 + AI 가 다른 캡션 (다양성 高)
+//   AI_FRESH:      이미지 + 캡션 모두 매번 새로 생성 (가장 다양, 노이즈 위험)
+//   POOL_SIMILAR:  mediaPool 에서 1장 + 같은 톤·스타일의 캡션 (브랜드 일관성)
+//   PARAPHRASE:    contentSeed 본문을 매번 paraphrase (같은 메시지 반복)
+//
+// schedule 옵션:
+//   INTERVAL:      intervalHours 시간마다 (예: 3시간마다)
+//   DAILY:         매일 dailyTimes 의 시각들에 (예: ['09:00','12:00','19:00'])
+//   WEEKLY:        weeklyDays + dailyTimes (예: 월·수·금 + 10:00)
+//   FIXED_COUNT:   startAt~endAt 사이에 totalPosts 개 자동 분배 (균등 또는 prime-time)
+//
+// 처리: /api/cron/dispatch-series 가 5분마다 RUNNING 시리즈 확인.
+//   - nextRunAt <= now 이면 콘텐츠 1개 생성 → ScheduledTask 생성 → completedPosts++
+//   - 다음 nextRunAt 계산해서 갱신
+//   - completedPosts >= totalPosts 면 status='COMPLETED'
+model CampaignSeries {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  channelIds     Json      // string[] — 발행 대상 채널들
+  mode           String    @default("POOL_VARY") // POOL_VARY / AI_FRESH / POOL_SIMILAR / PARAPHRASE
+  scheduleType   String    @default("DAILY")     // INTERVAL / DAILY / WEEKLY / FIXED_COUNT
+  intervalHours  Int?      // INTERVAL 모드 (예: 3)
+  dailyTimes     Json?     // DAILY/WEEKLY 모드 — string[] (HH:mm 배열)
+  weeklyDays     Json?     // WEEKLY 모드 — number[] (0=일 ~ 6=토)
+  totalPosts     Int       @default(10)
+  completedPosts Int       @default(0)
+  failedPosts    Int       @default(0)
+  // 콘텐츠 소스
+  mediaPool      Json?     // string[] (R2 URL 배열) — POOL_VARY/POOL_SIMILAR 모드
+  contentSeed    String?   @db.Text // PARAPHRASE/POOL_SIMILAR/AI_FRESH 시드 본문
+  briefData      Json?     // ContentBrief (purpose/tone/audience/cta 등)
+  // 일정
+  status         String    @default("DRAFT") // DRAFT / RUNNING / PAUSED / COMPLETED / FAILED
+  startAt        DateTime  @default(now())
+  endAt          DateTime?
+  nextRunAt      DateTime? // 다음 발행 시점 (cron 워커가 사용)
+  lastRunAt      DateTime?
+  lastError      String?   @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status, nextRunAt])
 }
 
 model AgentInstance {

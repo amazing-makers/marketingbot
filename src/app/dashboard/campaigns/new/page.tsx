@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, Suspense } from 'react';
 import {
   TextInput, Textarea, Button, Paper, Title, Container,
   Stack, MultiSelect, Group, Text, Badge, ActionIcon, Tooltip, Box, Divider, SimpleGrid,
-  Modal, Card, Loader, Anchor, Grid, ThemeIcon
+  Modal, Card, Loader, Anchor, Grid, ThemeIcon, Accordion, Select
 } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
 import { useForm } from '@mantine/form';
@@ -14,7 +14,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   IconBulb, IconX, IconSparkles, IconPhoto, IconCopy, IconCheck,
-  IconWorld, IconPencil, IconCalendar, IconCloudUpload
+  IconWorld, IconPencil, IconCalendar, IconCloudUpload, IconWand
 } from '@tabler/icons-react';
 import { listChannels } from '@/app/actions/channelActions';
 import { createCampaign, createSplitCampaign, loadCampaignDraft, saveCampaignDraft, clearCampaignDraft, suggestPrimeTimeForChannels } from '@/app/actions/campaignActions';
@@ -109,6 +109,16 @@ function NewCampaignPageInner() {
       // 분할 발행 모드 (Phase 6)
       splitMode: false,
       splitCount: 3,
+      // 콘텐츠 브리프 (Phase 8-1) — AI 캡션 생성 품질 강화
+      briefPurpose: '' as '' | 'review' | 'info' | 'promo' | 'story' | 'comparison' | 'insight',
+      briefTone: '' as '' | 'casual' | 'professional' | 'humorous' | 'trendy' | 'warm' | 'serious',
+      briefLength: '' as '' | 'short' | 'medium' | 'long' | 'extra_long',
+      briefAudience: '' as '' | 'mz_2030' | 'mid_3040' | 'senior_5060' | 'b2b' | 'general',
+      briefIndustry: '',
+      briefCta: '' as '' | 'purchase' | 'visit' | 'follow' | 'share' | 'inquire' | 'aware',
+      briefKeywords: '',
+      briefBrandName: '',
+      briefBrandUrl: '',
     },
     validate: {
       name: (value) => (value.length < 2 ? '캠페인 이름을 입력하세요.' : null),
@@ -223,9 +233,26 @@ function NewCampaignPageInner() {
     setCaptions(null);
     captionModalCtl.open();
     try {
+      // brief 빌드 — 빈 값은 undefined 로 전달
+      const v = form.values;
+      const brief = {
+        ...(v.briefPurpose ? { purpose: v.briefPurpose as any } : {}),
+        ...(v.briefTone ? { tone: v.briefTone as any } : {}),
+        ...(v.briefLength ? { length: v.briefLength as any } : {}),
+        ...(v.briefAudience ? { audience: v.briefAudience as any } : {}),
+        ...(v.briefIndustry?.trim() ? { industry: v.briefIndustry.trim() } : {}),
+        ...(v.briefCta ? { cta: v.briefCta as any } : {}),
+        ...(v.briefBrandName?.trim() ? { brandName: v.briefBrandName.trim() } : {}),
+        ...(v.briefBrandUrl?.trim() ? { brandUrl: v.briefBrandUrl.trim() } : {}),
+        ...(v.briefKeywords?.trim() ? { seedKeywords: v.briefKeywords.split(/[,\s]+/).filter(Boolean) } : {}),
+      };
+      // 첫 번째 첨부 이미지 dataUrl (vision 분석용)
+      const firstImage = media.find(m => m.type === 'image');
       const r = await generateCampaignCaption({
         userHint,
         channelIds: form.values.channelIds,
+        brief: Object.keys(brief).length > 0 ? brief : undefined,
+        imageDataUrl: firstImage?.dataUrl,
       });
       if (r.success && r.captions) {
         setCaptions(r.captions);
@@ -499,6 +526,121 @@ function NewCampaignPageInner() {
                 title="콘텐츠 본문"
                 desc="채널별 한도는 우측 미리보기에 실시간 표시"
               />
+
+              {/* Phase 8-1: AI 콘텐츠 브리프 (접어서) */}
+              <Accordion variant="contained" mb="sm" radius="md">
+                <Accordion.Item value="brief">
+                  <Accordion.Control icon={<IconWand size={16} color="var(--mantine-color-violet-6)" />}>
+                    <Group gap="xs" wrap="nowrap">
+                      <Text size="sm" fw={700}>🪄 AI 콘텐츠 브리프</Text>
+                      <Badge size="xs" color="violet" variant="light">선택</Badge>
+                      {(form.values.briefPurpose || form.values.briefTone || form.values.briefAudience || form.values.briefCta) && (
+                        <Badge size="xs" color="green" variant="dot">설정됨</Badge>
+                      )}
+                    </Group>
+                    <Text size="xs" c="dimmed" mt={2}>
+                      AI 가 캠페인 의도를 정확히 파악하도록 정보를 주세요 — 캡션 품질이 크게 향상됩니다
+                    </Text>
+                  </Accordion.Control>
+                  <Accordion.Panel>
+                    <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                      <Select
+                        label="콘텐츠 목적"
+                        placeholder="선택 (자유)"
+                        clearable
+                        data={[
+                          { value: 'review', label: '✍️ 후기·리뷰 (사용 경험)' },
+                          { value: 'info', label: '📚 정보·교육 (How-to·노하우)' },
+                          { value: 'promo', label: '🎉 홍보·할인 (이벤트·프로모션)' },
+                          { value: 'story', label: '💝 스토리텔링 (감성·서사)' },
+                          { value: 'comparison', label: '⚖️ 비교·추천 (랭킹·분석)' },
+                          { value: 'insight', label: '💡 인사이트·생각 (트렌드·의견)' },
+                        ]}
+                        {...form.getInputProps('briefPurpose')}
+                      />
+                      <Select
+                        label="톤·스타일"
+                        placeholder="선택"
+                        clearable
+                        data={[
+                          { value: 'casual', label: '😊 친근·캐주얼 (구어체)' },
+                          { value: 'professional', label: '👔 전문·격식' },
+                          { value: 'humorous', label: '🤣 유머·재치 (밈 OK)' },
+                          { value: 'trendy', label: '🔥 MZ 트렌디 (이모지·신조어)' },
+                          { value: 'warm', label: '💕 따뜻·감성' },
+                          { value: 'serious', label: '🧐 진지·중요한 발표' },
+                        ]}
+                        {...form.getInputProps('briefTone')}
+                      />
+                      <Select
+                        label="글 길이"
+                        placeholder="선택"
+                        clearable
+                        data={[
+                          { value: 'short', label: '⚡ 짧게 (1-2문장)' },
+                          { value: 'medium', label: '📝 중간 (3-5문장)' },
+                          { value: 'long', label: '📖 길게 (1-2단락)' },
+                          { value: 'extra_long', label: '📜 매우 길게 (스토리텔링)' },
+                        ]}
+                        {...form.getInputProps('briefLength')}
+                      />
+                      <Select
+                        label="타겟 독자"
+                        placeholder="선택"
+                        clearable
+                        data={[
+                          { value: 'mz_2030', label: '20-30 MZ (디지털·가성비)' },
+                          { value: 'mid_3040', label: '30-40 (가족·실용)' },
+                          { value: 'senior_5060', label: '50-60 시니어 (안정·신뢰)' },
+                          { value: 'b2b', label: 'B2B 의사결정자 (ROI)' },
+                          { value: 'general', label: '일반 소비자 (다양 연령)' },
+                        ]}
+                        {...form.getInputProps('briefAudience')}
+                      />
+                      <TextInput
+                        label="업종/카테고리"
+                        placeholder="예: 카페, IT 솔루션, 부동산"
+                        {...form.getInputProps('briefIndustry')}
+                      />
+                      <Select
+                        label="행동 유도 (CTA)"
+                        placeholder="선택"
+                        clearable
+                        data={[
+                          { value: 'purchase', label: '🛒 구매·예약' },
+                          { value: 'visit', label: '🔗 클릭·방문' },
+                          { value: 'follow', label: '👥 팔로우·구독' },
+                          { value: 'share', label: '🔄 공유·태그' },
+                          { value: 'inquire', label: '💬 문의·DM' },
+                          { value: 'aware', label: '👁️ 인지·각인 (구매 압박 X)' },
+                        ]}
+                        {...form.getInputProps('briefCta')}
+                      />
+                      <TextInput
+                        label="브랜드명 (선택)"
+                        placeholder="자연스럽게 본문에 1-2회 언급"
+                        {...form.getInputProps('briefBrandName')}
+                      />
+                      <TextInput
+                        label="CTA 링크 (선택)"
+                        placeholder="https://..."
+                        {...form.getInputProps('briefBrandUrl')}
+                      />
+                    </SimpleGrid>
+                    <TextInput
+                      label="핵심 키워드 (쉼표 또는 띄어쓰기 구분)"
+                      description="해시태그·본문에 강조 적용"
+                      placeholder="예: 봄세일 신메뉴 라떼"
+                      mt="sm"
+                      {...form.getInputProps('briefKeywords')}
+                    />
+                    <Text size="xs" c="dimmed" mt="sm">
+                      💡 첨부한 첫 이미지가 있으면 AI 가 이미지를 분석해서 더 정확한 캡션을 만듭니다 (vision)
+                    </Text>
+                  </Accordion.Panel>
+                </Accordion.Item>
+              </Accordion>
+
               <Group justify="flex-end" mb={6}>
                 <Group gap="xs">
                   <Button

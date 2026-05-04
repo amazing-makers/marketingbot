@@ -88,6 +88,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       leftSection: <IconCalendarEvent size={18} />,
     },
     {
+      id: 'series',
+      label: '🤖 자동화 시리즈',
+      description: '한 번 설정 → 며칠/몇주 자동 발행 (사진풀·AI 신규)',
+      onClick: () => router.push('/dashboard/campaigns/series'),
+      leftSection: <IconRobot size={18} />,
+      keywords: ['series', '자동화', '시리즈', 'auto'],
+    },
+    {
       id: 'new-campaign',
       label: '새 캠페인 작성',
       description: 'AI 자동 + 황금시간대 + 분할 발행',
@@ -262,6 +270,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               label="콘텐츠 캘린더"
               leftSection={<IconCalendarMonth size={18} stroke={1.5} />}
               active={!!pathname && pathname.includes('/calendar')}
+            />
+            <NavLink
+              component={Link}
+              href="/dashboard/campaigns/series"
+              label="자동화 시리즈"
+              leftSection={<IconBolt size={18} stroke={1.5} />}
+              active={!!pathname && pathname.includes('/series')}
             />
             <NavLink
               component={Link}

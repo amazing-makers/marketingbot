@@ -95,9 +95,92 @@ const LANG_NAME = (lang: string) => ({
 }[lang] || lang);
 
 // ════════════════════════════════════════════════════════════
+//  콘텐츠 브리프 (Phase 8-1) — AI 가 캠페인 의도를 정확히 파악
+// ════════════════════════════════════════════════════════════
+export type ContentPurpose = 'review' | 'info' | 'promo' | 'story' | 'comparison' | 'insight';
+export type ContentTone = 'casual' | 'professional' | 'humorous' | 'trendy' | 'warm' | 'serious';
+export type ContentLength = 'short' | 'medium' | 'long' | 'extra_long';
+export type ContentAudience = 'mz_2030' | 'mid_3040' | 'senior_5060' | 'b2b' | 'general';
+export type ContentCta = 'purchase' | 'visit' | 'follow' | 'share' | 'inquire' | 'aware';
+
+export interface ContentBrief {
+    purpose?: ContentPurpose;
+    tone?: ContentTone;
+    length?: ContentLength;
+    audience?: ContentAudience;
+    industry?: string;          // 자유 입력 (음식점·카페·IT 등)
+    cta?: ContentCta;
+    seedKeywords?: string[];    // 강조할 키워드 / 해시태그 시드
+    brandName?: string;
+    brandUrl?: string;          // CTA 링크
+}
+
+const PURPOSE_LABELS: Record<ContentPurpose, string> = {
+    review: '후기·리뷰 (사용 경험·평가)',
+    info: '정보·교육 (지식·노하우·How-to)',
+    promo: '홍보·할인 (상품/서비스 알림·프로모션)',
+    story: '스토리텔링 (감성·서사·브랜드 이야기)',
+    comparison: '비교·추천 (제품 비교·랭킹)',
+    insight: '인사이트·생각 (개인 의견·트렌드 분석)',
+};
+
+const TONE_LABELS: Record<ContentTone, string> = {
+    casual: '친근하고 캐주얼한 (구어체, 친구처럼)',
+    professional: '전문적이고 격식 있는 (B2B/전문가 대상)',
+    humorous: '유머러스하고 재치 있는 (밈·드립 활용 OK)',
+    trendy: 'MZ 트렌디한 (신조어·이모지·줄임말)',
+    warm: '따뜻하고 감성적인 (공감·진심)',
+    serious: '진지하고 신중한 (사회 이슈·중요 발표)',
+};
+
+const LENGTH_LABELS: Record<ContentLength, string> = {
+    short: '짧게 (1-2문장, 핵심만)',
+    medium: '중간 (3-5문장, 적당한 호흡)',
+    long: '길게 (1-2단락, 자세히)',
+    extra_long: '매우 길게 (스토리텔링·장문)',
+};
+
+const AUDIENCE_LABELS: Record<ContentAudience, string> = {
+    mz_2030: '20-30대 MZ세대 (디지털 네이티브, 가성비·경험 중시)',
+    mid_3040: '30-40대 (가족·실용·신중한 구매 결정)',
+    senior_5060: '50-60대 시니어 (안정·신뢰·전화 응대 선호)',
+    b2b: 'B2B 의사결정자 (ROI·생산성·전문성 강조)',
+    general: '일반 소비자 (다양한 연령대)',
+};
+
+const CTA_LABELS: Record<ContentCta, string> = {
+    purchase: '구매·예약 유도 (지금 사세요·예약하세요)',
+    visit: '방문·클릭 유도 (링크 클릭·매장 방문)',
+    follow: '팔로우·구독 유도',
+    share: '공유·태그 유도 (친구 태그하세요)',
+    inquire: '문의·DM 유도',
+    aware: '인지·각인만 (구매 압박 없이 브랜드 노출)',
+};
+
+/**
+ * Brief → 시스템 프롬프트 prepend 블록 생성.
+ * 모든 빌더가 공통으로 앞에 붙임.
+ */
+export function buildBriefBlock(brief?: ContentBrief): string {
+    if (!brief) return '';
+    const lines: string[] = ['', '── 캠페인 브리프 (반드시 모든 항목 반영) ──'];
+    if (brief.purpose) lines.push(`• 콘텐츠 목적: ${PURPOSE_LABELS[brief.purpose]}`);
+    if (brief.tone) lines.push(`• 톤·스타일: ${TONE_LABELS[brief.tone]}`);
+    if (brief.length) lines.push(`• 글 길이: ${LENGTH_LABELS[brief.length]}`);
+    if (brief.audience) lines.push(`• 타겟 독자: ${AUDIENCE_LABELS[brief.audience]}`);
+    if (brief.industry) lines.push(`• 업종/카테고리: ${brief.industry}`);
+    if (brief.cta) lines.push(`• 행동 유도(CTA): ${CTA_LABELS[brief.cta]}`);
+    if (brief.brandName) lines.push(`• 브랜드명: ${brief.brandName} (자연스럽게 본문에 1-2회 언급)`);
+    if (brief.brandUrl) lines.push(`• CTA 링크: ${brief.brandUrl} (적절한 위치에 한 번 노출)`);
+    if (brief.seedKeywords?.length) lines.push(`• 핵심 키워드 (해시태그·본문에 활용): ${brief.seedKeywords.join(', ')}`);
+    lines.push('───────────────────────────────────', '');
+    return lines.join('\n');
+}
+
+// ════════════════════════════════════════════════════════════
 //  포맷별 프롬프트 빌더
 // ════════════════════════════════════════════════════════════
-function buildSnsCaptionPrompt(platforms: string[], userHint: string, language: string): string {
+function buildSnsCaptionPrompt(platforms: string[], userHint: string, language: string, brief?: ContentBrief): string {
     const lang = LANG_NAME(language);
     const guides = platforms.map(p => {
         const s = resolveSpec(p);
@@ -105,12 +188,13 @@ function buildSnsCaptionPrompt(platforms: string[], userHint: string, language: 
     }).join('\n');
     return `당신은 SNS 마케팅 전문가입니다. 아래 플랫폼별 최적화된 캡션을 ${lang}로 작성하세요.
 ${userHint ? `주제·맥락: ${userHint}` : ''}
-
+${buildBriefBlock(brief)}
 작성 원칙 (중요):
 - 첫 줄은 스크롤을 멈추게 하는 강한 후킹 문장
 - 본문은 줄바꿈으로 가독성 확보 (2-3줄마다 빈 줄)
 - 본문 안에 # 해시태그를 섞지 말고, hashtags 배열에 따로 정리
 - 이모지는 자연스럽게 사용 (남발 금지)
+- 위 캠페인 브리프의 모든 항목을 반드시 반영
 
 대상 플랫폼:
 ${guides}
@@ -125,15 +209,16 @@ ${guides}
 }`;
 }
 
-function buildSnsMicroPrompt(_platforms: string[], userHint: string, language: string): string {
+function buildSnsMicroPrompt(_platforms: string[], userHint: string, language: string, brief?: ContentBrief): string {
     const lang = LANG_NAME(language);
     return `당신은 X(Twitter) 카피라이터입니다. 280자 단문을 ${lang}로 작성하세요.
 ${userHint ? `주제: ${userHint}` : ''}
-
+${buildBriefBlock(brief)}
 원칙:
 - 280자 이내 (해시태그 포함). 절대 초과 금지.
 - 첫 단어부터 임팩트. 미사여구·서론 금지.
 - 해시태그는 본문 끝에 2-3개. 핵심 키워드만.
+- 위 캠페인 브리프의 모든 항목 반영.
 
 반드시 아래 JSON 형식으로만 반환:
 {
@@ -144,11 +229,11 @@ ${userHint ? `주제: ${userHint}` : ''}
 }`;
 }
 
-function buildSnsBusinessPrompt(_platforms: string[], userHint: string, language: string): string {
+function buildSnsBusinessPrompt(_platforms: string[], userHint: string, language: string, brief?: ContentBrief): string {
     const lang = LANG_NAME(language);
     return `당신은 LinkedIn 비즈니스 카피라이터입니다. 전문적인 게시물을 ${lang}로 작성하세요.
 ${userHint ? `주제: ${userHint}` : ''}
-
+${buildBriefBlock(brief)}
 원칙:
 - 첫 문장은 인사이트 또는 도발적 질문으로 시작
 - 짧은 단락 3-4개, 줄바꿈으로 호흡 조절
@@ -165,13 +250,13 @@ ${userHint ? `주제: ${userHint}` : ''}
 }`;
 }
 
-function buildBlogPrompt(platforms: string[], userHint: string, language: string): string {
+function buildBlogPrompt(platforms: string[], userHint: string, language: string, brief?: ContentBrief): string {
     const lang = LANG_NAME(language);
     const plat = platforms[0] || 'blog';
     const info = resolveSpec(plat);
     return `당신은 한국 블로그 마케팅 작가입니다. ${info.tone}으로 장문 블로그 포스트를 ${lang}로 작성하세요.
 ${userHint ? `주제: ${userHint}` : ''}
-
+${buildBriefBlock(brief)}
 블로그 구조 (반드시 모든 필드 포함):
 - title: 검색·클릭 유도형 제목 (60자 이내)
 - intro: 독자의 공감과 호기심을 끄는 도입부 (2-3 문단)
@@ -202,11 +287,11 @@ ${userHint ? `주제: ${userHint}` : ''}
 }`;
 }
 
-function buildVideoPrompt(_platforms: string[], userHint: string, language: string): string {
+function buildVideoPrompt(_platforms: string[], userHint: string, language: string, brief?: ContentBrief): string {
     const lang = LANG_NAME(language);
     return `당신은 YouTube SEO 전문가입니다. 영상 메타데이터를 ${lang}로 작성하세요.
 ${userHint ? `영상 주제: ${userHint}` : ''}
-
+${buildBriefBlock(brief)}
 원칙:
 - title: 100자 이내, 핵심 키워드 앞쪽 배치, CTR 유도 (괄호·이모지 1개 정도 OK)
 - description: 첫 2-3 문장이 핵심 (검색결과·미리보기 노출), 이후 상세 설명·CTA·관련 링크 자리, 마지막에 해시태그 묶음
@@ -224,7 +309,7 @@ ${userHint ? `영상 주제: ${userHint}` : ''}
 }`;
 }
 
-const FORMAT_BUILDERS: Record<FormatName, (p: string[], h: string, l: string) => string> = {
+const FORMAT_BUILDERS: Record<FormatName, (p: string[], h: string, l: string, brief?: ContentBrief) => string> = {
     sns_caption:  buildSnsCaptionPrompt,
     sns_micro:    buildSnsMicroPrompt,
     sns_business: buildSnsBusinessPrompt,
@@ -475,6 +560,10 @@ export interface GenerateCaptionInput {
     language?: string;
     /** 사용자 ID — engine_config 멀티 테넌트 격리. */
     userId?: string | null;
+    /** Phase 8-1: 콘텐츠 브리프 — AI 가 캠페인 의도를 정확히 파악 */
+    brief?: ContentBrief;
+    /** vision 모델로 분석할 이미지 dataUrl (mediaPath 대신 직접 전달). 무료/유료 vision 모두 지원. */
+    imageDataUrl?: string;
 }
 
 const MIME_BY_EXT: Record<string, string> = {
@@ -517,11 +606,17 @@ export async function generateCaption(
         (byFormat[fmt] ||= []).push(p);
     }
 
+    // imageDataUrl 우선 (캠페인 폼에서 직접 전달) — base64 추출
+    if (!imageB64 && input.imageDataUrl) {
+        const m = input.imageDataUrl.match(/^data:([^;,]+);base64,(.+)$/);
+        if (m) { mime = m[1]; imageB64 = m[2]; }
+    }
+
     const final: Record<string, CaptionResult> = {};
     for (const fmt of Object.keys(byFormat) as FormatName[]) {
         const plats = byFormat[fmt];
         const builder = FORMAT_BUILDERS[fmt] || buildSnsCaptionPrompt;
-        const prompt = builder(plats, userHint, language);
+        const prompt = builder(plats, userHint, language, input.brief);
 
         // 이미지 있으면 vision task 우선 (vision 모델로 분석 후 캡션 생성)
         let task: TaskName = FORMAT_TASK[fmt];
