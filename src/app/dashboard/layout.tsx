@@ -285,7 +285,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                           href="/dashboard/partner"
                           color="violet"
                         >
-                          🤝 파트너 가입 (10% 수수료)
+                          🤝 파트너 가입
                         </Menu.Item>
                       </>
                     )}
