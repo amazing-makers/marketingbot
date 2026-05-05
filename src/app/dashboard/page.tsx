@@ -7,6 +7,7 @@ import { DashboardStatsClient } from './DashboardStatsClient';
 import WorkspaceContextBanner from '@/components/workspace/WorkspaceContextBanner';
 import SetupChecklist from '@/components/onboarding/SetupChecklist';
 import TrialExpiringBanner from '@/components/billing/TrialExpiringBanner';
+import PlanUsageWidget from '@/components/billing/PlanUsageWidget';
 
 export const dynamic = 'force-dynamic';
 
@@ -106,6 +107,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                     expiresAt={trialLicense.validUntil.toISOString()}
                 />
             )}
+            <PlanUsageWidget userId={userId} />
             <SetupChecklist />
             <DashboardStatsClient
                 summary={summaryStats}

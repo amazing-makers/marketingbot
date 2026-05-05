@@ -14,6 +14,7 @@ export type NotificationKind =
     | 'WORKSPACE_INVITE'
     | 'SERIES_COMPLETE'
     | 'TRIAL_EXPIRING'
+    | 'TRIAL_RECOVERY'
     | 'SYSTEM';
 
 export interface CreateNotificationInput {

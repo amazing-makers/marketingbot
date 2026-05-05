@@ -60,6 +60,19 @@ export async function createSeries(input: CreateSeriesInput): Promise<{ id: stri
         throw new Error('총 발행 수는 1-1000 사이여야 합니다');
     }
 
+    // Phase 33 — 활성 시리즈 한도 체크 (RUNNING 으로 시작하려는 경우만)
+    if (input.startNow) {
+        const { checkActiveSeriesLimit, getPlanLimits } = await import('@/lib/billing/plan-limits');
+        const limitCheck = await checkActiveSeriesLimit(user.id!);
+        if (!limitCheck.allowed) {
+            const planLabel = getPlanLimits(limitCheck.plan).label;
+            throw new Error(
+                `활성 시리즈 한도 초과 (${limitCheck.current}/${limitCheck.limit} · ${planLabel}). ` +
+                `기존 시리즈를 일시정지하거나 플랜을 업그레이드해주세요. (DRAFT 로는 저장 가능)`,
+            );
+        }
+    }
+
     const startAt = input.startAt || new Date();
     const status: SeriesStatus = input.startNow ? 'RUNNING' : 'DRAFT';
     const nextRunAt = status === 'RUNNING' ? computeNextRun({

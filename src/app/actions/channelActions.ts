@@ -39,6 +39,16 @@ export async function createChannel(data: {
   const user = await getSessionUser();
   const filter = await getActiveWorkspaceFilter(user.id!);
 
+  // Phase 33 — 채널 한도 체크
+  const { checkChannelLimit, getPlanLimits } = await import('@/lib/billing/plan-limits');
+  const limitCheck = await checkChannelLimit(user.id!);
+  if (!limitCheck.allowed) {
+    const planLabel = getPlanLimits(limitCheck.plan).label;
+    throw new Error(
+      `채널 등록 한도 초과 (${limitCheck.current}/${limitCheck.limit} · ${planLabel}). 플랜을 업그레이드해주세요.`,
+    );
+  }
+
   // AES-256-GCM 암호화 적용
   const encryptedCredentials = encryptJSON(data.credentials);
 

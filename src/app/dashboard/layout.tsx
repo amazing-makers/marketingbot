@@ -359,6 +359,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <Menu.Dropdown>
                     <Menu.Label>내 계정</Menu.Label>
                     <Menu.Item leftSection={<IconUserCircle size={14} />}>{session.user.email}</Menu.Item>
+                    <Menu.Item leftSection={<IconUserCircle size={14} />} component={Link} href="/dashboard/settings/profile">
+                      👤 프로필
+                    </Menu.Item>
                     <Menu.Item leftSection={<IconSettings size={14} />} component={Link} href="/dashboard/settings">
                       환경 설정
                     </Menu.Item>

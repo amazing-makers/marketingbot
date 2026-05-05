@@ -192,6 +192,18 @@ export async function createCampaign(data: {
     throw new Error('일부 채널을 찾을 수 없습니다.');
   }
 
+  // Phase 33 — 일일 task 한도 체크
+  const { checkDailyTaskLimit, getPlanLimits } = await import('@/lib/billing/plan-limits');
+  const limitCheck = await checkDailyTaskLimit(user.id!, channels.length);
+  if (!limitCheck.allowed) {
+    const planLabel = getPlanLimits(limitCheck.plan).label;
+    throw new Error(
+      `오늘 발행 한도 초과 (${limitCheck.current}/${limitCheck.limit} · ${planLabel}). ` +
+      `${channels.length}개 채널을 추가하려면 한도가 ${channels.length - limitCheck.remaining}개 부족해요. ` +
+      `플랜을 업그레이드하거나 내일 다시 시도해주세요.`
+    );
+  }
+
   // 각 채널 언어별 번역된 콘텐츠 준비 (sns-auto-platform "계정 region 별 자동 언어 라우팅" 포팅)
   // 같은 언어면 source 그대로. 다른 언어면 translateText (DeepL→AI 폴백, 캐시 자동).
   const channelContents = await Promise.all(channels.map(async (ch) => {
