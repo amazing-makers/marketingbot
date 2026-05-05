@@ -65,6 +65,19 @@ export async function createChannel(data: {
     });
   });
 
+  // Phase 25 — 활동 로그
+  import('@/lib/activity/log').then(({ logActivity }) => {
+    logActivity({
+      userId: user.id!,
+      workspaceId: filter.workspaceId,
+      kind: 'CHANNEL_ADDED',
+      title: `${data.type} 채널 등록`,
+      body: data.accountName,
+      link: '/dashboard/channels',
+      metadata: { channelId: channel.id, type: data.type },
+    }).catch(() => {});
+  });
+
   revalidatePath("/dashboard/channels");
   return channel;
 }

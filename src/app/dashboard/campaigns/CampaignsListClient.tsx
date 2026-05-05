@@ -1,9 +1,10 @@
 'use client';
 
-import { Table, Group, Text, Badge, Button, Stack, Title, Anchor, Card } from '@mantine/core';
-import { IconPlus, IconCalendar, IconChevronRight, IconCalendarMonth } from '@tabler/icons-react';
+import { Table, Group, Text, Badge, Button, Stack, Title, Anchor, Card, TextInput, Select } from '@mantine/core';
+import { IconPlus, IconCalendar, IconChevronRight, IconCalendarMonth, IconSearch } from '@tabler/icons-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
+import { useMemo, useState } from 'react';
 
 interface CampaignRow {
     id: string;
@@ -15,7 +16,19 @@ interface CampaignRow {
 }
 
 export default function CampaignsListClient({ campaigns }: { campaigns: CampaignRow[] }) {
-    const rows = campaigns.map((campaign) => (
+    const [query, setQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState<string | null>(null);
+
+    const filtered = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        return campaigns.filter(c => {
+            if (statusFilter && c.status !== statusFilter) return false;
+            if (q && !c.name.toLowerCase().includes(q)) return false;
+            return true;
+        });
+    }, [campaigns, query, statusFilter]);
+
+    const rows = filtered.map((campaign) => (
         <Table.Tr key={campaign.id} style={{ cursor: 'pointer' }}>
             <Table.Td>
                 <Anchor component={Link} href={`/dashboard/campaigns/${campaign.id}`} fw={500}>
@@ -61,6 +74,30 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
                     </Button>
                 </Group>
             </Group>
+
+            {/* Phase 25 — 검색 + 상태 필터 */}
+            {campaigns.length > 0 && (
+                <Group gap="xs">
+                    <TextInput
+                        placeholder="이름 검색..."
+                        leftSection={<IconSearch size={14} />}
+                        value={query}
+                        onChange={(e) => setQuery(e.currentTarget.value)}
+                        style={{ flex: 1 }}
+                    />
+                    <Select
+                        placeholder="모든 상태"
+                        data={Array.from(new Set(campaigns.map(c => c.status))).sort().map(s => ({ value: s, label: s }))}
+                        value={statusFilter}
+                        onChange={setStatusFilter}
+                        clearable
+                        w={180}
+                    />
+                    {(query || statusFilter) && (
+                        <Text size="xs" c="dimmed">{filtered.length}/{campaigns.length}</Text>
+                    )}
+                </Group>
+            )}
 
             {campaigns.length === 0 ? (
                 <Card withBorder p="xl" radius="md" bg="var(--mantine-color-default-hover)">

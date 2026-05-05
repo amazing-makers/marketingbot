@@ -18,6 +18,7 @@ import {
 } from '@tabler/icons-react';
 import { listChannels } from '@/app/actions/channelActions';
 import VoiceInputButton from '@/components/voice/VoiceInputButton';
+import { listMyTemplates, markTemplateUsed } from '@/app/actions/templateActions';
 import { createCampaign, createSplitCampaign, loadCampaignDraft, saveCampaignDraft, clearCampaignDraft, suggestPrimeTimeForChannels, previewTranslation } from '@/app/actions/campaignActions';
 import { generateCampaignCaption, generateCampaignImage } from '@/app/actions/aiContentActions';
 import { MarketingChannel } from '@prisma/client';
@@ -69,6 +70,31 @@ function NewCampaignPageInner() {
 
   // AI 캡션 모달 state
   const [captionModal, captionModalCtl] = useDisclosure(false);
+  // Phase 25 — 라이브러리 모달
+  const [libraryModal, libraryModalCtl] = useDisclosure(false);
+  const [libraryItems, setLibraryItems] = useState<Array<{ id: string; name: string; body: string; hashtags: string | null; category: string | null; usageCount: number }>>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+
+  useEffect(() => {
+    if (libraryModal && libraryItems.length === 0) {
+      setLibraryLoading(true);
+      listMyTemplates()
+        .then(items => setLibraryItems(items.map(i => ({
+          id: i.id, name: i.name, body: i.body, hashtags: i.hashtags, category: i.category, usageCount: i.usageCount,
+        }))))
+        .catch(() => {})
+        .finally(() => setLibraryLoading(false));
+    }
+  }, [libraryModal, libraryItems.length]);
+
+  const insertTemplate = async (item: typeof libraryItems[0]) => {
+    const text = item.body + (item.hashtags ? '\n\n' + item.hashtags : '');
+    const current = form.values.content || '';
+    form.setFieldValue('content', current ? current + '\n\n' + text : text);
+    libraryModalCtl.close();
+    markTemplateUsed(item.id).catch(() => {});
+    notifications.show({ color: 'teal', title: '템플릿 삽입됨', message: item.name, autoClose: 2000 });
+  };
   const [aiBusy, setAiBusy] = useState(false);
   const [captions, setCaptions] = useState<Record<string, {
     text: string; hashtags: string[]; format: string; channelType: string; accountName: string;
@@ -778,6 +804,15 @@ function NewCampaignPageInner() {
                   <Button
                     size="compact-sm"
                     variant="light"
+                    color="grape"
+                    leftSection={<span>📚</span>}
+                    onClick={() => libraryModalCtl.open()}
+                  >
+                    라이브러리
+                  </Button>
+                  <Button
+                    size="compact-sm"
+                    variant="light"
                     color="violet"
                     leftSection={<IconSparkles size={14} />}
                     onClick={handleGenerateCaption}
@@ -1042,6 +1077,60 @@ function NewCampaignPageInner() {
             ))}
           </Stack>
         )}
+      </Modal>
+
+      {/* ════ Phase 25 — 콘텐츠 라이브러리 모달 ════ */}
+      <Modal
+        opened={libraryModal}
+        onClose={libraryModalCtl.close}
+        title={<Group gap={6}><span>📚</span><Text fw={700}>콘텐츠 라이브러리</Text></Group>}
+        size="lg"
+      >
+        <Stack gap="sm">
+          <Text size="xs" c="dimmed">
+            저장한 템플릿을 클릭하면 본문에 자동으로 추가됩니다 (해시태그 포함).
+            관리는 <Anchor component={Link} href="/dashboard/library" size="xs" target="_blank">라이브러리 페이지</Anchor>에서.
+          </Text>
+          {libraryLoading ? (
+            <Box style={{ textAlign: 'center', padding: 40 }}>
+              <Loader size="sm" />
+            </Box>
+          ) : libraryItems.length === 0 ? (
+            <Box style={{ textAlign: 'center', padding: 32, color: 'var(--mantine-color-dimmed)' }}>
+              <Text size="sm" mb="xs">저장된 템플릿이 없습니다</Text>
+              <Button component={Link} href="/dashboard/library" size="compact-sm" variant="light" target="_blank">
+                + 첫 템플릿 만들기
+              </Button>
+            </Box>
+          ) : (
+            <Stack gap="xs" style={{ maxHeight: 480, overflowY: 'auto' }}>
+              {libraryItems.map(item => (
+                <Card
+                  key={item.id}
+                  withBorder
+                  p="sm"
+                  radius="md"
+                  onClick={() => insertTemplate(item)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <Group justify="space-between" mb={4}>
+                    <Group gap={6}>
+                      <Text fw={700} size="sm">{item.name}</Text>
+                      {item.usageCount > 0 && <Badge size="xs" variant="light" color="violet">{item.usageCount}회 사용</Badge>}
+                    </Group>
+                    {item.category && <Badge size="xs" variant="light">{item.category}</Badge>}
+                  </Group>
+                  <Text size="xs" c="dimmed" lineClamp={2} style={{ whiteSpace: 'pre-wrap' }}>
+                    {item.body}
+                  </Text>
+                  {item.hashtags && (
+                    <Text size="11px" c="violet" mt={4} lineClamp={1}>{item.hashtags}</Text>
+                  )}
+                </Card>
+              ))}
+            </Stack>
+          )}
+        </Stack>
       </Modal>
 
       {/* ════ 발행 전 최종 확인 모달 ════ */}

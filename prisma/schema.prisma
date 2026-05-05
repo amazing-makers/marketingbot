@@ -150,6 +150,9 @@ model User {
   activities           ActivityLog[]
   notificationChannels UserNotificationChannel[]
 
+  // Phase 25 — 사용자 피드백
+  feedbacks UserFeedback[]
+
   emailPreferences Json @default("{\"failures\": true, \"weekly\": true, \"welcome\": true}")
 }
 
@@ -759,4 +762,23 @@ model UserNotificationChannel {
   lastUsedAt DateTime?
 
   @@index([userId, enabled])
+}
+
+// ════════════════════════════════════════════════════════════
+//  Phase 25 — UserFeedback
+//
+// 사용자가 보낸 별점 + 코멘트. 관리자 페이지에서 확인.
+// ════════════════════════════════════════════════════════════
+
+model UserFeedback {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating    Int // 1-5
+  comment   String?  @db.Text
+  context   String? // 어느 페이지에서 보냈는지 (예: '/dashboard')
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([rating, createdAt])
 }

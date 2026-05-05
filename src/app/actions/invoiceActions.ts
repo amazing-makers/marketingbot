@@ -39,7 +39,7 @@ export async function createInvoice(input: {
     dueDate?: Date;
 }) {
     const user = await getSessionUser();
-    await requireOwnedClient(input.partnerClientId, user.id!);
+    const pc = await requireOwnedClient(input.partnerClientId, user.id!);
 
     if (input.amount < 0) throw new Error('금액은 0 이상이어야 합니다');
     const period = input.periodYearMonth || dayjs().subtract(1, 'month').format('YYYY-MM');
@@ -59,6 +59,19 @@ export async function createInvoice(input: {
             dueDate: input.dueDate,
             status: 'DRAFT',
         },
+    });
+
+    // Phase 25 — 활동 로그
+    import('@/lib/activity/log').then(({ logActivity }) => {
+        logActivity({
+            userId: user.id!,
+            workspaceId: null, // 파트너 자체 활동 — 워크스페이스 무관
+            kind: 'INVOICE_CREATED',
+            title: `${invoice.invoiceNumber} 발행`,
+            body: `${pc.clientName} · ₩${invoice.total.toLocaleString()}`,
+            link: `/dashboard/partner/clients/${input.partnerClientId}`,
+            metadata: { invoiceId: invoice.id, total: invoice.total },
+        }).catch(() => {});
     });
 
     revalidatePath(`/dashboard/partner/clients/${input.partnerClientId}`);

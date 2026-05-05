@@ -256,6 +256,19 @@ export async function createCampaign(data: {
     });
   });
 
+  // Phase 25 — 활동 로그
+  import('@/lib/activity/log').then(({ logActivity }) => {
+    logActivity({
+      userId: user.id!,
+      workspaceId: filter.workspaceId,
+      kind: 'CAMPAIGN_CREATED',
+      title: data.name,
+      body: `${data.channelIds.length}개 채널 · ${data.content.length}자`,
+      link: `/dashboard/campaigns/${campaign.id}`,
+      metadata: { campaignId: campaign.id, channelCount: data.channelIds.length },
+    }).catch(() => {});
+  });
+
   revalidatePath("/dashboard/campaigns");
   return campaign;
 }

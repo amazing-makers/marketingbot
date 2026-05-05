@@ -95,6 +95,20 @@ export async function createSeries(input: CreateSeriesInput): Promise<{ id: stri
             nextRunAt,
         },
     });
+
+    // Phase 25 — 활동 로그
+    import('@/lib/activity/log').then(({ logActivity }) => {
+        logActivity({
+            userId: user.id!,
+            workspaceId: filter.workspaceId,
+            kind: 'SERIES_STARTED',
+            title: input.name,
+            body: `${input.totalPosts}회 ${input.scheduleType} · ${input.channelIds.length}개 채널`,
+            link: `/dashboard/campaigns/series/${series.id}`,
+            metadata: { seriesId: series.id, totalPosts: input.totalPosts },
+        }).catch(() => {});
+    });
+
     revalidatePath('/dashboard/campaigns/series');
     return { id: series.id };
 }
