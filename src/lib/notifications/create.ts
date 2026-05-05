@@ -53,6 +53,19 @@ export async function createNotification(input: CreateNotificationInput): Promis
         // push 실패는 차단 안 함
         console.warn('[notification] push send failed', e);
     }
+
+    // Phase 24 — Slack/Discord 외부 채널 동시 발송
+    try {
+        const { sendExternalNotifications } = await import('./external');
+        await sendExternalNotifications(input.userId, {
+            title: input.title,
+            body: input.body,
+            link: input.link,
+            kind: input.kind,
+        });
+    } catch (e) {
+        console.warn('[notification] external send failed', e);
+    }
 }
 
 /**

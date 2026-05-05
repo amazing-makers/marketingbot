@@ -50,6 +50,9 @@ function NewCampaignPageInner() {
   const templateId = searchParams.get('template');
   const template = useMemo(() => (templateId ? getTemplateById(templateId) : null), [templateId]);
 
+  // Phase 24 — AI 어시스턴트가 ?topic=... 으로 보냈을 때 본문 prefill
+  const topicParam = searchParams.get('topic');
+
   // 캘린더에서 "+" 클릭 시 ?date=YYYY-MM-DD 로 진입 — 그 날짜 9시 prefill
   const dateParam = searchParams.get('date');
   const initialScheduledAt = useMemo(() => {
@@ -120,10 +123,10 @@ function NewCampaignPageInner() {
 
   const form = useForm({
     initialValues: {
-      name: '',
-      description: '',
+      name: topicParam ? `${topicParam} 캠페인` : '',
+      description: topicParam ? `AI 어시스턴트 추천: ${topicParam}` : '',
       channelIds: [] as string[],
-      content: '',
+      content: topicParam ? `${topicParam}\n\n` : '',
       sourceLanguage: 'ko',
       autoTranslate: true,
       scheduledAt: initialScheduledAt,

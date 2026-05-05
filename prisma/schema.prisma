@@ -145,6 +145,11 @@ model User {
   // Phase 22 — Web Push 구독
   pushSubscriptions PushSubscription[]
 
+  // Phase 24 — 콘텐츠 라이브러리·활동 피드·외부 알림 채널
+  captionTemplates     CaptionTemplate[]
+  activities           ActivityLog[]
+  notificationChannels UserNotificationChannel[]
+
   emailPreferences Json @default("{\"failures\": true, \"weekly\": true, \"welcome\": true}")
 }
 
@@ -682,4 +687,76 @@ model PushSubscription {
   lastUsed  DateTime @default(now())
 
   @@index([userId])
+}
+
+// ════════════════════════════════════════════════════════════
+//  Phase 24 — CaptionTemplate (재사용 가능한 캡션·콘텐츠 템플릿)
+//
+// 사용자가 자주 쓰는 캡션·해시태그 모음·CTA 패턴을 라이브러리에 저장.
+// 캠페인 작성 시 클릭으로 즉시 불러와 사용.
+// 워크스페이스별로 격리 (다른 고객사용 템플릿 분리).
+// ════════════════════════════════════════════════════════════
+
+model CaptionTemplate {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String? // null = 사용자 개인
+  name        String // 템플릿 이름 (예: "신메뉴 출시")
+  body        String    @db.Text // 캡션 본문
+  hashtags    String? // 해시태그 (공백 구분)
+  category    String? // 카페·식당·뷰티 등
+  usageCount  Int       @default(0) // 사용 횟수 — 정렬·인기도
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, workspaceId])
+  @@index([userId, usageCount(sort: Desc)])
+}
+
+// ════════════════════════════════════════════════════════════
+//  Phase 24 — ActivityLog (팀 활동 피드)
+//
+// 워크스페이스 내 모든 멤버 활동 기록.
+// 캠페인 생성·발행·채널 등록 등 — 멤버 협업 시 누가 뭐 했는지 추적.
+// ════════════════════════════════════════════════════════════
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  userId      String // 행위자
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String? // null = 사용자 개인 작업
+  kind        String // CAMPAIGN_CREATED · CHANNEL_ADDED · SERIES_STARTED 등
+  title       String // "신메뉴 캠페인 작성"
+  body        String? // 상세 (선택)
+  link        String? // 클릭 시 이동
+  metadata    Json? // 추가 데이터
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+// ════════════════════════════════════════════════════════════
+//  Phase 24 — UserNotificationChannel (외부 알림 채널 — Slack/Discord)
+//
+// 사용자 본인 또는 팀 채널로 외부 webhook 알림 발송.
+// 인앱 알림이 발생하면 자동으로 함께 전송.
+// ════════════════════════════════════════════════════════════
+
+model UserNotificationChannel {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       String // SLACK | DISCORD
+  webhookUrl String // 외부 webhook URL
+  label      String? // 식별용 라벨
+  enabled    Boolean   @default(true)
+  // 어떤 종류의 알림을 외부로 보낼지 (kind 화이트리스트). null = 전체.
+  kindFilter Json?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  @@index([userId, enabled])
 }

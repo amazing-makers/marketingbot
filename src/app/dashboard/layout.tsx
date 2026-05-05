@@ -12,7 +12,7 @@ import {
   IconLogout, IconWorld, IconCalendarEvent,
   IconSun, IconMoon, IconSearch, IconCalendarMonth, IconRobot,
   IconChartBar, IconKey, IconWebhook, IconBolt, IconUsers, IconCreditCard,
-  IconUsersGroup, IconShield, IconBriefcase, IconActivity
+  IconUsersGroup, IconShield, IconBriefcase, IconActivity, IconBookmark, IconHistory
 } from '@tabler/icons-react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
@@ -345,6 +345,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               label="📊 심층 분석"
               leftSection={<IconActivity size={18} stroke={1.5} />}
               active={!!pathname && pathname.startsWith('/dashboard/analytics')}
+            />
+            <NavLink
+              component={Link}
+              href="/dashboard/library"
+              label="📚 콘텐츠 라이브러리"
+              leftSection={<IconBookmark size={18} stroke={1.5} />}
+              active={!!pathname && pathname.startsWith('/dashboard/library')}
+            />
+            <NavLink
+              component={Link}
+              href="/dashboard/activity"
+              label="📜 활동 피드"
+              leftSection={<IconHistory size={18} stroke={1.5} />}
+              active={!!pathname && pathname.startsWith('/dashboard/activity')}
             />
             <NavLink
               component={Link}

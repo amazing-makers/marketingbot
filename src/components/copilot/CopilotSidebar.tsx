@@ -13,6 +13,7 @@ interface Message {
     role: 'user' | 'assistant';
     content: string;
     timestamp: number;
+    action?: { kind: string; label: string; href: string } | null;
 }
 
 const SUGGESTIONS = [
@@ -76,7 +77,8 @@ export default function CopilotSidebar() {
             const reply = r.success && r.reply
                 ? r.reply
                 : `❌ ${r.error || '응답을 받지 못했습니다.'}\n\n무료 AI 키 등록: /dashboard/settings/ai`;
-            setMessages(prev => [...prev, { role: 'assistant', content: reply, timestamp: Date.now() }]);
+            const action = (r as any).action ?? null;
+            setMessages(prev => [...prev, { role: 'assistant', content: reply, timestamp: Date.now(), action }]);
         } catch (e: any) {
             setMessages(prev => [...prev, {
                 role: 'assistant',
@@ -237,6 +239,25 @@ export default function CopilotSidebar() {
                                         <Text size="xs" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
                                             {m.content}
                                         </Text>
+                                        {m.action && (
+                                            <UnstyledButton
+                                                component="a"
+                                                href={m.action.href}
+                                                style={{
+                                                    display: 'block',
+                                                    marginTop: 8,
+                                                    padding: '6px 10px',
+                                                    background: 'var(--mantine-color-violet-1)',
+                                                    color: 'var(--mantine-color-violet-9)',
+                                                    borderRadius: 6,
+                                                    border: '1px solid var(--mantine-color-violet-3)',
+                                                    fontSize: 11,
+                                                    fontWeight: 700,
+                                                }}
+                                            >
+                                                ⚡ {m.action.label} →
+                                            </UnstyledButton>
+                                        )}
                                     </Paper>
                                     {m.role === 'user' && (
                                         <Avatar size="sm" radius="xl" color="blue">

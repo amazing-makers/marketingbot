@@ -28,7 +28,7 @@ interface ChatContext {
 export async function chatWithCopilot(input: {
     message: string;
     context?: ChatContext;
-}): Promise<{ success: boolean; reply?: string; error?: string }> {
+}): Promise<{ success: boolean; reply?: string; error?: string; action?: { kind: string; label: string; href: string } | null }> {
     const session = await auth();
     if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
     if (!input.message?.trim()) return { success: false, error: '메시지가 비어있습니다' };
@@ -117,9 +117,73 @@ ${pageContext}
             userId,
             maxChars: 4000,
         });
-        return { success: true, reply };
+
+        // Phase 24 — 도구 호출 의도 감지
+        const action = detectAction(input.message);
+
+        return { success: true, reply, action };
     } catch (e: any) {
         console.error('[copilot]', e);
         return { success: false, error: e?.message || 'AI 응답 실패' };
     }
+}
+
+/**
+ * Phase 24 — 사용자 메시지에서 의도(action) 감지.
+ * "캠페인 만들어줘", "신메뉴 캠페인", "글 작성해줘" 등에 매칭되면 캠페인 작성 페이지 prefill 링크 반환.
+ */
+function detectAction(message: string): { kind: string; label: string; href: string } | null {
+    const m = message.trim();
+    const lower = m.toLowerCase();
+
+    // 캠페인 작성 의도
+    const campaignKeywords = ['캠페인 만들', '캠페인 작성', '캠페인 생성', '글 작성', '게시물 만들', '포스팅 만들', '발행해', '올려줘'];
+    const isCreate = campaignKeywords.some(k => m.includes(k)) || lower.includes('create campaign');
+    if (isCreate) {
+        // 메시지에서 "주제" 추출 — 따옴표 또는 콜론 뒤 텍스트
+        let topic = '';
+        const quotedMatch = m.match(/["'「『]([^"'」』]+)["'」』]/);
+        if (quotedMatch) topic = quotedMatch[1];
+        else {
+            const colonMatch = m.match(/[:：]\s*(.+?)(?:\s+(?:캠페인|게시물|포스팅|글)|\s*$)/);
+            if (colonMatch) topic = colonMatch[1].trim();
+        }
+        const params = topic
+            ? `?topic=${encodeURIComponent(topic)}`
+            : '';
+        return {
+            kind: 'CREATE_CAMPAIGN',
+            label: topic ? `"${topic}" 캠페인 만들기` : '새 캠페인 작성하기',
+            href: `/dashboard/campaigns/new${params}`,
+        };
+    }
+
+    // 시리즈 작성
+    if (m.includes('자동 발행') || m.includes('시리즈 만들') || m.includes('자동화 만들')) {
+        return {
+            kind: 'CREATE_SERIES',
+            label: '자동 발행 만들기',
+            href: '/dashboard/campaigns/series/new',
+        };
+    }
+
+    // 채널 추가
+    if (m.includes('채널 추가') || m.includes('채널 연동') || m.includes('인스타 연결') || m.includes('블로그 연결')) {
+        return {
+            kind: 'ADD_CHANNEL',
+            label: '채널 추가하기',
+            href: '/dashboard/channels',
+        };
+    }
+
+    // 캘린더
+    if (m.includes('일정') || m.includes('캘린더')) {
+        return {
+            kind: 'OPEN_CALENDAR',
+            label: '콘텐츠 캘린더 열기',
+            href: '/dashboard/campaigns/calendar',
+        };
+    }
+
+    return null;
 }
