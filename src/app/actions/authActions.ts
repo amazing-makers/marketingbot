@@ -49,7 +49,7 @@ export async function registerUser(formData: FormData) {
       }
     }
 
-    // 트랜잭션: 유저 생성 + 라이선스 부여
+    // 트랜잭션: 유저 생성 + 라이선스 부여 + 개인 워크스페이스 자동 생성 (Phase 29)
     const result = await prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {
@@ -75,7 +75,36 @@ export async function registerUser(formData: FormData) {
         },
       });
 
-      return { user: newUser, license: newLicense };
+      // Phase 29 — 개인 워크스페이스 자동 생성 (slug 충돌 시 ID suffix)
+      const baseSlug = (name || email.split('@')[0])
+        .toLowerCase()
+        .replace(/[^a-z0-9가-힣\-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 40) || 'my-workspace';
+      const slug = `${baseSlug}-${newUser.id.slice(-6)}`;
+
+      const workspace = await tx.workspace.create({
+        data: {
+          name: `${name}의 워크스페이스`,
+          slug,
+          ownerId: newUser.id,
+          plan: 'FREE',
+        },
+      });
+      await tx.workspaceMember.create({
+        data: {
+          workspaceId: workspace.id,
+          userId: newUser.id,
+          role: 'OWNER',
+        },
+      });
+      await tx.user.update({
+        where: { id: newUser.id },
+        data: { currentWorkspaceId: workspace.id },
+      });
+
+      return { user: newUser, license: newLicense, workspace };
     });
 
     // 이메일 발송 (비동기, 가입 성공에 영향을 주지 않음)

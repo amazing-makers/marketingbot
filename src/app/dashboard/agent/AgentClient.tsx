@@ -6,6 +6,8 @@ import {
 } from '@mantine/core';
 import { IconCopy, IconCheck, IconDownload, IconDeviceDesktop } from '@tabler/icons-react';
 import dayjs from 'dayjs';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface AgentRow {
     id: string;
@@ -13,6 +15,9 @@ interface AgentRow {
     machineId: string;
     version: string;
     lastSeenAt: string;
+    todaySuccess: number;
+    todayFailed: number;
+    running: number;
 }
 
 interface LicenseRow {
@@ -22,7 +27,22 @@ interface LicenseRow {
 }
 
 export default function AgentClient({ license, agents }: { license: LicenseRow | null; agents: AgentRow[] }) {
+    const router = useRouter();
+    // Phase 29 — 30초마다 자동 갱신 (탭이 보일 때만)
+    useEffect(() => {
+        const tick = () => { if (!document.hidden) router.refresh(); };
+        const id = setInterval(tick, 30_000);
+        return () => clearInterval(id);
+    }, [router]);
+
     const isOnline = (lastSeenAtIso: string) => dayjs().diff(dayjs(lastSeenAtIso), 'minute') < 5;
+    const fromNow = (iso: string) => {
+        const diff = dayjs().diff(dayjs(iso), 'second');
+        if (diff < 60) return `${diff}초 전`;
+        if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
+        return `${Math.floor(diff / 86400)}일 전`;
+    };
 
     return (
         <Stack gap="xl">
@@ -86,17 +106,22 @@ export default function AgentClient({ license, agents }: { license: LicenseRow |
                         <Text c="dimmed">등록된 에이전트가 없습니다. 설치 후 라이선스를 활성화해주세요.</Text>
                     </Stack>
                 ) : (
+                    <Table.ScrollContainer minWidth={780}>
                     <Table verticalSpacing="md">
                         <Table.Thead>
                             <Table.Tr>
                                 <Table.Th>기기명</Table.Th>
                                 <Table.Th>상태</Table.Th>
+                                <Table.Th>오늘 처리</Table.Th>
+                                <Table.Th>실행 중</Table.Th>
                                 <Table.Th>버전</Table.Th>
                                 <Table.Th>마지막 통신</Table.Th>
                             </Table.Tr>
                         </Table.Thead>
                         <Table.Tbody>
-                            {agents.map((agent) => (
+                            {agents.map((agent) => {
+                                const online = isOnline(agent.lastSeenAt);
+                                return (
                                 <Table.Tr key={agent.id}>
                                     <Table.Td>
                                         <Group gap="sm">
@@ -105,22 +130,42 @@ export default function AgentClient({ license, agents }: { license: LicenseRow |
                                         </Group>
                                     </Table.Td>
                                     <Table.Td>
-                                        {isOnline(agent.lastSeenAt) ? (
+                                        {online ? (
                                             <Badge variant="dot" color="green">온라인</Badge>
                                         ) : (
                                             <Badge variant="dot" color="gray">오프라인</Badge>
                                         )}
                                     </Table.Td>
                                     <Table.Td>
+                                        <Group gap={6}>
+                                            <Badge size="sm" variant="light" color="green">✓ {agent.todaySuccess}</Badge>
+                                            {agent.todayFailed > 0 && (
+                                                <Badge size="sm" variant="light" color="red">✗ {agent.todayFailed}</Badge>
+                                            )}
+                                        </Group>
+                                    </Table.Td>
+                                    <Table.Td>
+                                        {agent.running > 0 ? (
+                                            <Badge size="sm" color="blue" variant="filled">⚡ {agent.running}</Badge>
+                                        ) : (
+                                            <Text size="xs" c="dimmed">—</Text>
+                                        )}
+                                    </Table.Td>
+                                    <Table.Td>
                                         <Code>v{agent.version}</Code>
                                     </Table.Td>
                                     <Table.Td>
-                                        <Text size="xs" c="dimmed">{dayjs(agent.lastSeenAt).format('YYYY-MM-DD HH:mm:ss')}</Text>
+                                        <Stack gap={0}>
+                                            <Text size="xs" fw={online ? 600 : 400} c={online ? 'green.7' : 'dimmed'}>{fromNow(agent.lastSeenAt)}</Text>
+                                            <Text size="10px" c="dimmed">{dayjs(agent.lastSeenAt).format('MM-DD HH:mm:ss')}</Text>
+                                        </Stack>
                                     </Table.Td>
                                 </Table.Tr>
-                            ))}
+                                );
+                            })}
                         </Table.Tbody>
                     </Table>
+                    </Table.ScrollContainer>
                 )}
             </Paper>
         </Stack>

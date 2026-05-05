@@ -149,19 +149,21 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
                 </Card>
             ) : (
                 <Card withBorder radius="md" p={0}>
-                    <Table verticalSpacing="md" highlightOnHover>
-                        <Table.Thead>
-                            <Table.Tr>
-                                <Table.Th>게시물 이름</Table.Th>
-                                <Table.Th>상태</Table.Th>
-                                <Table.Th>올리는 채널</Table.Th>
-                                <Table.Th>올릴 시간</Table.Th>
-                                <Table.Th>만든 날짜</Table.Th>
-                                <Table.Th />
-                            </Table.Tr>
-                        </Table.Thead>
-                        <Table.Tbody>{rows}</Table.Tbody>
-                    </Table>
+                    <Table.ScrollContainer minWidth={720}>
+                        <Table verticalSpacing="md" highlightOnHover>
+                            <Table.Thead>
+                                <Table.Tr>
+                                    <Table.Th>게시물 이름</Table.Th>
+                                    <Table.Th>상태</Table.Th>
+                                    <Table.Th>올리는 채널</Table.Th>
+                                    <Table.Th>올릴 시간</Table.Th>
+                                    <Table.Th>만든 날짜</Table.Th>
+                                    <Table.Th />
+                                </Table.Tr>
+                            </Table.Thead>
+                            <Table.Tbody>{rows}</Table.Tbody>
+                        </Table>
+                    </Table.ScrollContainer>
                 </Card>
             )}
         </Stack>

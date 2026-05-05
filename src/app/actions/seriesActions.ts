@@ -139,6 +139,7 @@ export async function listSeries() {
         lastError: s.lastError,
         channelCount: Array.isArray(s.channelIds) ? (s.channelIds as any[]).length : 0,
         mediaPoolCount: Array.isArray(s.mediaPool) ? (s.mediaPool as any[]).length : 0,
+        tags: (s.tags as string[]) || [],
     }));
 }
 

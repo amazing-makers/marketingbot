@@ -2,14 +2,14 @@
 
 import {
     Stack, Group, Text, Title, Button, Card, Badge, Progress, Box,
-    Menu, ActionIcon, Tooltip, SimpleGrid
+    Menu, ActionIcon, Tooltip, SimpleGrid, Select
 } from '@mantine/core';
 import {
     IconPlus, IconDotsVertical, IconPlayerPlay, IconPlayerPause,
-    IconTrash, IconRefresh, IconClock, IconRocket, IconCalendarEvent
+    IconTrash, IconRefresh, IconClock, IconRocket, IconCalendarEvent, IconTag
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { updateSeriesStatus, deleteSeries, processSeriesOnce } from '@/app/actions/seriesActions';
 import dayjs from 'dayjs';
@@ -46,11 +46,24 @@ interface Item {
     startAt: string; endAt: string | null;
     nextRunAt: string | null; lastRunAt: string | null;
     lastError: string | null; channelCount: number; mediaPoolCount: number;
+    tags: string[];
 }
 
 export default function SeriesListClient({ items: initial }: { items: Item[] }) {
     const [items, setItems] = useState(initial);
     const [busy, setBusy] = useState<string | null>(null);
+    const [tagFilter, setTagFilter] = useState<string | null>(null);
+
+    const allTags = useMemo(() => {
+        const set = new Set<string>();
+        for (const s of items) for (const t of (s.tags || [])) set.add(t);
+        return Array.from(set).sort();
+    }, [items]);
+
+    const filtered = useMemo(() => {
+        if (!tagFilter) return items;
+        return items.filter(s => (s.tags || []).includes(tagFilter));
+    }, [items, tagFilter]);
 
     const action = async (id: string, fn: () => Promise<any>, refresh: (item: any) => void) => {
         setBusy(id);
@@ -84,6 +97,26 @@ export default function SeriesListClient({ items: initial }: { items: Item[] }) 
                 </Button>
             </Group>
 
+            {allTags.length > 0 && (
+                <Group gap="xs">
+                    <IconTag size={14} color="var(--mantine-color-dimmed)" />
+                    <Select
+                        placeholder="태그로 필터"
+                        size="xs"
+                        clearable
+                        data={allTags.map(t => ({ value: t, label: `#${t}` }))}
+                        value={tagFilter}
+                        onChange={setTagFilter}
+                        style={{ width: 200 }}
+                    />
+                    {tagFilter && (
+                        <Text size="xs" c="dimmed">
+                            {filtered.length}개 표시
+                        </Text>
+                    )}
+                </Group>
+            )}
+
             {items.length === 0 ? (
                 <Card withBorder p="xl" radius="md" bg="var(--mantine-color-default-hover)">
                     <Stack gap="md" align="center" py="xl">
@@ -109,7 +142,7 @@ export default function SeriesListClient({ items: initial }: { items: Item[] }) 
                 </Card>
             ) : (
                 <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">
-                    {items.map(s => {
+                    {filtered.map(s => {
                         const mode = MODE_LABELS[s.mode] || { label: s.mode, emoji: '📦', color: 'gray' };
                         const status = STATUS_INFO[s.status] || { label: s.status, color: 'gray' };
                         const progress = (s.completedPosts / s.totalPosts) * 100;
@@ -141,6 +174,28 @@ export default function SeriesListClient({ items: initial }: { items: Item[] }) 
                                                 {status.label}
                                             </Badge>
                                         </Group>
+                                        {s.tags && s.tags.length > 0 && (
+                                            <Group gap={4} mt={4} wrap="wrap">
+                                                {s.tags.slice(0, 3).map(t => (
+                                                    <Badge
+                                                        key={t}
+                                                        size="xs"
+                                                        variant="outline"
+                                                        color={tagFilter === t ? 'violet' : 'gray'}
+                                                        style={{ cursor: 'pointer' }}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setTagFilter(tagFilter === t ? null : t);
+                                                        }}
+                                                    >
+                                                        #{t}
+                                                    </Badge>
+                                                ))}
+                                                {s.tags.length > 3 && (
+                                                    <Text size="10px" c="dimmed">+{s.tags.length - 3}</Text>
+                                                )}
+                                            </Group>
+                                        )}
                                     </Stack>
                                     <Menu position="bottom-end" shadow="md" withinPortal>
                                         <Menu.Target>
