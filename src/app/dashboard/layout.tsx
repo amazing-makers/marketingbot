@@ -12,13 +12,15 @@ import {
   IconLogout, IconWorld, IconCalendarEvent,
   IconSun, IconMoon, IconSearch, IconCalendarMonth, IconRobot,
   IconChartBar, IconKey, IconWebhook, IconBolt, IconUsers, IconCreditCard,
-  IconCoin, IconUsersGroup
+  IconUsersGroup, IconShield, IconBriefcase
 } from '@tabler/icons-react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import HeaderLicense from '@/components/HeaderLicense';
 import CopilotSidebar from '@/components/copilot/CopilotSidebar';
+import { getMyAccountFlags } from '@/app/actions/resellerActions';
 
 function DarkModeToggle() {
   const { colorScheme, setColorScheme } = useMantineColorScheme({ keepTransitions: true });
@@ -65,6 +67,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [opened, { toggle }] = useDisclosure();
   const pathname = usePathname();
   const router = useRouter();
+  const [accountFlags, setAccountFlags] = useState<{ isAdmin: boolean; isPartner: boolean; partnerStatus: string | null }>({
+    isAdmin: false, isPartner: false, partnerStatus: null,
+  });
+
+  useEffect(() => {
+    if (session?.user?.id) {
+      getMyAccountFlags().then(setAccountFlags).catch(() => {});
+    }
+  }, [session?.user?.id]);
+
+  // 운영 환경: adminbot.amakers.co.kr / 로컬: 빈 문자열 → 동일 호스트의 외부 admin 앱
+  const adminUrl = typeof window !== 'undefined' && window.location.hostname.includes('amakers.co.kr')
+    ? 'https://adminbot.amakers.co.kr'
+    : 'http://localhost:3100';
 
   const spotlightActions = [
     {
@@ -242,6 +258,56 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <Menu.Item leftSection={<IconSettings size={14} />} component={Link} href="/dashboard/settings">
                       환경 설정
                     </Menu.Item>
+
+                    {/* 파트너 메뉴 — 등록된 파트너만 표시 */}
+                    {accountFlags.isPartner && (
+                      <>
+                        <Menu.Divider />
+                        <Menu.Label>파트너</Menu.Label>
+                        <Menu.Item
+                          leftSection={<IconBriefcase size={14} />}
+                          component={Link}
+                          href="/dashboard/partner"
+                          color="violet"
+                        >
+                          🤝 파트너 접속
+                        </Menu.Item>
+                      </>
+                    )}
+
+                    {/* 비파트너 — 가입 권유 */}
+                    {!accountFlags.isPartner && (
+                      <>
+                        <Menu.Divider />
+                        <Menu.Item
+                          leftSection={<IconBriefcase size={14} />}
+                          component={Link}
+                          href="/dashboard/partner"
+                          color="violet"
+                        >
+                          🤝 파트너 가입 (10% 수수료)
+                        </Menu.Item>
+                      </>
+                    )}
+
+                    {/* 슈퍼관리자 — admin 화이트리스트만 */}
+                    {accountFlags.isAdmin && (
+                      <>
+                        <Menu.Divider />
+                        <Menu.Label>관리자</Menu.Label>
+                        <Menu.Item
+                          leftSection={<IconShield size={14} />}
+                          component="a"
+                          href={adminUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          color="red"
+                        >
+                          🛠 관리자 페이지 ↗
+                        </Menu.Item>
+                      </>
+                    )}
+
                     <Menu.Divider />
                     <Menu.Item
                       color="red"
@@ -315,13 +381,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               label="🏢 워크스페이스"
               leftSection={<IconUsersGroup size={18} stroke={1.5} />}
               active={!!pathname && pathname.startsWith('/dashboard/workspace')}
-            />
-            <NavLink
-              component={Link}
-              href="/dashboard/reseller"
-              label="🤝 리셀러 프로그램"
-              leftSection={<IconCoin size={18} stroke={1.5} />}
-              active={!!pathname && pathname.startsWith('/dashboard/reseller')}
             />
             <NavLink
               component={Link}

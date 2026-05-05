@@ -11,6 +11,38 @@ async function getSessionUser() {
 }
 
 /**
+ * 현재 사용자의 권한 플래그 — 사이드바·드롭다운 메뉴 분기용.
+ * 비로그인이면 모두 false.
+ */
+export async function getMyAccountFlags(): Promise<{
+    isAdmin: boolean;
+    isPartner: boolean;
+    partnerStatus: 'ACTIVE' | 'SUSPENDED' | null;
+}> {
+    const session = await auth();
+    if (!session?.user?.id || !session.user.email) {
+        return { isAdmin: false, isPartner: false, partnerStatus: null };
+    }
+
+    const adminEmails = (process.env.ADMIN_EMAILS || '')
+        .split(',')
+        .map(s => s.trim().toLowerCase())
+        .filter(Boolean);
+    const isAdmin = adminEmails.includes(session.user.email.toLowerCase());
+
+    const reseller = await prisma.reseller.findUnique({
+        where: { userId: session.user.id },
+        select: { status: true },
+    });
+
+    return {
+        isAdmin,
+        isPartner: !!reseller,
+        partnerStatus: (reseller?.status as 'ACTIVE' | 'SUSPENDED') || null,
+    };
+}
+
+/**
  * 현재 로그인한 사용자가 리셀러인지 확인 + 정보 반환.
  */
 export async function getMyReseller() {

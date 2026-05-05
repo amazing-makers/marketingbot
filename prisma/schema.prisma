@@ -146,20 +146,21 @@ model User {
 // 향후 채널/캠페인/license 모델에 workspaceId 추가하여 데이터 분리.
 // 현재는 모델만 정의 + 사용자가 직접 워크스페이스 생성/전환 가능.
 model Workspace {
-  id          String            @id @default(cuid())
-  name        String
-  slug        String            @unique // URL 친화 식별자 (e.g., 'my-startup')
-  ownerId     String
-  owner       User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  id            String            @id @default(cuid())
+  name          String
+  slug          String            @unique // URL 친화 식별자 (e.g., 'my-startup')
+  ownerId       String
+  owner         User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   // 플랜·결제는 향후 Workspace 단위로 이전. 현재는 User 단위 라이센스 그대로.
-  plan        String            @default("FREE")
+  plan          String            @default("FREE")
   // 메타: 로고/색상/설명 (브랜드 정보)
-  logoUrl     String?
-  brandColor  String?           @default("#1D1D1B")
-  description String?
-  members     WorkspaceMember[]
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  logoUrl       String?
+  brandColor    String?           @default("#1D1D1B")
+  description   String?
+  members       WorkspaceMember[]
+  partnerClient PartnerClient?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@index([ownerId])
 }
@@ -444,6 +445,7 @@ model Reseller {
 
   referralCodes ReferralCode[]
   commissions   ReferralCommission[]
+  clients       PartnerClient[]
 
   @@index([status])
 }
@@ -480,4 +482,37 @@ model ReferralCommission {
   @@unique([resellerId, referredUserId, periodYearMonth])
   @@index([resellerId, status])
   @@index([periodYearMonth])
+}
+
+// ════════════════════════════════════════════════════════════
+//  Phase 14 — PartnerClient (파트너가 대행 관리하는 고객사)
+//
+// 파트너(=Reseller) 가 여러 고객사의 마케팅을 대신 운영해주는 모델.
+// 각 고객사는 별도 Workspace 1개로 격리됨 (채널·캠페인 모두 그 워크스페이스 안).
+// 파트너는 워크스페이스의 OWNER 또는 ADMIN 으로 참여하여 작업을 수행.
+//
+// monthlyFee: 파트너가 고객사에게 받는 월 관리비 (별도 — 자체 청구).
+// status: ACTIVE | PAUSED | CHURNED
+// ════════════════════════════════════════════════════════════
+
+model PartnerClient {
+  id           String    @id @default(cuid())
+  partnerId    String // → Reseller.id
+  partner      Reseller  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  workspaceId  String    @unique // 1:1 — 각 고객사는 워크스페이스 1개
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  clientName   String // 고객사 표시 이름 (예: "스타트업 A 카페")
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  industry     String? // 카페 / 식당 / 헬스장 / 의류 등
+  monthlyFee   Int? // 파트너 자체 청구액 (원)
+  status       String    @default("ACTIVE") // ACTIVE | PAUSED | CHURNED
+  notes        String?
+  startedAt    DateTime  @default(now())
+  endedAt      DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([partnerId, status])
 }
