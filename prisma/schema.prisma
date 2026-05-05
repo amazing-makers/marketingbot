@@ -530,7 +530,8 @@ model PartnerClient {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  reports PartnerClientReport[]
+  reports  PartnerClientReport[]
+  invoices ClientInvoice[]
 
   @@index([partnerId, status])
 }
@@ -624,4 +625,36 @@ model Notification {
 
   @@index([userId, readAt])
   @@index([userId, createdAt])
+}
+
+// ════════════════════════════════════════════════════════════
+//  Phase 21 — ClientInvoice (파트너가 고객사에게 발행하는 인보이스)
+//
+// 파트너가 고객사 대행 마케팅의 월 관리비 청구서를 발행.
+// amakers 결제 (Stripe) 와는 별개 — 파트너 ↔ 고객사 간 자체 청구.
+// 추후 Stripe Connect 통합 시 자동 결제 가능 (현재는 수동 송금 트래킹).
+// ════════════════════════════════════════════════════════════
+
+model ClientInvoice {
+  id              String        @id @default(cuid())
+  partnerClientId String
+  partnerClient   PartnerClient @relation(fields: [partnerClientId], references: [id], onDelete: Cascade)
+  invoiceNumber   String // "INV-2026-05-001"
+  periodYearMonth String // "2026-05"
+  amount          Int // 원 단위 (KRW)
+  vat             Int           @default(0) // 부가세 (10%)
+  total           Int // amount + vat
+  description     String?       @db.Text // 인보이스 항목 설명
+  status          String        @default("DRAFT") // DRAFT | SENT | PAID | OVERDUE | CANCELLED
+  dueDate         DateTime?
+  sentAt          DateTime?
+  paidAt          DateTime?
+  paymentMethod   String? // BANK_TRANSFER | CARD | CASH
+  paymentNotes    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([partnerClientId, invoiceNumber])
+  @@index([partnerClientId, status])
+  @@index([periodYearMonth])
 }

@@ -12,11 +12,13 @@ import { useRouter } from 'next/navigation';
 import {
     IconBuildingStore, IconArrowRight, IconEdit, IconPlayerPause,
     IconPlayerPlay, IconBan, IconFileTypePdf, IconRefresh, IconDownload, IconCheck,
+    IconReceipt, IconPlus, IconTrash,
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 import { updatePartnerClientStatus, updatePartnerClient, enterClientWorkspace } from '@/app/actions/partnerActions';
 import { generatePartnerClientReport } from '@/app/actions/partnerReportActions';
+import { createInvoice, updateInvoiceStatus, deleteInvoice } from '@/app/actions/invoiceActions';
 
 interface ClientData {
     id: string;
@@ -47,17 +49,96 @@ interface ReportItem {
     errorMessage: string | null;
 }
 
+interface InvoiceItem {
+    id: string;
+    invoiceNumber: string;
+    periodYearMonth: string;
+    amount: number;
+    vat: number;
+    total: number;
+    description: string | null;
+    status: string;
+    dueDate: string | null;
+    paidAt: string | null;
+    paymentMethod: string | null;
+    createdAt: string;
+}
+
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
     ACTIVE: { label: '운영 중', color: 'teal' },
     PAUSED: { label: '일시 중단', color: 'orange' },
     CHURNED: { label: '계약 종료', color: 'gray' },
 };
 
-export default function ClientDetailClient({ data, reports }: { data: ClientData; reports: ReportItem[] }) {
+export default function ClientDetailClient({
+    data,
+    reports,
+    invoices,
+}: {
+    data: ClientData;
+    reports: ReportItem[];
+    invoices: InvoiceItem[];
+}) {
     const router = useRouter();
     const [busy, setBusy] = useState(false);
     const [editModal, editModalCtl] = useDisclosure(false);
+    const [invoiceModal, invoiceModalCtl] = useDisclosure(false);
     const [generatingReport, setGeneratingReport] = useState(false);
+    const [invoiceForm, setInvoiceForm] = useState({
+        amount: data.monthlyFee || 0,
+        description: '',
+        period: dayjs().subtract(1, 'month').format('YYYY-MM'),
+    });
+
+    const handleCreateInvoice = async () => {
+        if (invoiceForm.amount <= 0) {
+            notifications.show({ color: 'orange', title: '금액 필요', message: '0보다 큰 금액을 입력하세요' });
+            return;
+        }
+        setBusy(true);
+        try {
+            await createInvoice({
+                partnerClientId: data.id,
+                amount: invoiceForm.amount,
+                description: invoiceForm.description || undefined,
+                periodYearMonth: invoiceForm.period,
+            });
+            notifications.show({ color: 'teal', title: '📄 인보이스 생성됨', message: `${invoiceForm.period}` });
+            invoiceModalCtl.close();
+            window.location.reload();
+        } catch (e: any) {
+            notifications.show({ color: 'red', title: '실패', message: e?.message || '실패' });
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const handleInvoiceStatus = async (id: string, status: 'SENT' | 'PAID' | 'CANCELLED') => {
+        setBusy(true);
+        try {
+            await updateInvoiceStatus({ invoiceId: id, status });
+            notifications.show({ color: 'teal', title: '상태 변경됨', message: status });
+            window.location.reload();
+        } catch (e: any) {
+            notifications.show({ color: 'red', title: '실패', message: e?.message || '실패' });
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const handleDeleteInvoice = async (id: string) => {
+        if (!confirm('이 인보이스를 삭제하시겠습니까?')) return;
+        setBusy(true);
+        try {
+            await deleteInvoice(id);
+            notifications.show({ color: 'teal', title: '삭제됨', message: '인보이스가 제거되었습니다' });
+            window.location.reload();
+        } catch (e: any) {
+            notifications.show({ color: 'red', title: '실패', message: e?.message || '실패' });
+        } finally {
+            setBusy(false);
+        }
+    };
 
     const handleGenerateReport = async () => {
         setGeneratingReport(true);
@@ -299,6 +380,79 @@ export default function ClientDetailClient({ data, reports }: { data: ClientData
                     )}
                 </Paper>
 
+                {/* 인보이스 */}
+                <Paper withBorder p="md" radius="md">
+                    <Group justify="space-between" mb="sm">
+                        <Group gap={6}>
+                            <IconReceipt size={20} color="var(--mantine-color-blue-6)" />
+                            <Title order={5}>📄 인보이스 (월 관리비 청구)</Title>
+                        </Group>
+                        <Button
+                            size="compact-sm"
+                            variant="light"
+                            color="blue"
+                            leftSection={<IconPlus size={14} />}
+                            onClick={invoiceModalCtl.open}
+                            disabled={data.status === 'CHURNED'}
+                        >
+                            새 인보이스
+                        </Button>
+                    </Group>
+                    {invoices.length === 0 ? (
+                        <Box style={{ textAlign: 'center', padding: 24, color: 'var(--mantine-color-dimmed)' }}>
+                            <IconReceipt size={36} style={{ opacity: 0.3 }} />
+                            <Text size="sm" mt="sm">인보이스가 없습니다</Text>
+                            <Text size="xs">파트너가 고객사에게 청구하는 자체 인보이스 (amakers 결제와 별개)</Text>
+                        </Box>
+                    ) : (
+                        <Stack gap="xs">
+                            {invoices.map(inv => {
+                                const statusColor = inv.status === 'PAID' ? 'teal' : inv.status === 'SENT' ? 'blue' : inv.status === 'OVERDUE' ? 'red' : inv.status === 'CANCELLED' ? 'gray' : 'orange';
+                                const statusLabel = { DRAFT: '초안', SENT: '발송됨', PAID: '입금 완료', OVERDUE: '연체', CANCELLED: '취소' }[inv.status] || inv.status;
+                                return (
+                                    <Card key={inv.id} withBorder p="sm" radius="md">
+                                        <Group justify="space-between" wrap="wrap">
+                                            <Stack gap={2}>
+                                                <Group gap={6}>
+                                                    <Text fw={700} size="sm">{inv.invoiceNumber}</Text>
+                                                    <Badge size="xs" color={statusColor} variant="light">{statusLabel}</Badge>
+                                                    <Text size="xs" c="dimmed">{inv.periodYearMonth}</Text>
+                                                </Group>
+                                                <Text size="11px" c="dimmed">
+                                                    공급가 ₩{inv.amount.toLocaleString()} · VAT ₩{inv.vat.toLocaleString()}
+                                                </Text>
+                                                {inv.description && <Text size="11px" c="dimmed">{inv.description}</Text>}
+                                                {inv.paidAt && (
+                                                    <Text size="11px" c="teal">
+                                                        ✓ 입금 {dayjs(inv.paidAt).format('YYYY-MM-DD')} {inv.paymentMethod && `· ${inv.paymentMethod}`}
+                                                    </Text>
+                                                )}
+                                            </Stack>
+                                            <Stack gap={4} align="flex-end">
+                                                <Text fw={800} size="md">₩{inv.total.toLocaleString()}</Text>
+                                                <Group gap={4}>
+                                                    {inv.status === 'DRAFT' && (
+                                                        <Button size="compact-xs" variant="light" color="blue" onClick={() => handleInvoiceStatus(inv.id, 'SENT')} loading={busy}>발송됨 표시</Button>
+                                                    )}
+                                                    {(inv.status === 'SENT' || inv.status === 'OVERDUE') && (
+                                                        <Button size="compact-xs" variant="light" color="teal" onClick={() => handleInvoiceStatus(inv.id, 'PAID')} loading={busy}>입금 완료</Button>
+                                                    )}
+                                                    {inv.status !== 'PAID' && inv.status !== 'CANCELLED' && (
+                                                        <Button size="compact-xs" variant="subtle" color="red" onClick={() => handleInvoiceStatus(inv.id, 'CANCELLED')} loading={busy}>취소</Button>
+                                                    )}
+                                                    <Button size="compact-xs" variant="subtle" color="red" onClick={() => handleDeleteInvoice(inv.id)} loading={busy}>
+                                                        <IconTrash size={11} />
+                                                    </Button>
+                                                </Group>
+                                            </Stack>
+                                        </Group>
+                                    </Card>
+                                );
+                            })}
+                        </Stack>
+                    )}
+                </Paper>
+
                 {/* 상태 변경 */}
                 <Paper withBorder p="md" radius="md">
                     <Title order={5} mb="sm">⚙️ 계약 상태</Title>
@@ -327,6 +481,45 @@ export default function ClientDetailClient({ data, reports }: { data: ClientData
                     </Text>
                 </Paper>
             </Stack>
+
+            {/* 인보이스 생성 모달 */}
+            <Modal opened={invoiceModal} onClose={invoiceModalCtl.close} title="📄 새 인보이스 발행" size="md">
+                <Stack gap="sm">
+                    <TextInput
+                        label="청구 기간 (YYYY-MM)"
+                        value={invoiceForm.period}
+                        onChange={(e) => setInvoiceForm(f => ({ ...f, period: e.currentTarget.value }))}
+                        placeholder="2026-05"
+                    />
+                    <NumberInput
+                        label="공급가 (원, VAT 별도)"
+                        description="VAT 10% 자동 추가"
+                        min={0}
+                        thousandSeparator=","
+                        value={invoiceForm.amount}
+                        onChange={(v) => setInvoiceForm(f => ({ ...f, amount: Number(v) || 0 }))}
+                    />
+                    <Textarea
+                        label="설명 (선택)"
+                        placeholder="예: 5월 마케팅 대행 — 인스타·블로그 12회 발행"
+                        autosize
+                        minRows={2}
+                        value={invoiceForm.description}
+                        onChange={(e) => setInvoiceForm(f => ({ ...f, description: e.currentTarget.value }))}
+                    />
+                    <Box style={{ background: 'var(--mantine-color-blue-0)', padding: 12, borderRadius: 6 }}>
+                        <Text size="xs" c="dimmed">공급가 ₩{invoiceForm.amount.toLocaleString()}</Text>
+                        <Text size="xs" c="dimmed">VAT (10%) ₩{Math.round(invoiceForm.amount * 0.1).toLocaleString()}</Text>
+                        <Text fw={700} size="md" c="blue.9" mt={4}>
+                            합계 ₩{Math.round(invoiceForm.amount * 1.1).toLocaleString()}
+                        </Text>
+                    </Box>
+                    <Group justify="flex-end">
+                        <Button variant="subtle" onClick={invoiceModalCtl.close}>취소</Button>
+                        <Button onClick={handleCreateInvoice} loading={busy} color="blue">인보이스 생성</Button>
+                    </Group>
+                </Stack>
+            </Modal>
 
             {/* 수정 모달 */}
             <Modal opened={editModal} onClose={editModalCtl.close} title="고객사 정보 수정" size="md">

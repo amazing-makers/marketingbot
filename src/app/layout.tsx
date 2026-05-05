@@ -25,6 +25,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "마케팅봇 - 한 번 작성, 5개 채널 동시 발행",
   description: "Instagram·Naver·Facebook·Threads 마케팅 자동화 끝판왕. 매일 30분 절약. 14일 무료 체험으로 시작하세요.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "마케팅봇",
+    statusBarStyle: "default",
+  },
   openGraph: {
     title: "마케팅봇 - 마케팅 자동화의 새로운 표준",
     description: "5개 SNS 채널 동시 발행. 예약·자동·안전한 에이전트 기반 시스템.",
@@ -33,6 +39,10 @@ export const metadata: Metadata = {
     locale: 'ko_KR',
     type: 'website',
   },
+};
+
+export const viewport = {
+  themeColor: "#7c3aed",
 };
 
 export default function RootLayout({

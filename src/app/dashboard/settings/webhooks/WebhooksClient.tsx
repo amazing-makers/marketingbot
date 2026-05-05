@@ -121,6 +121,28 @@ export default function WebhooksClient({ initialTokens }: Props) {
                         Zapier "Webhooks by Zapier" → POST 액션 선택 → URL 에 위 엔드포인트, Body 에 JSON 입력.
                         Make 도 동일 (HTTP 모듈 → Make a request).
                     </Text>
+
+                    <Text size="sm" fw={600} mt="md" mb={4}>📚 REST API v1 (조회용)</Text>
+                    <Text size="xs" c="dimmed" mb="xs">
+                        같은 토큰으로 GET 조회 API 사용 가능 — 캠페인·채널·시리즈 목록.
+                    </Text>
+                    <Code block style={{ fontSize: 11 }}>{`GET ${baseUrl}/api/v1/campaigns?limit=50
+GET ${baseUrl}/api/v1/channels
+GET ${baseUrl}/api/v1/series?status=RUNNING
+
+Authorization: Bearer <token>`}</Code>
+                    <Group gap="xs" mt="sm">
+                        <Button
+                            size="compact-sm"
+                            variant="light"
+                            component="a"
+                            href="/api/marketingbot-postman.json"
+                            download="marketingbot-api-v1.json"
+                            leftSection={<IconCopy size={12} />}
+                        >
+                            📦 Postman 컬렉션 다운로드
+                        </Button>
+                    </Group>
                 </Paper>
 
                 <Paper withBorder p="md" radius="md">

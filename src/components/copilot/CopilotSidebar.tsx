@@ -23,6 +23,15 @@ const SUGGESTIONS = [
     'AI 이미지 생성 비용은?',
 ];
 
+// 빠른 액션 — 클릭하면 해당 페이지로 이동 (대화 없이)
+const QUICK_ACTIONS: Array<{ label: string; href: string; emoji: string }> = [
+    { emoji: '✍️', label: '새 캠페인 작성', href: '/dashboard/campaigns/new' },
+    { emoji: '🤖', label: '자동 발행 만들기', href: '/dashboard/campaigns/series/new' },
+    { emoji: '📅', label: '콘텐츠 캘린더', href: '/dashboard/campaigns/calendar' },
+    { emoji: '🌐', label: '채널 추가', href: '/dashboard/channels' },
+    { emoji: '🤝', label: '파트너 대시보드', href: '/dashboard/partner' },
+];
+
 export default function CopilotSidebar() {
     const [opened, setOpened] = useState(false);
     const [messages, setMessages] = useState<Message[]>([]);
@@ -158,6 +167,27 @@ export default function CopilotSidebar() {
                                 <Text size="xs" c="dimmed" ta="center">
                                     캠페인 작성·채널 연동·AI 활용·결제 등 무엇이든 물어보세요.
                                 </Text>
+                            </Stack>
+                            <Stack gap={6} mt="md">
+                                <Text size="xs" fw={700} c="dimmed">⚡ 빠른 액션</Text>
+                                <Group gap={4} wrap="wrap">
+                                    {QUICK_ACTIONS.map((a) => (
+                                        <UnstyledButton
+                                            key={a.href}
+                                            component="a"
+                                            href={a.href}
+                                            style={{
+                                                padding: '6px 10px',
+                                                borderRadius: 16,
+                                                border: '1px solid var(--mantine-color-violet-3)',
+                                                background: 'var(--mantine-color-violet-0)',
+                                                fontSize: 11,
+                                            }}
+                                        >
+                                            {a.emoji} {a.label}
+                                        </UnstyledButton>
+                                    ))}
+                                </Group>
                             </Stack>
                             <Stack gap={6} mt="md">
                                 <Text size="xs" fw={700} c="dimmed">💡 추천 질문</Text>

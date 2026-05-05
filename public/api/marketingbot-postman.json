@@ -1,0 +1,54 @@
+{
+  "info": {
+    "name": "MarketingBot API v1",
+    "description": "Public REST API for amakers MarketingBot. All endpoints require Bearer token (UserWebhookToken).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{TOKEN}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "BASE_URL", "value": "https://marketingbot.amakers.co.kr" },
+    { "key": "TOKEN", "value": "your-32-char-hex-token" }
+  ],
+  "item": [
+    {
+      "name": "List Campaigns",
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{BASE_URL}}/api/v1/campaigns?limit=50&status=SCHEDULED", "host": ["{{BASE_URL}}"], "path": ["api", "v1", "campaigns"], "query": [{ "key": "limit", "value": "50" }, { "key": "status", "value": "SCHEDULED" }] },
+        "description": "활성 워크스페이스 기준 캠페인 목록"
+      }
+    },
+    {
+      "name": "List Channels",
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{BASE_URL}}/api/v1/channels", "host": ["{{BASE_URL}}"], "path": ["api", "v1", "channels"] },
+        "description": "활성 워크스페이스 채널 목록 (자격증명 제외)"
+      }
+    },
+    {
+      "name": "List Series",
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{BASE_URL}}/api/v1/series?status=RUNNING", "host": ["{{BASE_URL}}"], "path": ["api", "v1", "series"], "query": [{ "key": "status", "value": "RUNNING" }] },
+        "description": "자동 발행 시리즈 목록"
+      }
+    },
+    {
+      "name": "Webhook: Publish",
+      "request": {
+        "method": "POST",
+        "url": { "raw": "{{BASE_URL}}/api/webhook/{{TOKEN}}/publish", "host": ["{{BASE_URL}}"], "path": ["api", "webhook", "{{TOKEN}}", "publish"] },
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"content\": \"발행할 본문\",\n  \"channelIds\": [\"ch_xxx\"],\n  \"name\": \"외부 자동화 캠페인\",\n  \"sourceLanguage\": \"ko\",\n  \"autoTranslate\": true\n}"
+        },
+        "description": "외부 자동화에서 캠페인 즉시 발행 (Zapier/Make/n8n)"
+      }
+    }
+  ]
+}

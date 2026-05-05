@@ -599,6 +599,7 @@ export async function createAbTest(input: {
     brief?: ContentBrief;
 }): Promise<{ campaignIds: string[]; variants: { content: string }[] }> {
     const user = await getSessionUser();
+    const filter = await getActiveWorkspaceFilter(user.id!);
     if (!input.seed?.trim()) throw new Error('시드 본문을 입력하세요');
     if (input.channelIds.length === 0) throw new Error('채널을 1개 이상 선택하세요');
     const n = Math.max(2, Math.min(5, input.variantCount));
@@ -627,7 +628,7 @@ export async function createAbTest(input: {
     );
 
     const channels = await prisma.marketingChannel.findMany({
-        where: { id: { in: input.channelIds }, userId: user.id! },
+        where: { id: { in: input.channelIds }, userId: filter.userId, workspaceId: filter.workspaceId },
     });
 
     // 각 변형마다 캠페인 1개 + 채널별 task 생성
@@ -638,6 +639,7 @@ export async function createAbTest(input: {
             const c = await tx.campaign.create({
                 data: {
                     userId: user.id!,
+                    workspaceId: filter.workspaceId,
                     name: `[A/B] ${input.name} — 변형 ${String.fromCharCode(65 + i)}`,
                     description: `A/B 테스트 ${i + 1}/${variants.length}`,
                     status: 'SCHEDULED',
@@ -660,6 +662,98 @@ export async function createAbTest(input: {
 
     revalidatePath('/dashboard/campaigns');
     return { campaignIds, variants };
+}
+
+/**
+ * Phase 21 — A/B 테스트 결과 분석 + winner 추천.
+ * 같은 testName 의 캠페인들을 task 통계로 비교 → 가장 성공률 높은 변형 추천.
+ */
+export async function analyzeAbTest(testName: string): Promise<{
+    variants: Array<{
+        campaignId: string;
+        variantLabel: string;
+        published: number;
+        failed: number;
+        successRate: number;
+        sample: string;
+    }>;
+    recommendedWinnerCampaignId: string | null;
+}> {
+    const user = await getSessionUser();
+    const filter = await getActiveWorkspaceFilter(user.id!);
+
+    // [A/B] {testName} — 변형 X 패턴으로 캠페인 조회
+    const campaigns = await prisma.campaign.findMany({
+        where: {
+            userId: filter.userId,
+            workspaceId: filter.workspaceId,
+            name: { startsWith: `[A/B] ${testName} —` },
+        },
+        include: {
+            tasks: {
+                select: { status: true, content: true },
+            },
+        },
+        orderBy: { createdAt: 'asc' },
+    });
+
+    const variants = campaigns.map(c => {
+        const published = c.tasks.filter(t => t.status === 'SUCCESS').length;
+        const failed = c.tasks.filter(t => t.status === 'FAILED').length;
+        const total = published + failed;
+        const successRate = total > 0 ? (published / total) * 100 : 0;
+        const variantLabel = c.name.match(/변형\s+(.+)$/)?.[1] || '?';
+        return {
+            campaignId: c.id,
+            variantLabel,
+            published,
+            failed,
+            successRate: Math.round(successRate),
+            sample: c.tasks[0]?.content?.slice(0, 100) || '',
+        };
+    });
+
+    // Winner — 발행 5건 이상 + 가장 높은 successRate
+    const eligible = variants.filter(v => v.published + v.failed >= 5);
+    const winner = eligible.length > 0
+        ? eligible.reduce((best, cur) => cur.successRate > best.successRate ? cur : best)
+        : null;
+
+    return { variants, recommendedWinnerCampaignId: winner?.campaignId || null };
+}
+
+/**
+ * Winner 마킹 — 다른 변형의 PENDING task 들을 CANCELLED 처리.
+ */
+export async function markAbTestWinner(input: {
+    testName: string;
+    winnerCampaignId: string;
+}): Promise<{ ok: boolean; cancelledTasks: number }> {
+    const user = await getSessionUser();
+    const filter = await getActiveWorkspaceFilter(user.id!);
+
+    const campaigns = await prisma.campaign.findMany({
+        where: {
+            userId: filter.userId,
+            workspaceId: filter.workspaceId,
+            name: { startsWith: `[A/B] ${input.testName} —` },
+        },
+        select: { id: true },
+    });
+
+    const losers = campaigns.filter(c => c.id !== input.winnerCampaignId);
+    if (losers.length === 0) return { ok: true, cancelledTasks: 0 };
+
+    const r = await prisma.scheduledTask.updateMany({
+        where: {
+            campaignId: { in: losers.map(c => c.id) },
+            status: 'PENDING',
+        },
+        data: { status: 'CANCELLED' as any },
+    });
+
+    revalidatePath('/dashboard/campaigns');
+    return { ok: true, cancelledTasks: r.count };
 }
 
 /**

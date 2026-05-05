@@ -22,6 +22,7 @@ import HeaderLicense from '@/components/HeaderLicense';
 import CopilotSidebar from '@/components/copilot/CopilotSidebar';
 import WorkspaceSwitcher from '@/components/workspace/WorkspaceSwitcher';
 import NotificationBell from '@/components/notifications/NotificationBell';
+import InstallPrompt from '@/components/pwa/InstallPrompt';
 import { getMyAccountFlags } from '@/app/actions/resellerActions';
 
 function DarkModeToggle() {
@@ -426,6 +427,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </AppShell>
       {/* AI 코파일럿 — 우하단 floating 버튼 + 우측 Drawer (Cursor 스타일) */}
       <CopilotSidebar />
+      {/* PWA 설치 프롬프트 — 우하단 토스트 (모바일 우선) */}
+      <InstallPrompt />
     </>
   );
 }
