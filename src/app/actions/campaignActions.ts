@@ -140,14 +140,23 @@ export async function listCalendarEntries(input: { from: Date; to: Date }) {
 export async function listCampaigns() {
   const user = await getSessionUser();
   const filter = await getActiveWorkspaceFilter(user.id!);
-  return await prisma.campaign.findMany({
+  // Phase 35 — 카드 썸네일을 위해 첫 task 의 mediaUrls 1장 함께 조회
+  const campaigns = await prisma.campaign.findMany({
     where: { userId: filter.userId, workspaceId: filter.workspaceId },
     include: {
-      _count: {
-        select: { tasks: true }
-      }
+      _count: { select: { tasks: true } },
+      tasks: {
+        select: { mediaUrls: true },
+        take: 1,
+        orderBy: { scheduledAt: 'asc' },
+      },
     },
     orderBy: { createdAt: "desc" },
+  });
+  return campaigns.map(c => {
+    const firstMedia = (c.tasks[0]?.mediaUrls as any[] | null) || [];
+    const thumbnail = Array.isArray(firstMedia) && firstMedia.length > 0 ? String(firstMedia[0]) : null;
+    return { ...c, thumbnail };
   });
 }
 

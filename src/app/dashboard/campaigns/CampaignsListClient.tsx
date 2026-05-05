@@ -16,6 +16,7 @@ interface CampaignRow {
     scheduledAt?: string | null;
     createdAt: string;
     tags?: string[];
+    thumbnail?: string | null;
     _count: { tasks: number };
 }
 
@@ -302,29 +303,50 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
                                     p="md"
                                     style={{ textDecoration: 'none', color: 'inherit' }}
                                 >
-                                    <Group justify="space-between" wrap="nowrap" mb="xs">
-                                        <Text fw={600} truncate style={{ flex: 1 }}>{campaign.name}</Text>
-                                        <Badge variant="light" color={campaign.status === 'SCHEDULED' ? 'blue' : 'green'} size="sm">
-                                            {campaign.status}
-                                        </Badge>
-                                    </Group>
-                                    {campaign.tags && campaign.tags.length > 0 && (
-                                        <Group gap={4} mb="xs">
-                                            {campaign.tags.slice(0, 3).map(t => (
-                                                <Badge key={t} size="xs" variant="light" color="grape">{t}</Badge>
-                                            ))}
-                                            {campaign.tags.length > 3 && <Text size="10px" c="dimmed">+{campaign.tags.length - 3}</Text>}
-                                        </Group>
-                                    )}
-                                    <Group gap="md" wrap="wrap">
-                                        <Group gap={4}>
-                                            <IconCalendar size={12} color="var(--mantine-color-dimmed)" />
-                                            <Text size="xs" c="dimmed">
-                                                {campaign.scheduledAt ? dayjs(campaign.scheduledAt).format('M.D HH:mm') : '미정'}
-                                            </Text>
-                                        </Group>
-                                        <Text size="xs" c="dimmed">채널 {campaign._count.tasks}개</Text>
-                                        <Text size="xs" c="dimmed">{dayjs(campaign.createdAt).format('M.D')} 작성</Text>
+                                    <Group wrap="nowrap" gap="md" align="flex-start">
+                                        {/* Phase 35 — 썸네일 */}
+                                        {campaign.thumbnail && (
+                                            <Box
+                                                style={{
+                                                    width: 64,
+                                                    height: 64,
+                                                    borderRadius: 8,
+                                                    overflow: 'hidden',
+                                                    background: 'var(--mantine-color-default-hover)',
+                                                    flexShrink: 0,
+                                                    backgroundImage: `url(${campaign.thumbnail})`,
+                                                    backgroundSize: 'cover',
+                                                    backgroundPosition: 'center',
+                                                }}
+                                                aria-label="campaign thumbnail"
+                                            />
+                                        )}
+                                        <Box style={{ flex: 1, minWidth: 0 }}>
+                                            <Group justify="space-between" wrap="nowrap" mb="xs">
+                                                <Text fw={600} truncate style={{ flex: 1 }}>{campaign.name}</Text>
+                                                <Badge variant="light" color={campaign.status === 'SCHEDULED' ? 'blue' : 'green'} size="sm">
+                                                    {campaign.status}
+                                                </Badge>
+                                            </Group>
+                                            {campaign.tags && campaign.tags.length > 0 && (
+                                                <Group gap={4} mb="xs">
+                                                    {campaign.tags.slice(0, 3).map(t => (
+                                                        <Badge key={t} size="xs" variant="light" color="grape">{t}</Badge>
+                                                    ))}
+                                                    {campaign.tags.length > 3 && <Text size="10px" c="dimmed">+{campaign.tags.length - 3}</Text>}
+                                                </Group>
+                                            )}
+                                            <Group gap="md" wrap="wrap">
+                                                <Group gap={4}>
+                                                    <IconCalendar size={12} color="var(--mantine-color-dimmed)" />
+                                                    <Text size="xs" c="dimmed">
+                                                        {campaign.scheduledAt ? dayjs(campaign.scheduledAt).format('M.D HH:mm') : '미정'}
+                                                    </Text>
+                                                </Group>
+                                                <Text size="xs" c="dimmed">채널 {campaign._count.tasks}개</Text>
+                                                <Text size="xs" c="dimmed">{dayjs(campaign.createdAt).format('M.D')} 작성</Text>
+                                            </Group>
+                                        </Box>
                                     </Group>
                                 </Card>
                             ))}

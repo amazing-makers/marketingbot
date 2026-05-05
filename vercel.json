@@ -12,6 +12,7 @@
         { "path": "/api/cron/dispatch-series", "schedule": "*/5 * * * *" },
         { "path": "/api/cron/trial-reminders", "schedule": "0 0 * * *" },
         { "path": "/api/cron/trial-recovery", "schedule": "0 1 * * *" },
+        { "path": "/api/cron/channel-health-check", "schedule": "0 4 * * *" },
         { "path": "/api/cron/calculate-commissions", "schedule": "0 2 1 * *" },
         { "path": "/api/cron/generate-partner-reports", "schedule": "0 3 1 * *" },
         { "path": "/api/cron/daily-content-suggestions", "schedule": "0 23 * * *" }

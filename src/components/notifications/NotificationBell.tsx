@@ -32,6 +32,8 @@ const KIND_EMOJI: Record<string, string> = {
     SERIES_COMPLETE: '✅',
     TRIAL_EXPIRING: '⏰',
     TRIAL_RECOVERY: '🎁',
+    LOGIN_NEW_DEVICE: '🔐',
+    CHANNEL_ERROR: '🚨',
     SYSTEM: '📣',
 };
 
@@ -43,6 +45,8 @@ const KIND_LABEL: Record<string, string> = {
     SERIES_COMPLETE: '시리즈 완료',
     TRIAL_EXPIRING: '체험 만료',
     TRIAL_RECOVERY: '재가입 안내',
+    LOGIN_NEW_DEVICE: '새 디바이스 로그인',
+    CHANNEL_ERROR: '채널 오류',
     SYSTEM: '공지·기타',
 };
 

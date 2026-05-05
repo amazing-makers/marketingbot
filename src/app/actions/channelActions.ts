@@ -269,3 +269,96 @@ export async function verifyChannelConnection(channelId: string): Promise<{
     channelType: channel.type,
   };
 }
+
+/**
+ * Phase 35 — 세션 우회 health check (cron 전용).
+ * verifyChannelConnection 의 검증 로직을 재사용하되 getSessionUser 없이 채널 ID로 직접 처리.
+ */
+export async function verifyChannelInternal(channelId: string): Promise<{
+  ok: boolean;
+  detail?: string;
+  error?: string;
+  channelType?: string;
+  previousStatus?: string;
+  newStatus?: 'ACTIVE' | 'ERROR' | 'PENDING_AUTH';
+  channelUserId?: string;
+  accountName?: string;
+}> {
+  const channel = await prisma.marketingChannel.findUnique({ where: { id: channelId } });
+  if (!channel) return { ok: false, error: 'not found' };
+
+  const previousStatus = channel.status;
+  const { decryptJSON } = await import("@/lib/crypto/aes");
+  let creds: any;
+  try {
+    creds = decryptJSON(channel.encryptedCredentials);
+  } catch {
+    await prisma.marketingChannel.update({ where: { id: channelId }, data: { status: 'ERROR' } });
+    return {
+      ok: false,
+      error: '자격증명 복호화 실패',
+      newStatus: 'ERROR',
+      previousStatus,
+      channelType: channel.type,
+      channelUserId: channel.userId,
+      accountName: channel.accountName,
+    };
+  }
+
+  let result: { ok: boolean; detail?: string; error?: string };
+  switch (channel.type) {
+    case 'TELEGRAM': {
+      const { verifyTelegramCredentials } = await import("@/lib/publishers/telegram");
+      const r = await verifyTelegramCredentials(creds.botToken);
+      result = r.ok ? { ok: true, detail: `@${r.username}` } : { ok: false, error: r.error };
+      break;
+    }
+    case 'DISCORD': {
+      const { verifyDiscordCredentials } = await import("@/lib/publishers/discord");
+      const r = await verifyDiscordCredentials(creds.webhookUrl);
+      result = r.ok ? { ok: true, detail: r.name } : { ok: false, error: r.error };
+      break;
+    }
+    case 'YOUTUBE': {
+      const { verifyYouTubeCredentials } = await import("@/lib/publishers/youtube");
+      const r = await verifyYouTubeCredentials(creds.accessToken);
+      result = r.ok ? { ok: true, detail: r.channelTitle } : { ok: false, error: r.error };
+      break;
+    }
+    case 'WORDPRESS': {
+      const { verifyWordPressCredentials } = await import("@/lib/publishers/wordpress");
+      const r = await verifyWordPressCredentials({
+        siteUrl: creds.siteUrl,
+        username: creds.username,
+        appPassword: creds.appPassword,
+      });
+      result = r.ok ? { ok: true, detail: r.username } : { ok: false, error: r.error };
+      break;
+    }
+    default:
+      // 에이전트 채널은 cron 에서 검증 skip — 발행 시점에 처리됨
+      return {
+        ok: true,
+        detail: 'agent-channel-skipped',
+        previousStatus,
+        newStatus: previousStatus as any,
+        channelType: channel.type,
+        channelUserId: channel.userId,
+        accountName: channel.accountName,
+      };
+  }
+
+  const newStatus: 'ACTIVE' | 'ERROR' = result.ok ? 'ACTIVE' : 'ERROR';
+  await prisma.marketingChannel.update({ where: { id: channelId }, data: { status: newStatus } });
+
+  return {
+    ok: result.ok,
+    detail: result.detail,
+    error: result.error,
+    newStatus,
+    previousStatus,
+    channelType: channel.type,
+    channelUserId: channel.userId,
+    accountName: channel.accountName,
+  };
+}

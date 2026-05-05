@@ -16,6 +16,7 @@ export type NotificationKind =
     | 'TRIAL_EXPIRING'
     | 'TRIAL_RECOVERY'
     | 'LOGIN_NEW_DEVICE'
+    | 'CHANNEL_ERROR'
     | 'SYSTEM';
 
 export interface CreateNotificationInput {

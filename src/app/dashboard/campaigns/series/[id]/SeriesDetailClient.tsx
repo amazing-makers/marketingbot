@@ -220,6 +220,9 @@ export default function SeriesDetailClient(initial: Props) {
                 </Card>
             </SimpleGrid>
 
+            {/* Phase 35 — 지난 7일 발행 추세 (mini bar chart) */}
+            {data.recentTasks.length > 0 && <SeriesTrendCard recentTasks={data.recentTasks} />}
+
             {/* 다음 발행 + 최근 실행 + 에러 */}
             <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md" mb="md">
                 <Paper withBorder p="md" radius="md">
@@ -349,5 +352,99 @@ export default function SeriesDetailClient(initial: Props) {
                 </Group>
             </Paper>
         </Container>
+    );
+}
+
+/**
+ * Phase 35 — 지난 7일 발행 추세 카드.
+ * recentTasks 의 executedAt 기준으로 일별 SUCCESS/FAILED 집계 → 미니 바 차트.
+ */
+function SeriesTrendCard({ recentTasks }: { recentTasks: any[] }) {
+    const days: Array<{ key: string; label: string; success: number; failed: number }> = [];
+    for (let i = 6; i >= 0; i--) {
+        const d = dayjs().subtract(i, 'day');
+        days.push({
+            key: d.format('YYYY-MM-DD'),
+            label: d.format('M.D'),
+            success: 0,
+            failed: 0,
+        });
+    }
+    const dayMap = new Map(days.map(d => [d.key, d]));
+    for (const t of recentTasks) {
+        const ts = t.executedAt || t.scheduledAt;
+        if (!ts) continue;
+        const k = dayjs(ts).format('YYYY-MM-DD');
+        const d = dayMap.get(k);
+        if (!d) continue;
+        if (t.status === 'SUCCESS') d.success++;
+        else if (t.status === 'FAILED') d.failed++;
+    }
+
+    const max = Math.max(1, ...days.map(d => d.success + d.failed));
+    const totalSuccess = days.reduce((s, d) => s + d.success, 0);
+    const totalFailed = days.reduce((s, d) => s + d.failed, 0);
+    const total = totalSuccess + totalFailed;
+    const sevenDayRate = total > 0 ? Math.round((totalSuccess / total) * 100) : 0;
+
+    return (
+        <Paper withBorder p="md" radius="md" mb="md">
+            <Group justify="space-between" mb="md">
+                <Stack gap={0}>
+                    <Text fw={700} size="sm">📈 지난 7일 발행 추세</Text>
+                    <Text size="xs" c="dimmed">
+                        성공 {totalSuccess}건 · 실패 {totalFailed}건 · 7일 성공률 <strong>{sevenDayRate}%</strong>
+                    </Text>
+                </Stack>
+            </Group>
+            <Group gap={4} align="flex-end" style={{ height: 80 }}>
+                {days.map(d => {
+                    const total = d.success + d.failed;
+                    const heightPct = (total / max) * 100;
+                    const successPct = total > 0 ? (d.success / total) * 100 : 0;
+                    return (
+                        <Stack key={d.key} gap={2} align="center" style={{ flex: 1 }}>
+                            <div style={{
+                                width: '100%',
+                                height: '60px',
+                                display: 'flex',
+                                flexDirection: 'column-reverse',
+                                borderRadius: 4,
+                                background: 'var(--mantine-color-default-hover)',
+                                overflow: 'hidden',
+                                position: 'relative',
+                            }}>
+                                {total > 0 && (
+                                    <>
+                                        <div style={{
+                                            width: '100%',
+                                            height: `${heightPct * (successPct / 100)}%`,
+                                            background: 'var(--mantine-color-teal-6)',
+                                        }} />
+                                        <div style={{
+                                            width: '100%',
+                                            height: `${heightPct * ((100 - successPct) / 100)}%`,
+                                            background: 'var(--mantine-color-red-6)',
+                                        }} />
+                                    </>
+                                )}
+                            </div>
+                            <Text size="9px" c="dimmed">{d.label}</Text>
+                            {total > 0 && <Text size="9px" fw={600}>{total}</Text>}
+                        </Stack>
+                    );
+                })}
+            </Group>
+            <Group gap={12} mt="xs" justify="center">
+                <Group gap={4}>
+                    <div style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--mantine-color-teal-6)' }} />
+                    <Text size="10px" c="dimmed">성공</Text>
+                </Group>
+                <Group gap={4}>
+                    <div style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--mantine-color-red-6)' }} />
+                    <Text size="10px" c="dimmed">실패</Text>
+                </Group>
+            </Group>
+        </Paper>
     );
 }

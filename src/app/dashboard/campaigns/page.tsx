@@ -14,6 +14,7 @@ export default async function CampaignsPage() {
         scheduledAt: c.scheduledAt ? c.scheduledAt.toISOString() : null,
         createdAt: c.createdAt.toISOString(),
         tags: (c as any).tags || [],
+        thumbnail: (c as any).thumbnail || null,
         _count: c._count,
     }));
     return <CampaignsListClient campaigns={serialized} />;
