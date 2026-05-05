@@ -202,6 +202,63 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       onClick: () => router.push('/help'),
       leftSection: <IconUsers size={18} />,
     },
+    // Phase 27 — 신규 페이지 통합 검색
+    {
+      id: 'analytics',
+      label: '📊 심층 분석',
+      description: '펀넬 · 코호트 · 채널 활용도',
+      onClick: () => router.push('/dashboard/analytics'),
+      leftSection: <IconActivity size={18} />,
+      keywords: ['analytics', '분석', '통계', 'funnel', 'cohort'],
+    },
+    {
+      id: 'library',
+      label: '📚 콘텐츠 라이브러리',
+      description: '자주 쓰는 캡션 템플릿 모음',
+      onClick: () => router.push('/dashboard/library'),
+      leftSection: <IconBookmark size={18} />,
+      keywords: ['library', '라이브러리', '템플릿', 'template', 'caption'],
+    },
+    {
+      id: 'activity',
+      label: '📜 활동 피드',
+      description: '워크스페이스 멤버 활동 타임라인',
+      onClick: () => router.push('/dashboard/activity'),
+      leftSection: <IconHistory size={18} />,
+      keywords: ['activity', '활동', '피드', 'feed', 'log'],
+    },
+    {
+      id: 'workspace',
+      label: '🏢 워크스페이스',
+      description: '브랜드·팀 분리 + 멤버 관리',
+      onClick: () => router.push('/dashboard/workspace'),
+      leftSection: <IconUsersGroup size={18} />,
+      keywords: ['workspace', '워크스페이스', '브랜드', '팀'],
+    },
+    {
+      id: 'partner',
+      label: '🤝 파트너 대시보드',
+      description: '추천·고객사 대행 마케팅',
+      onClick: () => router.push('/dashboard/partner'),
+      leftSection: <IconBriefcase size={18} />,
+      keywords: ['partner', '파트너', '리셀러', 'reseller', '추천'],
+    },
+    {
+      id: 'partner-overview',
+      label: '🏪 파트너 통합 통계',
+      description: '모든 고객사 KPI 한눈에',
+      onClick: () => router.push('/dashboard/partner/overview'),
+      leftSection: <IconChartBar size={18} />,
+      keywords: ['partner', 'overview', 'stats', '고객사', '통합'],
+    },
+    {
+      id: 'reseller-old',
+      label: '🤝 파트너 (기존 URL)',
+      description: '/dashboard/reseller 는 자동 redirect',
+      onClick: () => router.push('/dashboard/partner'),
+      leftSection: <IconBriefcase size={18} />,
+      keywords: ['reseller'],
+    },
   ];
 
   return (

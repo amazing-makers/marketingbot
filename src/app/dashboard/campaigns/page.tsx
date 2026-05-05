@@ -13,6 +13,7 @@ export default async function CampaignsPage() {
         status: c.status,
         scheduledAt: c.scheduledAt ? c.scheduledAt.toISOString() : null,
         createdAt: c.createdAt.toISOString(),
+        tags: (c as any).tags || [],
         _count: c._count,
     }));
     return <CampaignsListClient campaigns={serialized} />;

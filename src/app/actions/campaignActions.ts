@@ -175,6 +175,8 @@ export async function createCampaign(data: {
   sourceLanguage?: string;
   /** false 면 자동 번역 skip — 사용자가 채널별 본문 직접 작성한 경우. 기본 true. */
   autoTranslate?: boolean;
+  /** Phase 26 — 태그 (검색·필터용) */
+  tags?: string[];
 }) {
   const user = await getSessionUser();
   const filter = await getActiveWorkspaceFilter(user.id!);
@@ -222,6 +224,7 @@ export async function createCampaign(data: {
         description: data.description,
         status: "SCHEDULED",
         scheduledAt: data.scheduledAt,
+        tags: (data.tags || []).map(t => t.trim()).filter(Boolean),
       },
     });
 

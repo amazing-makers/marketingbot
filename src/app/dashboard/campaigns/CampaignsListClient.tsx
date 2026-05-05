@@ -12,21 +12,30 @@ interface CampaignRow {
     status: string;
     scheduledAt?: string | null;
     createdAt: string;
+    tags?: string[];
     _count: { tasks: number };
 }
 
 export default function CampaignsListClient({ campaigns }: { campaigns: CampaignRow[] }) {
     const [query, setQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string | null>(null);
+    const [tagFilter, setTagFilter] = useState<string | null>(null);
+
+    const allTags = useMemo(() => {
+        const set = new Set<string>();
+        for (const c of campaigns) (c.tags || []).forEach(t => set.add(t));
+        return Array.from(set).sort();
+    }, [campaigns]);
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
         return campaigns.filter(c => {
             if (statusFilter && c.status !== statusFilter) return false;
+            if (tagFilter && !(c.tags || []).includes(tagFilter)) return false;
             if (q && !c.name.toLowerCase().includes(q)) return false;
             return true;
         });
-    }, [campaigns, query, statusFilter]);
+    }, [campaigns, query, statusFilter, tagFilter]);
 
     const rows = filtered.map((campaign) => (
         <Table.Tr key={campaign.id} style={{ cursor: 'pointer' }}>
@@ -34,6 +43,14 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
                 <Anchor component={Link} href={`/dashboard/campaigns/${campaign.id}`} fw={500}>
                     {campaign.name}
                 </Anchor>
+                {(campaign.tags && campaign.tags.length > 0) && (
+                    <Group gap={3} mt={2}>
+                        {campaign.tags.slice(0, 3).map(t => (
+                            <Badge key={t} size="xs" variant="light" color="grape">{t}</Badge>
+                        ))}
+                        {campaign.tags.length > 3 && <Text size="10px" c="dimmed">+{campaign.tags.length - 3}</Text>}
+                    </Group>
+                )}
             </Table.Td>
             <Table.Td>
                 <Badge variant="light" color={campaign.status === 'SCHEDULED' ? 'blue' : 'green'}>
@@ -75,7 +92,7 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
                 </Group>
             </Group>
 
-            {/* Phase 25 — 검색 + 상태 필터 */}
+            {/* Phase 25-27 — 검색 + 상태 + 태그 필터 */}
             {campaigns.length > 0 && (
                 <Group gap="xs">
                     <TextInput
@@ -91,9 +108,20 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
                         value={statusFilter}
                         onChange={setStatusFilter}
                         clearable
-                        w={180}
+                        w={140}
                     />
-                    {(query || statusFilter) && (
+                    {allTags.length > 0 && (
+                        <Select
+                            placeholder="🏷️ 태그"
+                            data={allTags.map(t => ({ value: t, label: t }))}
+                            value={tagFilter}
+                            onChange={setTagFilter}
+                            clearable
+                            searchable
+                            w={160}
+                        />
+                    )}
+                    {(query || statusFilter || tagFilter) && (
                         <Text size="xs" c="dimmed">{filtered.length}/{campaigns.length}</Text>
                     )}
                 </Group>

@@ -63,6 +63,23 @@ export async function deleteNotificationChannel(id: string) {
 }
 
 /**
+ * Phase 27 — 채널의 kind 필터 업데이트.
+ * null = 모든 종류 발송 / [...kinds] = 화이트리스트.
+ */
+export async function updateChannelKindFilter(input: {
+    id: string;
+    kinds: string[] | null;
+}): Promise<{ ok: boolean }> {
+    const user = await getSessionUser();
+    await prisma.userNotificationChannel.updateMany({
+        where: { id: input.id, userId: user.id! },
+        data: { kindFilter: input.kinds === null ? null : (input.kinds as any) },
+    });
+    revalidatePath('/dashboard/settings/notifications');
+    return { ok: true };
+}
+
+/**
  * 테스트 발송 — 등록 직후 작동 확인용.
  */
 export async function testNotificationChannel(id: string): Promise<{ ok: boolean; error?: string }> {

@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, Suspense } from 'react';
 import {
   TextInput, Textarea, Button, Paper, Title, Container,
   Stack, MultiSelect, Group, Text, Badge, ActionIcon, Tooltip, Box, Divider, SimpleGrid,
-  Modal, Card, Loader, Anchor, Grid, ThemeIcon, Accordion, Select
+  Modal, Card, Loader, Anchor, Grid, ThemeIcon, Accordion, Select, TagsInput
 } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
 import { useForm } from '@mantine/form';
@@ -156,6 +156,8 @@ function NewCampaignPageInner() {
       sourceLanguage: 'ko',
       autoTranslate: true,
       scheduledAt: initialScheduledAt,
+      // Phase 27 — 태그
+      tags: [] as string[],
       // 분할 발행 모드 (Phase 6)
       splitMode: false,
       splitCount: 3,
@@ -523,6 +525,7 @@ function NewCampaignPageInner() {
           autoTranslate: values.autoTranslate,
           scheduledAt: values.scheduledAt,
           mediaUrls,
+          tags: values.tags,
         });
         await clearCampaignDraft().catch(() => {});
         notifications.show({
@@ -615,6 +618,12 @@ function NewCampaignPageInner() {
                       minRows={1}
                       maxRows={3}
                       {...form.getInputProps('description')}
+                    />
+                    <TagsInput
+                      label="🏷️ 태그 (선택, 검색·필터용)"
+                      placeholder="Enter 로 추가 — 예: 봄시즌, 신메뉴, 카페"
+                      description="자주 쓰는 태그를 붙여두면 나중에 검색·필터·분석이 쉬워요"
+                      {...form.getInputProps('tags')}
                     />
                     <MultiSelect
                       label="발행 채널"
