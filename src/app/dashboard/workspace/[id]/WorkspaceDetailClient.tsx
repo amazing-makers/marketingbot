@@ -8,7 +8,7 @@ import { useDisclosure } from '@mantine/hooks';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import { useState } from 'react';
-import { IconUsersGroup, IconUserPlus, IconCrown, IconTrash, IconEdit, IconMail, IconClock, IconBan } from '@tabler/icons-react';
+import { IconUsersGroup, IconUserPlus, IconCrown, IconTrash, IconEdit, IconMail, IconClock, IconBan, IconFileImport } from '@tabler/icons-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 import { removeWorkspaceMember, updateMemberRole } from '@/app/actions/workspaceActions';
@@ -201,11 +201,23 @@ export default function WorkspaceDetailClient({ data }: { data: Data }) {
                                 </Group>
                             </Stack>
                         </Group>
-                        {canInvite && (
-                            <Button color="violet" leftSection={<IconUserPlus size={16} />} onClick={inviteModalCtl.open}>
-                                멤버 초대
-                            </Button>
-                        )}
+                        <Group gap="xs">
+                            {canInvite && (
+                                <Button
+                                    component={Link}
+                                    href={`/dashboard/workspace/${data.workspace.id}/import`}
+                                    variant="light"
+                                    leftSection={<IconFileImport size={14} />}
+                                >
+                                    데이터 가져오기
+                                </Button>
+                            )}
+                            {canInvite && (
+                                <Button color="violet" leftSection={<IconUserPlus size={16} />} onClick={inviteModalCtl.open}>
+                                    멤버 초대
+                                </Button>
+                            )}
+                        </Group>
                     </Group>
                 </Stack>
 

@@ -1,6 +1,7 @@
 import { auth } from '@/auth';
 import { redirect, notFound } from 'next/navigation';
 import { listMyPartnerClients } from '@/app/actions/partnerActions';
+import { listClientReports } from '@/app/actions/partnerReportActions';
 import ClientDetailClient from './ClientDetailClient';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +19,8 @@ export default async function ClientDetailPage({ params }: PageProps) {
     const client = all.find(c => c.id === id);
     if (!client) notFound();
 
+    const reports = await listClientReports(id).catch(() => []);
+
     return (
         <ClientDetailClient
             data={{
@@ -25,6 +28,19 @@ export default async function ClientDetailPage({ params }: PageProps) {
                 startedAt: client.startedAt.toISOString(),
                 endedAt: client.endedAt?.toISOString() || null,
             }}
+            reports={reports.map(r => ({
+                id: r.id,
+                periodYearMonth: r.periodYearMonth,
+                totalCampaigns: r.totalCampaigns,
+                totalPublished: r.totalPublished,
+                totalFailed: r.totalFailed,
+                pdfUrl: r.pdfUrl,
+                pdfSizeKb: r.pdfSizeKb,
+                generatedAt: r.generatedAt.toISOString(),
+                generatedBy: r.generatedBy,
+                status: r.status,
+                errorMessage: r.errorMessage,
+            }))}
         />
     );
 }

@@ -527,6 +527,8 @@ model PartnerClient {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  reports PartnerClientReport[]
+
   @@index([partnerId, status])
 }
 
@@ -561,4 +563,37 @@ model WorkspaceInvitation {
   @@unique([workspaceId, email])
   @@index([token])
   @@index([email, status])
+}
+
+// ════════════════════════════════════════════════════════════
+//  Phase 19 — PartnerClientReport (월간 자동 PDF 리포트)
+//
+// Gold+ 등급 파트너 혜택 — 매월 1일 cron 이 활성 고객사별로 자동 생성.
+// 발행수·채널 분포·성과 요약을 PDF 로 만들어 R2 에 업로드 → URL 보관.
+// 파트너가 다운로드 후 고객사에게 전달 가능.
+// ════════════════════════════════════════════════════════════
+
+model PartnerClientReport {
+  id                    String        @id @default(cuid())
+  partnerClientId       String // → PartnerClient.id
+  partnerClient         PartnerClient @relation(fields: [partnerClientId], references: [id], onDelete: Cascade)
+  periodYearMonth       String // "2026-05"
+  // 통계 (PDF 내용 + 빠른 조회용 캐시)
+  totalCampaigns        Int           @default(0)
+  totalPublished        Int           @default(0) // 성공한 task 수
+  totalFailed           Int           @default(0)
+  channelMix            Json? // { instagram: 12, naver_blog: 8, ... }
+  topPerformingCampaign String? // 가장 성공한 캠페인 이름
+  // 파일
+  pdfUrl                String? // R2 public URL
+  pdfSizeKb             Int?
+  generatedAt           DateTime      @default(now())
+  generatedBy           String        @default("cron") // 'cron' | 'manual'
+  // 상태
+  status                String        @default("READY") // GENERATING | READY | FAILED
+  errorMessage          String?
+  createdAt             DateTime      @default(now())
+
+  @@unique([partnerClientId, periodYearMonth])
+  @@index([partnerClientId, periodYearMonth])
 }

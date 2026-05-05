@@ -11,11 +11,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     IconBuildingStore, IconArrowRight, IconEdit, IconPlayerPause,
-    IconPlayerPlay, IconBan,
+    IconPlayerPlay, IconBan, IconFileTypePdf, IconRefresh, IconDownload, IconCheck,
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 import { updatePartnerClientStatus, updatePartnerClient, enterClientWorkspace } from '@/app/actions/partnerActions';
+import { generatePartnerClientReport } from '@/app/actions/partnerReportActions';
 
 interface ClientData {
     id: string;
@@ -32,16 +33,53 @@ interface ClientData {
     workspace: { id: string; name: string; slug: string; brandColor: string | null; memberCount: number };
 }
 
+interface ReportItem {
+    id: string;
+    periodYearMonth: string;
+    totalCampaigns: number;
+    totalPublished: number;
+    totalFailed: number;
+    pdfUrl: string | null;
+    pdfSizeKb: number | null;
+    generatedAt: string;
+    generatedBy: string;
+    status: string;
+    errorMessage: string | null;
+}
+
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
     ACTIVE: { label: '운영 중', color: 'teal' },
     PAUSED: { label: '일시 중단', color: 'orange' },
     CHURNED: { label: '계약 종료', color: 'gray' },
 };
 
-export default function ClientDetailClient({ data }: { data: ClientData }) {
+export default function ClientDetailClient({ data, reports }: { data: ClientData; reports: ReportItem[] }) {
     const router = useRouter();
     const [busy, setBusy] = useState(false);
     const [editModal, editModalCtl] = useDisclosure(false);
+    const [generatingReport, setGeneratingReport] = useState(false);
+
+    const handleGenerateReport = async () => {
+        setGeneratingReport(true);
+        try {
+            const r = await generatePartnerClientReport({ partnerClientId: data.id, generatedBy: 'manual' });
+            if (!r.ok) {
+                notifications.show({ color: 'red', title: '리포트 생성 실패', message: r.error || '실패' });
+                return;
+            }
+            notifications.show({
+                color: 'teal',
+                title: r.pdfUrl ? '📄 PDF 리포트 생성 완료' : '📊 통계만 저장됨',
+                message: r.pdfUrl ? '아래에서 다운로드 가능' : 'R2 미설정 — PDF 다운로드는 R2 키 등록 후 가능',
+                autoClose: 5000,
+            });
+            window.location.reload();
+        } catch (e: any) {
+            notifications.show({ color: 'red', title: '실패', message: e?.message || '실패' });
+        } finally {
+            setGeneratingReport(false);
+        }
+    };
 
     const editForm = useForm({
         initialValues: {
@@ -180,6 +218,86 @@ export default function ClientDetailClient({ data }: { data: ClientData }) {
                         <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{data.notes}</Text>
                     </Paper>
                 )}
+
+                {/* 월간 리포트 */}
+                <Paper withBorder p="md" radius="md">
+                    <Group justify="space-between" mb="sm">
+                        <Group gap={6}>
+                            <IconFileTypePdf size={20} color="var(--mantine-color-violet-6)" />
+                            <Title order={5}>📄 월간 리포트</Title>
+                            <Badge size="xs" color="violet" variant="light">Gold+ 자동 생성</Badge>
+                        </Group>
+                        <Button
+                            size="compact-sm"
+                            variant="light"
+                            color="violet"
+                            leftSection={<IconRefresh size={14} />}
+                            onClick={handleGenerateReport}
+                            loading={generatingReport}
+                            disabled={data.status === 'CHURNED'}
+                        >
+                            지난달 리포트 다시 만들기
+                        </Button>
+                    </Group>
+                    {reports.length === 0 ? (
+                        <Box style={{ textAlign: 'center', padding: 24, color: 'var(--mantine-color-dimmed)' }}>
+                            <IconFileTypePdf size={36} style={{ opacity: 0.3 }} />
+                            <Text size="sm" mt="sm">아직 리포트가 없습니다</Text>
+                            <Text size="xs">매월 1일 자동 생성 (Gold+ 등급) 또는 위 버튼으로 수동 생성</Text>
+                        </Box>
+                    ) : (
+                        <Stack gap="xs">
+                            {reports.map(r => (
+                                <Card key={r.id} withBorder p="sm" radius="md">
+                                    <Group justify="space-between" wrap="wrap">
+                                        <Group gap="md">
+                                            <Box style={{
+                                                width: 40, height: 40, borderRadius: 6,
+                                                background: r.pdfUrl ? 'var(--mantine-color-violet-1)' : 'var(--mantine-color-gray-1)',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            }}>
+                                                <IconFileTypePdf size={22} color={r.pdfUrl ? 'var(--mantine-color-violet-6)' : 'var(--mantine-color-gray-5)'} />
+                                            </Box>
+                                            <Stack gap={2}>
+                                                <Group gap={6}>
+                                                    <Text fw={700} size="sm">{r.periodYearMonth} 리포트</Text>
+                                                    <Badge size="xs" color={r.status === 'READY' ? 'teal' : r.status === 'FAILED' ? 'red' : 'gray'} variant="light">
+                                                        {r.status === 'READY' ? '준비됨' : r.status === 'FAILED' ? '실패' : r.status}
+                                                    </Badge>
+                                                    {r.generatedBy === 'cron' && <Badge size="xs" variant="light" color="blue">자동</Badge>}
+                                                    {r.generatedBy === 'manual' && <Badge size="xs" variant="light">수동</Badge>}
+                                                </Group>
+                                                <Text size="11px" c="dimmed">
+                                                    캠페인 {r.totalCampaigns} · 발행 {r.totalPublished} (실패 {r.totalFailed})
+                                                    {r.pdfSizeKb ? ` · ${r.pdfSizeKb}KB` : ''}
+                                                    {' · '}{dayjs(r.generatedAt).format('YYYY-MM-DD HH:mm')}
+                                                </Text>
+                                                {r.errorMessage && (
+                                                    <Text size="11px" c="red">⚠ {r.errorMessage}</Text>
+                                                )}
+                                            </Stack>
+                                        </Group>
+                                        {r.pdfUrl ? (
+                                            <Button
+                                                size="compact-sm"
+                                                variant="filled"
+                                                color="violet"
+                                                component="a"
+                                                href={r.pdfUrl}
+                                                target="_blank"
+                                                leftSection={<IconDownload size={14} />}
+                                            >
+                                                PDF 다운로드
+                                            </Button>
+                                        ) : (
+                                            <Text size="xs" c="dimmed">PDF 없음</Text>
+                                        )}
+                                    </Group>
+                                </Card>
+                            ))}
+                        </Stack>
+                    )}
+                </Paper>
 
                 {/* 상태 변경 */}
                 <Paper withBorder p="md" radius="md">
