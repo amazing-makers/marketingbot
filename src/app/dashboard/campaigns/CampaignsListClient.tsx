@@ -1,10 +1,13 @@
 'use client';
 
-import { Table, Group, Text, Badge, Button, Stack, Title, Anchor, Card, TextInput, Select, Box } from '@mantine/core';
-import { IconPlus, IconCalendar, IconChevronRight, IconCalendarMonth, IconSearch } from '@tabler/icons-react';
+import { Table, Group, Text, Badge, Button, Stack, Title, Anchor, Card, TextInput, Select, Box, Checkbox, Paper } from '@mantine/core';
+import { IconPlus, IconCalendar, IconChevronRight, IconCalendarMonth, IconSearch, IconTrash, IconPlayerPause } from '@tabler/icons-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useTransition } from 'react';
+import { notifications } from '@mantine/notifications';
+import { bulkDeleteCampaigns, bulkPauseCampaigns } from '@/app/actions/campaignActions';
+import { useRouter } from 'next/navigation';
 
 interface CampaignRow {
     id: string;
@@ -17,9 +20,12 @@ interface CampaignRow {
 }
 
 export default function CampaignsListClient({ campaigns }: { campaigns: CampaignRow[] }) {
+    const router = useRouter();
     const [query, setQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string | null>(null);
     const [tagFilter, setTagFilter] = useState<string | null>(null);
+    const [selected, setSelected] = useState<Set<string>>(new Set());
+    const [isPending, startTransition] = useTransition();
 
     const allTags = useMemo(() => {
         const set = new Set<string>();
@@ -37,8 +43,73 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
         });
     }, [campaigns, query, statusFilter, tagFilter]);
 
+    const toggleOne = (id: string) => {
+        setSelected(s => {
+            const n = new Set(s);
+            if (n.has(id)) n.delete(id); else n.add(id);
+            return n;
+        });
+    };
+    const toggleAllVisible = () => {
+        const allVisible = filtered.map(c => c.id);
+        const allSelected = allVisible.every(id => selected.has(id));
+        setSelected(s => {
+            const n = new Set(s);
+            if (allSelected) {
+                allVisible.forEach(id => n.delete(id));
+            } else {
+                allVisible.forEach(id => n.add(id));
+            }
+            return n;
+        });
+    };
+
+    const handleBulkDelete = () => {
+        if (selected.size === 0) return;
+        if (!confirm(`${selected.size}개 캠페인을 삭제할까요? 이 작업은 되돌릴 수 없어요.`)) return;
+        startTransition(async () => {
+            try {
+                const r = await bulkDeleteCampaigns(Array.from(selected));
+                notifications.show({ title: '삭제 완료', message: `${r.deleted}개 캠페인 삭제됨`, color: 'red' });
+                setSelected(new Set());
+                router.refresh();
+            } catch (e: any) {
+                notifications.show({ title: '오류', message: e?.message || '실패', color: 'red' });
+            }
+        });
+    };
+
+    const handleBulkPause = () => {
+        if (selected.size === 0) return;
+        if (!confirm(`${selected.size}개 캠페인을 일시정지할까요? 예약된 task 들이 취소돼요.`)) return;
+        startTransition(async () => {
+            try {
+                const r = await bulkPauseCampaigns(Array.from(selected));
+                notifications.show({
+                    title: '일시정지 완료',
+                    message: `${r.paused}개 캠페인 · ${r.cancelledTasks}개 예약 task 취소됨`,
+                    color: 'orange',
+                });
+                setSelected(new Set());
+                router.refresh();
+            } catch (e: any) {
+                notifications.show({ title: '오류', message: e?.message || '실패', color: 'red' });
+            }
+        });
+    };
+
+    const allSelectedVisible = filtered.length > 0 && filtered.every(c => selected.has(c.id));
+    const someSelectedVisible = !allSelectedVisible && filtered.some(c => selected.has(c.id));
+
     const rows = filtered.map((campaign) => (
-        <Table.Tr key={campaign.id} style={{ cursor: 'pointer' }}>
+        <Table.Tr key={campaign.id} style={{ cursor: 'pointer' }} bg={selected.has(campaign.id) ? 'var(--mantine-color-violet-0)' : undefined}>
+            <Table.Td onClick={(e) => e.stopPropagation()} style={{ width: 40 }}>
+                <Checkbox
+                    checked={selected.has(campaign.id)}
+                    onChange={() => toggleOne(campaign.id)}
+                    aria-label={`${campaign.name} 선택`}
+                />
+            </Table.Td>
             <Table.Td>
                 <Anchor component={Link} href={`/dashboard/campaigns/${campaign.id}`} fw={500}>
                     {campaign.name}
@@ -149,6 +220,47 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
                 </Card>
             ) : (
                 <>
+                    {/* Phase 32 — 일괄 작업 바 (선택된 항목이 있을 때만) */}
+                    {selected.size > 0 && (
+                        <Paper withBorder p="sm" radius="md" bg="var(--mantine-color-violet-0)">
+                            <Group justify="space-between" wrap="wrap">
+                                <Text size="sm" fw={600}>
+                                    {selected.size}개 선택됨
+                                </Text>
+                                <Group gap="xs">
+                                    <Button
+                                        size="xs"
+                                        variant="light"
+                                        color="orange"
+                                        leftSection={<IconPlayerPause size={14} />}
+                                        onClick={handleBulkPause}
+                                        loading={isPending}
+                                    >
+                                        일괄 일시정지
+                                    </Button>
+                                    <Button
+                                        size="xs"
+                                        variant="light"
+                                        color="red"
+                                        leftSection={<IconTrash size={14} />}
+                                        onClick={handleBulkDelete}
+                                        loading={isPending}
+                                    >
+                                        일괄 삭제
+                                    </Button>
+                                    <Button
+                                        size="xs"
+                                        variant="subtle"
+                                        color="gray"
+                                        onClick={() => setSelected(new Set())}
+                                    >
+                                        선택 해제
+                                    </Button>
+                                </Group>
+                            </Group>
+                        </Paper>
+                    )}
+
                     {/* 데스크톱: 테이블 (sm 이상) */}
                     <Box visibleFrom="sm">
                         <Card withBorder radius="md" p={0}>
@@ -156,6 +268,14 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
                                 <Table verticalSpacing="md" highlightOnHover>
                                     <Table.Thead>
                                         <Table.Tr>
+                                            <Table.Th style={{ width: 40 }}>
+                                                <Checkbox
+                                                    checked={allSelectedVisible}
+                                                    indeterminate={someSelectedVisible}
+                                                    onChange={toggleAllVisible}
+                                                    aria-label="모두 선택"
+                                                />
+                                            </Table.Th>
                                             <Table.Th>게시물 이름</Table.Th>
                                             <Table.Th>상태</Table.Th>
                                             <Table.Th>올리는 채널</Table.Th>

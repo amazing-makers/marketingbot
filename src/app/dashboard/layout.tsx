@@ -25,6 +25,7 @@ import NotificationBell from '@/components/notifications/NotificationBell';
 import InstallPrompt from '@/components/pwa/InstallPrompt';
 import FeedbackButton from '@/components/feedback/FeedbackButton';
 import { getMyAccountFlags } from '@/app/actions/resellerActions';
+import { globalSearch, type SearchHit } from '@/app/actions/globalSearchActions';
 
 function DarkModeToggle() {
   const { colorScheme, setColorScheme } = useMantineColorScheme({ keepTransitions: true });
@@ -75,11 +76,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     isAdmin: false, isPartner: false, partnerStatus: null,
   });
 
+  // Phase 32 — 글로벌 검색 동적 결과
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchHits, setSearchHits] = useState<SearchHit[]>([]);
+
   useEffect(() => {
     if (session?.user?.id) {
       getMyAccountFlags().then(setAccountFlags).catch(() => {});
     }
   }, [session?.user?.id]);
+
+  // 검색어 디바운스 (300ms)
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 1) {
+      setSearchHits([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      globalSearch(q).then(setSearchHits).catch(() => setSearchHits([]));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
   // 운영 환경: adminbot.amakers.co.kr / 로컬: 빈 문자열 → 동일 호스트의 외부 admin 앱
   const adminUrl = typeof window !== 'undefined' && window.location.hostname.includes('amakers.co.kr')
@@ -261,15 +279,36 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     },
   ];
 
+  // Phase 32 — 동적 검색 결과를 spotlight 액션에 합침
+  const dynamicHitActions = searchHits.map(h => ({
+    id: `hit-${h.type}-${h.id}`,
+    label: h.label,
+    description: h.sublabel,
+    onClick: () => router.push(h.href),
+    leftSection: h.type === 'campaign' ? <IconCalendarEvent size={18} />
+      : h.type === 'series' ? <IconRobot size={18} />
+        : <IconWorld size={18} />,
+    keywords: [h.label, h.type, h.sublabel],
+  }));
+
+  const allSpotlightActions = searchHits.length > 0
+    ? [
+        { group: '🔍 검색 결과', actions: dynamicHitActions },
+        { group: '📂 메뉴·명령', actions: spotlightActions },
+      ]
+    : spotlightActions;
+
   return (
     <>
       <Spotlight
-        actions={spotlightActions}
-        nothingFound="결과가 없습니다"
+        actions={allSpotlightActions as any}
+        nothingFound={searchQuery.trim() ? '검색 결과가 없습니다' : '결과가 없습니다'}
         highlightQuery
+        query={searchQuery}
+        onQueryChange={setSearchQuery}
         searchProps={{
           leftSection: <IconSearch size={18} />,
-          placeholder: '메뉴, 명령, 캠페인 검색...',
+          placeholder: '메뉴, 캠페인, 시리즈, 채널 검색...',
         }}
         shortcut={['mod + K', 'mod + P']}
       />

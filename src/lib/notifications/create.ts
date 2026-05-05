@@ -13,6 +13,7 @@ export type NotificationKind =
     | 'TIER_UPGRADE'
     | 'WORKSPACE_INVITE'
     | 'SERIES_COMPLETE'
+    | 'TRIAL_EXPIRING'
     | 'SYSTEM';
 
 export interface CreateNotificationInput {

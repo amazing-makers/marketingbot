@@ -6,6 +6,7 @@ import { getDailyTrend, getChannelDistribution, getSuccessRate, getHourlyDistrib
 import { DashboardStatsClient } from './DashboardStatsClient';
 import WorkspaceContextBanner from '@/components/workspace/WorkspaceContextBanner';
 import SetupChecklist from '@/components/onboarding/SetupChecklist';
+import TrialExpiringBanner from '@/components/billing/TrialExpiringBanner';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +33,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         daily,
         channels,
         success,
-        hourly
+        hourly,
+        // Phase 32 — 트라이얼 만료 배너
+        trialLicense,
+        activeSub,
     ] = await Promise.all([
         prisma.user.findUnique({ where: { id: userId }, select: { onboardingCompletedAt: true, createdAt: true } }),
         prisma.scheduledTask.count({ where: { campaign: { userId }, status: 'PENDING', scheduledAt: { lte: dayjs().add(7, 'day').toDate() } } }),
@@ -50,7 +54,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         getDailyTrend({ days }),
         getChannelDistribution({ days }),
         getSuccessRate({ days }),
-        getHourlyDistribution({ days })
+        getHourlyDistribution({ days }),
+        prisma.license.findFirst({
+            where: { userId, plan: 'FREE_TRIAL' },
+            orderBy: { createdAt: 'desc' },
+            select: { validUntil: true },
+        }),
+        prisma.subscription.findUnique({
+            where: { userId },
+            select: { plan: true, status: true },
+        }),
     ]);
 
     // 온보딩 미완료 시 이동
@@ -75,9 +88,24 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         campaignCount: recentCampaigns.length,
     };
 
+    // 트라이얼 만료 배너 — 유료 구독자가 아니고 FREE_TRIAL 라이센스가 7일 이내 만료일 때만
+    const isPaidActive = activeSub && activeSub.status === 'active' && activeSub.plan && activeSub.plan !== 'FREE';
+    const showTrialBanner = !isPaidActive && trialLicense?.validUntil &&
+        dayjs(trialLicense.validUntil).diff(dayjs(), 'day') <= 7 &&
+        dayjs(trialLicense.validUntil).isAfter(dayjs());
+    const daysRemaining = trialLicense?.validUntil
+        ? Math.max(0, dayjs(trialLicense.validUntil).diff(dayjs(), 'day'))
+        : 0;
+
     return (
         <>
             <WorkspaceContextBanner />
+            {showTrialBanner && trialLicense?.validUntil && (
+                <TrialExpiringBanner
+                    daysRemaining={daysRemaining}
+                    expiresAt={trialLicense.validUntil.toISOString()}
+                />
+            )}
             <SetupChecklist />
             <DashboardStatsClient
                 summary={summaryStats}

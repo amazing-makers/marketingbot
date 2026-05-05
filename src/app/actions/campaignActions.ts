@@ -331,6 +331,49 @@ export async function deleteCampaign(id: string) {
   return { success: true };
 }
 
+/**
+ * Phase 32 — 캠페인 일괄 삭제. 본인 소유분만 처리.
+ */
+export async function bulkDeleteCampaigns(ids: string[]): Promise<{ deleted: number }> {
+  const user = await getSessionUser();
+  if (!ids?.length) return { deleted: 0 };
+  const result = await prisma.campaign.deleteMany({
+    where: { id: { in: ids }, userId: user.id },
+  });
+  revalidatePath("/dashboard/campaigns");
+  return { deleted: result.count };
+}
+
+/**
+ * Phase 32 — 캠페인 일괄 일시정지. PENDING task 들을 CANCELLED 처리 + 캠페인 status 업데이트.
+ * (재개는 일괄 미지원 — 각 캠페인별로 새 task 일정 필요)
+ */
+export async function bulkPauseCampaigns(ids: string[]): Promise<{ paused: number; cancelledTasks: number }> {
+  const user = await getSessionUser();
+  if (!ids?.length) return { paused: 0, cancelledTasks: 0 };
+
+  // 본인 소유 검증
+  const owned = await prisma.campaign.findMany({
+    where: { id: { in: ids }, userId: user.id },
+    select: { id: true },
+  });
+  const ownedIds = owned.map(c => c.id);
+  if (ownedIds.length === 0) return { paused: 0, cancelledTasks: 0 };
+
+  const taskResult = await prisma.scheduledTask.updateMany({
+    where: { campaignId: { in: ownedIds }, status: 'PENDING' },
+    data: { status: 'CANCELLED' as any },
+  });
+
+  await prisma.campaign.updateMany({
+    where: { id: { in: ownedIds } },
+    data: { status: 'PAUSED' },
+  });
+
+  revalidatePath("/dashboard/campaigns");
+  return { paused: ownedIds.length, cancelledTasks: taskResult.count };
+}
+
 // ════════════════════════════════════════════════════════════
 //  Campaign drafts — 30초 idle auto-save (sns-auto-platform drafts.py 포팅)
 // ════════════════════════════════════════════════════════════
