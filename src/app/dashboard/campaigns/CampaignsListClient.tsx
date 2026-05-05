@@ -1,6 +1,6 @@
 'use client';
 
-import { Table, Group, Text, Badge, Button, Stack, Title, Anchor, Card, TextInput, Select } from '@mantine/core';
+import { Table, Group, Text, Badge, Button, Stack, Title, Anchor, Card, TextInput, Select, Box } from '@mantine/core';
 import { IconPlus, IconCalendar, IconChevronRight, IconCalendarMonth, IconSearch } from '@tabler/icons-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
@@ -148,23 +148,69 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
                     </Stack>
                 </Card>
             ) : (
-                <Card withBorder radius="md" p={0}>
-                    <Table.ScrollContainer minWidth={720}>
-                        <Table verticalSpacing="md" highlightOnHover>
-                            <Table.Thead>
-                                <Table.Tr>
-                                    <Table.Th>게시물 이름</Table.Th>
-                                    <Table.Th>상태</Table.Th>
-                                    <Table.Th>올리는 채널</Table.Th>
-                                    <Table.Th>올릴 시간</Table.Th>
-                                    <Table.Th>만든 날짜</Table.Th>
-                                    <Table.Th />
-                                </Table.Tr>
-                            </Table.Thead>
-                            <Table.Tbody>{rows}</Table.Tbody>
-                        </Table>
-                    </Table.ScrollContainer>
-                </Card>
+                <>
+                    {/* 데스크톱: 테이블 (sm 이상) */}
+                    <Box visibleFrom="sm">
+                        <Card withBorder radius="md" p={0}>
+                            <Table.ScrollContainer minWidth={720}>
+                                <Table verticalSpacing="md" highlightOnHover>
+                                    <Table.Thead>
+                                        <Table.Tr>
+                                            <Table.Th>게시물 이름</Table.Th>
+                                            <Table.Th>상태</Table.Th>
+                                            <Table.Th>올리는 채널</Table.Th>
+                                            <Table.Th>올릴 시간</Table.Th>
+                                            <Table.Th>만든 날짜</Table.Th>
+                                            <Table.Th />
+                                        </Table.Tr>
+                                    </Table.Thead>
+                                    <Table.Tbody>{rows}</Table.Tbody>
+                                </Table>
+                            </Table.ScrollContainer>
+                        </Card>
+                    </Box>
+                    {/* 모바일: 카드 뷰 (xs/sm 미만) */}
+                    <Box hiddenFrom="sm">
+                        <Stack gap="sm">
+                            {filtered.map(campaign => (
+                                <Card
+                                    key={campaign.id}
+                                    component={Link}
+                                    href={`/dashboard/campaigns/${campaign.id}`}
+                                    withBorder
+                                    radius="md"
+                                    p="md"
+                                    style={{ textDecoration: 'none', color: 'inherit' }}
+                                >
+                                    <Group justify="space-between" wrap="nowrap" mb="xs">
+                                        <Text fw={600} truncate style={{ flex: 1 }}>{campaign.name}</Text>
+                                        <Badge variant="light" color={campaign.status === 'SCHEDULED' ? 'blue' : 'green'} size="sm">
+                                            {campaign.status}
+                                        </Badge>
+                                    </Group>
+                                    {campaign.tags && campaign.tags.length > 0 && (
+                                        <Group gap={4} mb="xs">
+                                            {campaign.tags.slice(0, 3).map(t => (
+                                                <Badge key={t} size="xs" variant="light" color="grape">{t}</Badge>
+                                            ))}
+                                            {campaign.tags.length > 3 && <Text size="10px" c="dimmed">+{campaign.tags.length - 3}</Text>}
+                                        </Group>
+                                    )}
+                                    <Group gap="md" wrap="wrap">
+                                        <Group gap={4}>
+                                            <IconCalendar size={12} color="var(--mantine-color-dimmed)" />
+                                            <Text size="xs" c="dimmed">
+                                                {campaign.scheduledAt ? dayjs(campaign.scheduledAt).format('M.D HH:mm') : '미정'}
+                                            </Text>
+                                        </Group>
+                                        <Text size="xs" c="dimmed">채널 {campaign._count.tasks}개</Text>
+                                        <Text size="xs" c="dimmed">{dayjs(campaign.createdAt).format('M.D')} 작성</Text>
+                                    </Group>
+                                </Card>
+                            ))}
+                        </Stack>
+                    </Box>
+                </>
             )}
         </Stack>
     );

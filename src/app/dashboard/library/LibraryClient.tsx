@@ -104,17 +104,26 @@ export default function LibraryClient({ initialTemplates }: { initialTemplates: 
                 </Group>
 
                 {templates.length === 0 ? (
-                    <Paper withBorder p="xl" radius="md">
-                        <Stack gap="sm" align="center">
-                            <IconBookmark size={48} style={{ opacity: 0.3 }} />
-                            <Text fw={700}>아직 저장된 템플릿이 없어요</Text>
-                            <Text size="sm" c="dimmed" ta="center">
-                                자주 쓰는 캡션 패턴을 저장해두면<br />
-                                다음 캠페인 작성이 30초로 줄어요
-                            </Text>
-                            <Button onClick={openCreate} color="violet" leftSection={<IconPlus size={14} />}>
+                    <Paper withBorder p="xl" radius="md" bg="var(--mantine-color-default-hover)">
+                        <Stack gap="md" align="center" py="xl">
+                            <div style={{ fontSize: 56 }}>📚</div>
+                            <Stack gap={4} align="center">
+                                <Text fw={800} size="lg">아직 저장된 템플릿이 없어요</Text>
+                                <Text size="sm" c="dimmed" ta="center" maw={480}>
+                                    자주 쓰는 <strong>캡션 패턴·해시태그·이모지 조합</strong>을 저장해두면<br />
+                                    다음 캠페인 작성이 30초로 줄어요. 한 번 만들면 평생 재사용!
+                                </Text>
+                            </Stack>
+                            <Button
+                                onClick={openCreate}
+                                color="violet"
+                                variant="gradient"
+                                gradient={{ from: 'violet', to: 'pink' }}
+                                leftSection={<IconPlus size={16} />}
+                            >
                                 첫 템플릿 만들기
                             </Button>
+                            <Text size="xs" c="dimmed">예: "신메뉴 출시", "주말 이벤트", "할인 쿠폰" 등</Text>
                         </Stack>
                     </Paper>
                 ) : (

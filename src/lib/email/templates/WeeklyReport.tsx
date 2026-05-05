@@ -14,9 +14,24 @@ interface WeeklyReportEmailProps {
         channelType: string;
         count: number;
     }[];
+    /** Phase 30 — 전주 대비 변화 + 베스트 캠페인 */
+    deltaTotal?: number;          // 전주 대비 발행 수 차이 (+ / -)
+    deltaSuccessRate?: number;    // 전주 대비 성공률 % 차이
+    topCampaign?: { name: string; count: number } | null;
+    dashboardUrl?: string;
 }
 
-export function WeeklyReportEmail({ name, period, stats, channelStats }: WeeklyReportEmailProps) {
+export function WeeklyReportEmail({
+    name, period, stats, channelStats,
+    deltaTotal, deltaSuccessRate, topCampaign, dashboardUrl,
+}: WeeklyReportEmailProps) {
+    const fmtDelta = (n?: number, suffix = '') => {
+        if (n === undefined || n === null) return '';
+        if (n === 0) return '변화 없음';
+        const sign = n > 0 ? '▲' : '▼';
+        return `${sign} ${Math.abs(n)}${suffix}`;
+    };
+    const deltaColor = (n?: number) => (n === undefined || n === 0) ? '#868e96' : (n > 0 ? '#40c057' : '#fa5252');
     return (
         <Html>
             <Head />
@@ -31,6 +46,11 @@ export function WeeklyReportEmail({ name, period, stats, channelStats }: WeeklyR
                             <Column style={statBox}>
                                 <Text style={statLabel}>총 게시</Text>
                                 <Text style={statValue}>{stats.total}</Text>
+                                {deltaTotal !== undefined && (
+                                    <Text style={{ ...deltaText, color: deltaColor(deltaTotal) }}>
+                                        {fmtDelta(deltaTotal)}
+                                    </Text>
+                                )}
                             </Column>
                             <Column style={statBox}>
                                 <Text style={statLabel}>성공</Text>
@@ -39,9 +59,22 @@ export function WeeklyReportEmail({ name, period, stats, channelStats }: WeeklyR
                             <Column style={statBox}>
                                 <Text style={statLabel}>성공률</Text>
                                 <Text style={statValue}>{stats.successRate}%</Text>
+                                {deltaSuccessRate !== undefined && (
+                                    <Text style={{ ...deltaText, color: deltaColor(deltaSuccessRate) }}>
+                                        {fmtDelta(deltaSuccessRate, '%p')}
+                                    </Text>
+                                )}
                             </Column>
                         </Row>
                     </Section>
+
+                    {topCampaign && (
+                        <Section style={topSection}>
+                            <Text style={subTitle}>🏆 이번 주 베스트 캠페인</Text>
+                            <Text style={topCampaignName}>{topCampaign.name}</Text>
+                            <Text style={topCampaignMeta}>{topCampaign.count}회 발행</Text>
+                        </Section>
+                    )}
 
                     <Section style={contentSection}>
                         <Text style={subTitle}>채널별 활동</Text>
@@ -56,6 +89,12 @@ export function WeeklyReportEmail({ name, period, stats, channelStats }: WeeklyR
                             </Row>
                         ))}
                     </Section>
+
+                    {dashboardUrl && (
+                        <Section style={ctaSection}>
+                            <a href={dashboardUrl} style={ctaButton}>대시보드에서 자세히 보기 →</a>
+                        </Section>
+                    )}
 
                     <Hr style={hr} />
                     <Text style={footerText}>성공적인 마케팅 파트너, 마케팅봇</Text>
@@ -167,4 +206,48 @@ const footerText = {
     fontSize: '12px',
     color: '#adb5bd',
     textAlign: 'center' as const,
+};
+
+const deltaText = {
+    fontSize: '11px',
+    fontWeight: '600' as const,
+    margin: '4px 0 0',
+};
+
+const topSection = {
+    backgroundColor: '#fff9db',
+    border: '1px solid #ffe066',
+    padding: '16px',
+    borderRadius: '8px',
+    margin: '20px 0',
+    textAlign: 'center' as const,
+};
+
+const topCampaignName = {
+    fontSize: '16px',
+    fontWeight: '700' as const,
+    color: '#212529',
+    margin: '8px 0 4px',
+};
+
+const topCampaignMeta = {
+    fontSize: '13px',
+    color: '#868e96',
+    margin: '0',
+};
+
+const ctaSection = {
+    textAlign: 'center' as const,
+    margin: '30px 0 10px',
+};
+
+const ctaButton = {
+    backgroundColor: '#228be6',
+    color: '#ffffff',
+    padding: '12px 24px',
+    borderRadius: '6px',
+    textDecoration: 'none',
+    fontWeight: '600' as const,
+    fontSize: '14px',
+    display: 'inline-block',
 };

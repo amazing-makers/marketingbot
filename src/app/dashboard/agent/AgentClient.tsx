@@ -4,7 +4,7 @@ import {
     Title, Text, Stack, Paper, Group, Code, CopyButton, ActionIcon,
     Button, Table, Badge, rem, SimpleGrid
 } from '@mantine/core';
-import { IconCopy, IconCheck, IconDownload, IconDeviceDesktop } from '@tabler/icons-react';
+import { IconCopy, IconCheck, IconDownload, IconDeviceDesktop, IconActivity, IconClock, IconAlertCircle } from '@tabler/icons-react';
 import dayjs from 'dayjs';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -26,7 +26,28 @@ interface LicenseRow {
     validUntil: string | null;
 }
 
-export default function AgentClient({ license, agents }: { license: LicenseRow | null; agents: AgentRow[] }) {
+interface RecentTask {
+    id: string;
+    campaignName: string;
+    channelType: string;
+    accountName: string;
+    status: string;
+    executedAt: string | null;
+    updatedAt: string;
+    contentPreview: string;
+    errorLog: string | null;
+    agentId: string | null;
+}
+
+export default function AgentClient({
+    license,
+    agents,
+    recentTasks = [],
+}: {
+    license: LicenseRow | null;
+    agents: AgentRow[];
+    recentTasks?: RecentTask[];
+}) {
     const router = useRouter();
     // Phase 29 — 30초마다 자동 갱신 (탭이 보일 때만)
     useEffect(() => {
@@ -168,6 +189,66 @@ export default function AgentClient({ license, agents }: { license: LicenseRow |
                     </Table.ScrollContainer>
                 )}
             </Paper>
+
+            {/* Phase 30 — 최근 task 활동 로그 */}
+            {recentTasks.length > 0 && (
+                <Paper withBorder p="md" radius="md">
+                    <Group justify="space-between" mb="md">
+                        <Group gap="xs">
+                            <IconActivity size={18} />
+                            <Title order={4}>최근 발행 활동</Title>
+                        </Group>
+                        <Text size="xs" c="dimmed">최근 20건 · 30초마다 자동 갱신</Text>
+                    </Group>
+                    <Stack gap="xs">
+                        {recentTasks.map(t => {
+                            const ts = t.executedAt || t.updatedAt;
+                            const statusColor = t.status === 'SUCCESS' ? 'green' : t.status === 'FAILED' ? 'red' : 'blue';
+                            const statusIcon = t.status === 'SUCCESS' ? '✓' : t.status === 'FAILED' ? '✗' : '⚡';
+                            return (
+                                <Paper
+                                    key={t.id}
+                                    p="sm"
+                                    radius="sm"
+                                    withBorder
+                                    style={{
+                                        borderLeft: `3px solid var(--mantine-color-${statusColor}-6)`,
+                                    }}
+                                >
+                                    <Group justify="space-between" wrap="nowrap" gap="md">
+                                        <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+                                            <Group gap={6} wrap="nowrap">
+                                                <Badge size="xs" color={statusColor} variant="light">
+                                                    {statusIcon} {t.status}
+                                                </Badge>
+                                                <Text size="xs" fw={600} truncate>{t.campaignName}</Text>
+                                                <Badge size="xs" variant="outline" color="gray">{t.channelType}</Badge>
+                                                <Text size="11px" c="dimmed" truncate>{t.accountName}</Text>
+                                            </Group>
+                                            <Text size="11px" c="dimmed" lineClamp={1}>
+                                                {t.contentPreview}
+                                            </Text>
+                                            {t.errorLog && (
+                                                <Group gap={4}>
+                                                    <IconAlertCircle size={11} color="var(--mantine-color-red-6)" />
+                                                    <Text size="10px" c="red.7" lineClamp={1}>{t.errorLog}</Text>
+                                                </Group>
+                                            )}
+                                        </Stack>
+                                        <Stack gap={0} style={{ minWidth: 80, textAlign: 'right' }}>
+                                            <Group gap={3} justify="flex-end">
+                                                <IconClock size={10} color="var(--mantine-color-dimmed)" />
+                                                <Text size="11px" c="dimmed">{fromNow(ts)}</Text>
+                                            </Group>
+                                            <Text size="10px" c="dimmed">{dayjs(ts).format('HH:mm:ss')}</Text>
+                                        </Stack>
+                                    </Group>
+                                </Paper>
+                            );
+                        })}
+                    </Stack>
+                </Paper>
+            )}
         </Stack>
     );
 }

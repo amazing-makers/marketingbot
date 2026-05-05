@@ -390,9 +390,16 @@ function ReferralPanel({ summary, baseUrl }: { summary: NonNullable<Summary>; ba
             <Paper withBorder p="md" radius="md">
                 <Title order={4} mb="sm">👥 추천한 사용자 ({summary.recentReferrals.length})</Title>
                 {summary.recentReferrals.length === 0 ? (
-                    <Text size="sm" c="dimmed" ta="center" py="xl">
-                        아직 추천한 사용자가 없습니다. 추천 링크를 카톡·블로그·인스타에 공유해보세요.
-                    </Text>
+                    <Stack gap="md" align="center" py="xl">
+                        <div style={{ fontSize: 48 }}>🔗</div>
+                        <Stack gap={4} align="center">
+                            <Text fw={700}>아직 추천한 사용자가 없습니다</Text>
+                            <Text size="sm" c="dimmed" ta="center" maw={420}>
+                                위 추천 코드를 <strong>카톡·블로그·인스타·유튜브 설명란</strong>에 공유하면<br />
+                                가입자 결제 시 자동으로 commission 이 적립돼요.
+                            </Text>
+                        </Stack>
+                    </Stack>
                 ) : (
                     <Table striped>
                         <Table.Thead>
@@ -464,11 +471,16 @@ function ClientsPanel({ clients }: { clients: ClientItem[] }) {
 function ClientList({ clients }: { clients: ClientItem[] }) {
     if (clients.length === 0) {
         return (
-            <Box style={{ textAlign: 'center', padding: 40, color: 'var(--mantine-color-dimmed)' }}>
-                <IconUsersGroup size={36} style={{ opacity: 0.4 }} />
-                <Text size="sm" mt="sm">아직 등록된 고객사가 없습니다</Text>
-                <Text size="xs">"+ 고객사 추가" 를 눌러 첫 고객사를 등록하세요</Text>
-            </Box>
+            <Stack gap="md" align="center" py="xl">
+                <div style={{ fontSize: 48 }}>🏢</div>
+                <Stack gap={4} align="center">
+                    <Text fw={700}>아직 등록된 고객사가 없습니다</Text>
+                    <Text size="sm" c="dimmed" ta="center" maw={420}>
+                        대행 마케팅 고객사를 등록하면 <strong>워크스페이스 자동 분리</strong>·월간 PDF 리포트·tier 별 commission 보상이 적용돼요.<br />
+                        "+ 고객사 추가" 버튼으로 첫 고객사를 등록하세요.
+                    </Text>
+                </Stack>
+            </Stack>
         );
     }
     return (

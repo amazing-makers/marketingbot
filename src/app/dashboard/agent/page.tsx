@@ -60,6 +60,23 @@ export default async function AgentPage() {
         if (s) s.running = g._count._all;
     }
 
+    // Phase 30 — 최근 task 활동 로그 (모든 에이전트 통합 20개)
+    const recentTasks = agentIds.length === 0 ? [] : await prisma.scheduledTask.findMany({
+        where: {
+            agentId: { in: agentIds },
+            status: { in: ['SUCCESS', 'FAILED', 'RUNNING'] },
+        },
+        orderBy: [
+            { executedAt: { sort: 'desc', nulls: 'last' } },
+            { updatedAt: 'desc' },
+        ],
+        take: 20,
+        include: {
+            channel: { select: { type: true, accountName: true } },
+            campaign: { select: { name: true } },
+        },
+    });
+
     return (
         <AgentClient
             license={license ? {
@@ -76,6 +93,18 @@ export default async function AgentPage() {
                 todaySuccess: statsByAgent[a.id]?.success ?? 0,
                 todayFailed: statsByAgent[a.id]?.failed ?? 0,
                 running: statsByAgent[a.id]?.running ?? 0,
+            }))}
+            recentTasks={recentTasks.map(t => ({
+                id: t.id,
+                campaignName: t.campaign.name,
+                channelType: t.channel.type,
+                accountName: t.channel.accountName,
+                status: t.status,
+                executedAt: t.executedAt?.toISOString() || null,
+                updatedAt: t.updatedAt.toISOString(),
+                contentPreview: t.content.slice(0, 80),
+                errorLog: t.errorLog?.slice(0, 200) || null,
+                agentId: t.agentId || null,
             }))}
         />
     );
