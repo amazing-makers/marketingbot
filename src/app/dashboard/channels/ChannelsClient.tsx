@@ -17,7 +17,7 @@ import {
   IconCheck, IconAlertCircle, IconRefresh, IconLoader, IconClock
 } from '@tabler/icons-react';
 import { Anchor } from '@mantine/core';
-import { createChannel, deleteChannel, verifyChannelConnection } from '@/app/actions/channelActions';
+import { createChannel, deleteChannel, verifyChannelConnection, verifyAllMyChannels } from '@/app/actions/channelActions';
 import { ChannelType, MarketingChannel } from '@prisma/client';
 
 const CHANNEL_ICONS: Record<string, any> = {
@@ -327,13 +327,53 @@ export default function ChannelsClient({
     }
   };
 
+  // Phase 37 — 일괄 verify 핸들러
+  const [bulkVerifying, setBulkVerifying] = useState(false);
+  const handleBulkVerify = async () => {
+    setBulkVerifying(true);
+    try {
+      const r = await verifyAllMyChannels();
+      // 채널 상태 업데이트 (서버 응답 반영)
+      setChannels(prev => prev.map(c => {
+        const found = r.results.find(x => x.id === c.id);
+        return found ? { ...c, status: found.status as any } : c;
+      }));
+      const message = r.errored > 0
+        ? `${r.verified}개 검증 — ✅ ${r.active} 정상 · ❌ ${r.errored} 오류${r.skipped > 0 ? ` · ⏭ ${r.skipped} 에이전트 채널 skip` : ''}`
+        : `${r.verified}개 검증 완료 — 모두 정상 ✨${r.skipped > 0 ? ` (에이전트 채널 ${r.skipped}개 skip)` : ''}`;
+      notifications.show({
+        title: r.errored > 0 ? '일괄 검증 — 일부 오류' : '✅ 일괄 검증 완료',
+        message,
+        color: r.errored > 0 ? 'orange' : 'teal',
+        autoClose: 5000,
+      });
+    } catch (e: any) {
+      notifications.show({ title: '오류', message: e?.message || '실패', color: 'red' });
+    } finally {
+      setBulkVerifying(false);
+    }
+  };
+
   return (
     <Stack>
       <Group justify="space-between">
         <Title order={2}>마케팅 채널 관리</Title>
-        <Button leftSection={<IconPlus size={16} />} onClick={() => setOpened(true)}>
-          채널 추가
-        </Button>
+        <Group gap="xs">
+          {channels.length > 0 && (
+            <Button
+              variant="light"
+              color="gray"
+              leftSection={bulkVerifying ? <IconLoader size={14} /> : <IconRefresh size={14} />}
+              onClick={handleBulkVerify}
+              loading={bulkVerifying}
+            >
+              모두 연결 확인
+            </Button>
+          )}
+          <Button leftSection={<IconPlus size={16} />} onClick={() => setOpened(true)}>
+            채널 추가
+          </Button>
+        </Group>
       </Group>
 
       {channels.length === 0 && (

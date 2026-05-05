@@ -271,6 +271,62 @@ export async function verifyChannelConnection(channelId: string): Promise<{
 }
 
 /**
+ * Phase 37 — 사용자 채널 일괄 verify.
+ * 검증 가능한 모든 채널 (TELEGRAM/DISCORD/YOUTUBE/WORDPRESS) 을 한 번에 health check.
+ * 결과 요약 반환 — 사용자 UI 에 통보.
+ */
+export async function verifyAllMyChannels(): Promise<{
+  total: number;
+  verified: number;
+  active: number;
+  errored: number;
+  skipped: number;
+  results: Array<{ id: string; accountName: string; type: string; status: string; error?: string }>;
+}> {
+  const user = await getSessionUser();
+  const verifiableTypes: any[] = ['TELEGRAM', 'DISCORD', 'YOUTUBE', 'WORDPRESS'];
+
+  const channels = await prisma.marketingChannel.findMany({
+    where: { userId: user.id!, type: { in: verifiableTypes } },
+    select: { id: true, type: true, accountName: true, status: true },
+  });
+
+  const results: Array<{ id: string; accountName: string; type: string; status: string; error?: string }> = [];
+  let active = 0;
+  let errored = 0;
+
+  // 순차 실행 — 외부 API rate limit 회피
+  for (const ch of channels) {
+    const r = await verifyChannelInternal(ch.id);
+    const status = r.newStatus || ch.status;
+    if (status === 'ACTIVE') active++;
+    else if (status === 'ERROR') errored++;
+    results.push({
+      id: ch.id,
+      accountName: ch.accountName,
+      type: ch.type as any,
+      status: status as string,
+      error: r.error,
+    });
+  }
+
+  // 에이전트 채널은 verify 안 됨 — skipped 카운트
+  const totalAll = await prisma.marketingChannel.count({ where: { userId: user.id! } });
+  const skipped = totalAll - channels.length;
+
+  revalidatePath('/dashboard/channels');
+
+  return {
+    total: totalAll,
+    verified: channels.length,
+    active,
+    errored,
+    skipped,
+    results,
+  };
+}
+
+/**
  * Phase 36 — 채널별 황금 시간대 분석 (실제 발행 이력 기반).
  *
  * 최근 60일 SUCCESS task 들의 executedAt 시간(0-23) 분포를 분석.

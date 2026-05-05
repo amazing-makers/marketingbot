@@ -2,11 +2,11 @@
 
 import {
     Stack, Group, Text, Paper, Badge, Box, Title, Button, ActionIcon,
-    Tooltip, Loader, Center, ScrollArea, SimpleGrid
+    Tooltip, Loader, Center, ScrollArea, SimpleGrid, Modal, Anchor
 } from '@mantine/core';
 import {
     IconChevronLeft, IconChevronRight, IconPlus, IconCalendarMonth,
-    IconList
+    IconList, IconFilter
 } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -68,6 +68,9 @@ export default function CalendarClient() {
     const [loading, setLoading] = useState(true);
     const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
     const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
+    // Phase 37 — 상태 필터 + 날짜 상세 모달
+    const [statusFilter, setStatusFilter] = useState<string | null>(null);
+    const [dayDetailKey, setDayDetailKey] = useState<string | null>(null);
 
     /**
      * 드래그앤드롭으로 task 재예약 — 시간(HH:mm)은 유지, 날짜만 이동.
@@ -132,7 +135,19 @@ export default function CalendarClient() {
     }, [gridStart]);
 
     const today = dayjs();
-    const totalEntries = Object.values(byDay).reduce((s, e) => s + e.length, 0);
+    // Phase 37 — 상태 필터 적용
+    const filteredByDay = useMemo(() => {
+        if (!statusFilter) return byDay;
+        const out: Record<string, Entry[]> = {};
+        for (const [k, list] of Object.entries(byDay)) {
+            const filtered = list.filter(e => e.status === statusFilter);
+            if (filtered.length > 0) out[k] = filtered;
+        }
+        return out;
+    }, [byDay, statusFilter]);
+    const totalEntries = Object.values(filteredByDay).reduce((s, e) => s + e.length, 0);
+
+    const dayDetailEntries = dayDetailKey ? (byDay[dayDetailKey] || []) : [];
 
     return (
         <Stack gap="md">
@@ -162,6 +177,46 @@ export default function CalendarClient() {
                     </Button>
                 </Group>
             </Group>
+
+            {/* Phase 37 — 상태 필터 칩 */}
+            <Paper withBorder p="sm" radius="md">
+                <Group gap="xs" wrap="wrap">
+                    <Group gap={4}>
+                        <IconFilter size={14} color="var(--mantine-color-dimmed)" />
+                        <Text size="xs" c="dimmed" fw={600}>상태:</Text>
+                    </Group>
+                    <Badge
+                        size="md"
+                        variant={!statusFilter ? 'filled' : 'light'}
+                        color="gray"
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => setStatusFilter(null)}
+                    >
+                        전체
+                    </Badge>
+                    {[
+                        { value: 'PENDING', label: '예약', color: 'orange' },
+                        { value: 'RUNNING', label: '진행중', color: 'blue' },
+                        { value: 'SUCCESS', label: '성공', color: 'teal' },
+                        { value: 'FAILED', label: '실패', color: 'red' },
+                        { value: 'CANCELLED', label: '취소됨', color: 'gray' },
+                    ].map(s => (
+                        <Badge
+                            key={s.value}
+                            size="md"
+                            variant={statusFilter === s.value ? 'filled' : 'light'}
+                            color={s.color}
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => setStatusFilter(statusFilter === s.value ? null : s.value)}
+                        >
+                            {s.label}
+                        </Badge>
+                    ))}
+                    {statusFilter && (
+                        <Text size="xs" c="dimmed">{totalEntries}건 표시</Text>
+                    )}
+                </Group>
+            </Paper>
 
             {/* 월 네비 */}
             <Paper withBorder p="md" radius="md">
@@ -210,7 +265,7 @@ export default function CalendarClient() {
                 <SimpleGrid cols={7} spacing={0}>
                     {days.map((d) => {
                         const key = d.format('YYYY-MM-DD');
-                        const entries = byDay[key] || [];
+                        const entries = filteredByDay[key] || [];
                         const isCurrentMonth = d.month() === cursor.month();
                         const isToday = d.isSame(today, 'day');
                         const isWeekend = d.day() === 0 || d.day() === 6;
@@ -353,9 +408,21 @@ export default function CalendarClient() {
                                         );
                                     })}
                                     {entries.length > 3 && (
-                                        <Text size="9px" c="dimmed" fw={600} ta="center">
-                                            +{entries.length - 3}건 더
-                                        </Text>
+                                        <Anchor
+                                            component="button"
+                                            type="button"
+                                            onClick={(ev) => {
+                                                ev.preventDefault();
+                                                ev.stopPropagation();
+                                                setDayDetailKey(key);
+                                            }}
+                                            size="9px"
+                                            c="violet"
+                                            ta="center"
+                                            style={{ display: 'block', fontWeight: 600, background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                        >
+                                            +{entries.length - 3}건 더 →
+                                        </Anchor>
                                     )}
                                 </Stack>
                             </Box>
@@ -387,6 +454,75 @@ export default function CalendarClient() {
                     <Text size="xs" c="dimmed">💡 예약(주황) 캠페인은 다른 날짜로 드래그해서 옮길 수 있어요 · "+" → 새 캠페인</Text>
                 </Group>
             </Paper>
+
+            {/* Phase 37 — 날짜 상세 모달 */}
+            <Modal
+                opened={!!dayDetailKey}
+                onClose={() => setDayDetailKey(null)}
+                title={dayDetailKey ? `📅 ${dayjs(dayDetailKey).format('YYYY년 M월 D일 (ddd)')}` : ''}
+                size="lg"
+            >
+                <Stack gap="xs">
+                    <Group justify="space-between">
+                        <Text size="sm" c="dimmed">{dayDetailEntries.length}건 예약·발행</Text>
+                        {dayDetailKey && (
+                            <Button
+                                size="compact-xs"
+                                variant="light"
+                                component={Link}
+                                href={`/dashboard/campaigns/new?date=${dayDetailKey}`}
+                                leftSection={<IconPlus size={12} />}
+                            >
+                                이 날 캠페인 작성
+                            </Button>
+                        )}
+                    </Group>
+                    {dayDetailEntries.length === 0 ? (
+                        <Text size="sm" c="dimmed" ta="center" py="md">예약 없음</Text>
+                    ) : (
+                        <Stack gap="xs">
+                            {dayDetailEntries.map(e => {
+                                const color = CHANNEL_COLORS[e.channelType] || 'gray';
+                                const time = dayjs(e.scheduledAt).format('HH:mm');
+                                const isSeries = !!e.seriesId;
+                                return (
+                                    <Paper
+                                        key={e.taskId}
+                                        component={Link}
+                                        href={isSeries
+                                            ? `/dashboard/campaigns/series/${e.seriesId}`
+                                            : `/dashboard/campaigns/${e.campaignId}`}
+                                        withBorder
+                                        p="sm"
+                                        radius="md"
+                                        style={{
+                                            borderLeft: `3px solid var(--mantine-color-${color}-6)`,
+                                            textDecoration: 'none',
+                                        }}
+                                    >
+                                        <Group justify="space-between" wrap="nowrap">
+                                            <Stack gap={0}>
+                                                <Group gap={6}>
+                                                    <Text size="sm" fw={700}>{time}</Text>
+                                                    <Badge size="xs" color={color} variant="light">
+                                                        {e.channelType}
+                                                    </Badge>
+                                                    {isSeries && <Text size="xs">🤖</Text>}
+                                                    <Badge size="xs" color={STATUS_COLORS[e.status] || 'gray'} variant="light">
+                                                        {e.status}
+                                                    </Badge>
+                                                </Group>
+                                                <Text size="sm">{isSeries ? e.seriesName : e.campaignName}</Text>
+                                                <Text size="11px" c="dimmed">{e.accountName}</Text>
+                                            </Stack>
+                                        </Group>
+                                    </Paper>
+                                );
+                            })}
+                        </Stack>
+                    )}
+                </Stack>
+            </Modal>
         </Stack>
     );
 }
