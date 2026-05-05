@@ -1,12 +1,17 @@
-import { listChannels } from "@/app/actions/channelActions";
+import { listChannels, getChannelBestHours } from "@/app/actions/channelActions";
 import ChannelsClient from "./ChannelsClient";
 
+export const dynamic = 'force-dynamic';
+
 export default async function ChannelsPage() {
-  const channels = await listChannels();
-  
+  const [channels, bestHours] = await Promise.all([
+    listChannels(),
+    getChannelBestHours().catch(() => ({})),
+  ]);
+
   return (
     <div>
-      <ChannelsClient initialChannels={channels} />
+      <ChannelsClient initialChannels={channels} bestHours={bestHours} />
     </div>
   );
 }

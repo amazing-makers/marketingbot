@@ -113,7 +113,17 @@ const REGION_DEFAULT_LANG: Record<string, string> = {
   india: 'hi', southeast_asia: 'id', russia: 'ru', oceania: 'en',
 };
 
-export default function ChannelsClient({ initialChannels }: { initialChannels: MarketingChannel[] }) {
+interface BestHoursMap {
+  [channelId: string]: { topHours: number[]; totalSuccess: number; hourCounts: number[] };
+}
+
+export default function ChannelsClient({
+  initialChannels,
+  bestHours = {},
+}: {
+  initialChannels: MarketingChannel[];
+  bestHours?: BestHoursMap;
+}) {
   const [channels, setChannels] = useState(initialChannels);
   const [opened, setOpened] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -451,6 +461,19 @@ export default function ChannelsClient({ initialChannels }: { initialChannels: M
                   </Badge>
                 )}
               </Group>
+
+              {/* Phase 36 — 황금 시간대 (실제 발행 이력 분석, 60일 SUCCESS 10건+) */}
+              {bestHours[channel.id] && bestHours[channel.id].topHours.length > 0 && (
+                <Group mt="xs" gap={6} wrap="wrap">
+                  <Text size="11px" c="dimmed" fw={600}>🏆 베스트 시간대:</Text>
+                  {bestHours[channel.id].topHours.map(h => (
+                    <Badge key={h} size="xs" variant="light" color="violet">
+                      {String(h).padStart(2, '0')}:00
+                    </Badge>
+                  ))}
+                  <Text size="10px" c="dimmed">({bestHours[channel.id].totalSuccess}건 성공 기준)</Text>
+                </Group>
+              )}
             </Card>
           );
         })}

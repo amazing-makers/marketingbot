@@ -1,12 +1,12 @@
 'use client';
 
-import { Table, Group, Text, Badge, Button, Stack, Title, Anchor, Card, TextInput, Select, Box, Checkbox, Paper } from '@mantine/core';
-import { IconPlus, IconCalendar, IconChevronRight, IconCalendarMonth, IconSearch, IconTrash, IconPlayerPause } from '@tabler/icons-react';
+import { Table, Group, Text, Badge, Button, Stack, Title, Anchor, Card, TextInput, Select, Box, Checkbox, Paper, ActionIcon, Tooltip } from '@mantine/core';
+import { IconPlus, IconCalendar, IconChevronRight, IconCalendarMonth, IconSearch, IconTrash, IconPlayerPause, IconCopy } from '@tabler/icons-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 import { useMemo, useState, useTransition } from 'react';
 import { notifications } from '@mantine/notifications';
-import { bulkDeleteCampaigns, bulkPauseCampaigns } from '@/app/actions/campaignActions';
+import { bulkDeleteCampaigns, bulkPauseCampaigns, duplicateCampaign } from '@/app/actions/campaignActions';
 import { useRouter } from 'next/navigation';
 
 interface CampaignRow {
@@ -99,6 +99,22 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
         });
     };
 
+    const handleDuplicate = (id: string, name: string) => {
+        startTransition(async () => {
+            try {
+                const r = await duplicateCampaign(id);
+                notifications.show({
+                    title: '복제 완료',
+                    message: `"${name}" 의 사본이 DRAFT 로 생성됐어요`,
+                    color: 'teal',
+                });
+                router.push(`/dashboard/campaigns/${r.id}`);
+            } catch (e: any) {
+                notifications.show({ title: '오류', message: e?.message || '실패', color: 'red' });
+            }
+        });
+    };
+
     const allSelectedVisible = filtered.length > 0 && filtered.every(c => selected.has(c.id));
     const someSelectedVisible = !allSelectedVisible && filtered.some(c => selected.has(c.id));
 
@@ -139,10 +155,24 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
             <Table.Td>
                 <Text size="sm" c="dimmed">{dayjs(campaign.createdAt).format('YYYY-MM-DD')}</Text>
             </Table.Td>
-            <Table.Td>
-                <Anchor component={Link} href={`/dashboard/campaigns/${campaign.id}`}>
-                    <IconChevronRight size={16} />
-                </Anchor>
+            <Table.Td onClick={(e) => e.stopPropagation()}>
+                <Group gap={4}>
+                    <Tooltip label="복제" withArrow>
+                        <ActionIcon
+                            variant="subtle"
+                            color="gray"
+                            size="sm"
+                            onClick={() => handleDuplicate(campaign.id, campaign.name)}
+                            loading={isPending}
+                            aria-label="복제"
+                        >
+                            <IconCopy size={14} />
+                        </ActionIcon>
+                    </Tooltip>
+                    <Anchor component={Link} href={`/dashboard/campaigns/${campaign.id}`}>
+                        <IconChevronRight size={16} />
+                    </Anchor>
+                </Group>
             </Table.Td>
         </Table.Tr>
     ));

@@ -353,6 +353,70 @@ export async function deleteCampaign(id: string) {
 }
 
 /**
+ * Phase 36 — 캠페인 복제. 콘텐츠·태그·미디어 그대로, 스케줄은 PENDING DRAFT 로.
+ *
+ * 복제된 캠페인은 status=DRAFT, scheduledAt=now, task 들도 status=PENDING 신규 생성.
+ * 사용자는 복제 후 작성 페이지에서 시간만 변경하면 됨.
+ */
+export async function duplicateCampaign(originalId: string): Promise<{ id: string }> {
+  const user = await getSessionUser();
+  const filter = await getActiveWorkspaceFilter(user.id!);
+
+  const original = await prisma.campaign.findFirst({
+    where: { id: originalId, userId: filter.userId, workspaceId: filter.workspaceId },
+    include: {
+      tasks: {
+        select: { content: true, mediaUrls: true, channelId: true },
+      },
+    },
+  });
+  if (!original) throw new Error('원본 캠페인을 찾을 수 없습니다');
+
+  // 한도 체크
+  const { checkDailyTaskLimit, getPlanLimits } = await import('@/lib/billing/plan-limits');
+  const limitCheck = await checkDailyTaskLimit(user.id!, original.tasks.length);
+  if (!limitCheck.allowed) {
+    const planLabel = getPlanLimits(limitCheck.plan).label;
+    throw new Error(
+      `오늘 발행 한도 초과 (${limitCheck.current}/${limitCheck.limit} · ${planLabel}). ` +
+      `${original.tasks.length}개 채널 복제하려면 한도가 부족해요.`,
+    );
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    const copy = await tx.campaign.create({
+      data: {
+        userId: user.id!,
+        workspaceId: filter.workspaceId,
+        name: `${original.name} (복사본)`,
+        description: original.description,
+        status: 'DRAFT',
+        scheduledAt: new Date(),
+        tags: (original.tags as any) || [],
+      },
+    });
+
+    if (original.tasks.length > 0) {
+      await tx.scheduledTask.createMany({
+        data: original.tasks.map(t => ({
+          campaignId: copy.id,
+          channelId: t.channelId,
+          content: t.content,
+          mediaUrls: t.mediaUrls as any,
+          scheduledAt: new Date(),
+          status: 'PENDING' as const,
+        })),
+      });
+    }
+
+    return copy;
+  });
+
+  revalidatePath('/dashboard/campaigns');
+  return { id: result.id };
+}
+
+/**
  * Phase 32 — 캠페인 일괄 삭제. 본인 소유분만 처리.
  */
 export async function bulkDeleteCampaigns(ids: string[]): Promise<{ deleted: number }> {

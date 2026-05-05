@@ -271,6 +271,52 @@ export async function verifyChannelConnection(channelId: string): Promise<{
 }
 
 /**
+ * Phase 36 — 채널별 황금 시간대 분석 (실제 발행 이력 기반).
+ *
+ * 최근 60일 SUCCESS task 들의 executedAt 시간(0-23) 분포를 분석.
+ * 가장 SUCCESS가 많이 나온 시간 top 3 반환.
+ * task가 너무 적으면 (10건 미만) 신뢰도 낮음 → null 반환.
+ */
+export async function getChannelBestHours(): Promise<Record<string, {
+  topHours: number[];
+  totalSuccess: number;
+  hourCounts: number[]; // 24개 배열
+}>> {
+  const user = await getSessionUser();
+  const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+
+  const tasks = await prisma.scheduledTask.findMany({
+    where: {
+      campaign: { userId: user.id! },
+      status: 'SUCCESS',
+      executedAt: { gte: sixtyDaysAgo },
+    },
+    select: { channelId: true, executedAt: true },
+  });
+
+  const byChannel: Record<string, number[]> = {};
+  for (const t of tasks) {
+    if (!t.executedAt) continue;
+    if (!byChannel[t.channelId]) byChannel[t.channelId] = Array(24).fill(0);
+    const h = t.executedAt.getHours();
+    byChannel[t.channelId][h]++;
+  }
+
+  const result: Record<string, { topHours: number[]; totalSuccess: number; hourCounts: number[] }> = {};
+  for (const [channelId, hourCounts] of Object.entries(byChannel)) {
+    const totalSuccess = hourCounts.reduce((s, c) => s + c, 0);
+    if (totalSuccess < 10) continue; // 데이터 부족 — 신뢰도 X
+    // top 3 hour
+    const indexed = hourCounts.map((c, h) => ({ h, c }));
+    indexed.sort((a, b) => b.c - a.c);
+    const topHours = indexed.slice(0, 3).filter(x => x.c > 0).map(x => x.h);
+    result[channelId] = { topHours, totalSuccess, hourCounts };
+  }
+
+  return result;
+}
+
+/**
  * Phase 35 — 세션 우회 health check (cron 전용).
  * verifyChannelConnection 의 검증 로직을 재사용하되 getSessionUser 없이 채널 ID로 직접 처리.
  */
