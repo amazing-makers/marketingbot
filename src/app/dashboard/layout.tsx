@@ -20,6 +20,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import HeaderLicense from '@/components/HeaderLicense';
 import CopilotSidebar from '@/components/copilot/CopilotSidebar';
+import WorkspaceSwitcher from '@/components/workspace/WorkspaceSwitcher';
 import { getMyAccountFlags } from '@/app/actions/resellerActions';
 
 function DarkModeToggle() {
@@ -232,6 +233,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </UnstyledButton>
               <Box visibleFrom="md">
                 <CommandPaletteTrigger />
+              </Box>
+              <Box visibleFrom="sm">
+                <WorkspaceSwitcher />
               </Box>
             </Group>
 

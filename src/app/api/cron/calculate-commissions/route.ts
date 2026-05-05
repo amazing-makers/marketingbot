@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import dayjs from 'dayjs';
+import { calcPartnerTier } from '@/lib/partner/tiers';
 
 /**
  * 매월 1일 새벽 실행 — 지난달 추천 사용자 결제액 × commissionRate 만큼
@@ -61,6 +62,18 @@ export async function GET(req: Request) {
         },
     });
 
+    // 각 reseller 의 누적 commission 사전 집계 (티어 계산용)
+    const allResellerIds = [...new Set(referredUsers.map(u => u.referredByCode?.reseller?.id).filter(Boolean) as string[])];
+    const lifetimeMap = new Map<string, number>();
+    if (allResellerIds.length > 0) {
+        const aggs = await prisma.referralCommission.groupBy({
+            by: ['resellerId'],
+            where: { resellerId: { in: allResellerIds }, status: { in: ['PENDING', 'PAID'] } },
+            _sum: { amount: true },
+        });
+        for (const a of aggs) lifetimeMap.set(a.resellerId, Number(a._sum.amount || 0));
+    }
+
     let created = 0;
     let skipped = 0;
     let errors = 0;
@@ -77,7 +90,12 @@ export async function GET(req: Request) {
             skipped++;
             continue;
         }
-        const amount = Math.round(baseRevenue * reseller.commissionRate);
+
+        // 티어 기반 자동 수수료율 — Reseller.commissionRate (특별계약) vs 티어 기본값 중 큰 값 적용
+        const lifetime = lifetimeMap.get(reseller.id) ?? 0;
+        const tierInfo = calcPartnerTier(lifetime);
+        const effectiveRate = Math.max(reseller.commissionRate, tierInfo.current.commissionRate);
+        const amount = Math.round(baseRevenue * effectiveRate);
 
         try {
             await prisma.referralCommission.upsert({
@@ -89,9 +107,9 @@ export async function GET(req: Request) {
                     },
                 },
                 update: {
-                    // 같은 달이 다시 계산되면 갱신 (예: 플랜 업그레이드 반영)
+                    // 같은 달이 다시 계산되면 갱신 (예: 플랜 업그레이드, 티어 승급 반영)
                     baseRevenue,
-                    commissionRate: reseller.commissionRate,
+                    commissionRate: effectiveRate,
                     amount,
                 },
                 create: {
@@ -99,7 +117,7 @@ export async function GET(req: Request) {
                     referredUserId: u.id,
                     periodYearMonth,
                     baseRevenue,
-                    commissionRate: reseller.commissionRate,
+                    commissionRate: effectiveRate,
                     amount,
                     status: 'PENDING',
                 },
