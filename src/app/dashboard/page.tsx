@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { getDailyTrend, getChannelDistribution, getSuccessRate, getHourlyDistribution } from '@/app/actions/statsActions';
 import { DashboardStatsClient } from './DashboardStatsClient';
 import WorkspaceContextBanner from '@/components/workspace/WorkspaceContextBanner';
+import SetupChecklist from '@/components/onboarding/SetupChecklist';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,6 +78,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     return (
         <>
             <WorkspaceContextBanner />
+            <SetupChecklist />
             <DashboardStatsClient
                 summary={summaryStats}
                 quickStart={quickStartData}

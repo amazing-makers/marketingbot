@@ -269,6 +269,8 @@ model Campaign {
   status      String    @default("DRAFT")
   scheduledAt DateTime?
   completedAt DateTime?
+  // Phase 26 — 태그 (검색·필터·분석용). 공백 구분 또는 JSON string array.
+  tags        String[]  @default([])
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -281,6 +283,7 @@ model Campaign {
   @@index([userId])
   @@index([userId, workspaceId])
   @@index([seriesId])
+  @@index([tags])
 }
 
 model ScheduledTask {
@@ -357,6 +360,8 @@ model CampaignSeries {
   lastError           String?   @db.Text
   // Phase 9 — 알림 한 번만 발송 (반복 알림 방지)
   notifiedCompletedAt DateTime?
+  // Phase 26 — 태그
+  tags                String[]  @default([])
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -364,6 +369,7 @@ model CampaignSeries {
 
   @@index([userId])
   @@index([userId, workspaceId])
+  @@index([tags])
   @@index([status, nextRunAt])
 }
 
