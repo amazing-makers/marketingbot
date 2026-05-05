@@ -70,11 +70,11 @@ export default function WebhooksClient({ initialTokens }: Props) {
             <Stack gap="lg">
                 <Group justify="space-between">
                     <Stack gap={0}>
-                        <Title order={2}><IconWebhook size={24} style={{ verticalAlign: 'middle', marginRight: 8 }} />외부 트리거 (Webhook)</Title>
-                        <Text c="dimmed" size="sm">Zapier · Make · 자체 자동화에서 마케팅봇 캠페인을 즉시 트리거</Text>
+                        <Title order={2}><IconWebhook size={24} style={{ verticalAlign: 'middle', marginRight: 8 }} />API · Webhook 토큰</Title>
+                        <Text c="dimmed" size="sm">Zapier · Make · n8n · 자체 자동화에서 외부에서 캠페인을 즉시 발행</Text>
                     </Stack>
                     <Button leftSection={<IconPlus size={16} />} onClick={() => { setIssuedToken(null); createModalCtl.open(); }}>
-                        토큰 발급
+                        + 새 토큰 발급
                     </Button>
                 </Group>
 
@@ -107,6 +107,20 @@ export default function WebhooksClient({ initialTokens }: Props) {
                             <Code>GET</Code> 동일 경로로 헬스체크 (토큰 유효성만 확인).
                         </Text>
                     </Stack>
+
+                    <Text size="sm" fw={600} mt="md" mb={4}>📋 curl 예시 (터미널)</Text>
+                    <Code block>{`curl -X POST ${baseUrl}/api/webhook/<token>/publish \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "content": "오늘의 신메뉴 출시! 🎉",
+    "channelIds": ["ch_xxx"]
+  }'`}</Code>
+
+                    <Text size="sm" fw={600} mt="md" mb={4}>🔌 Zapier / Make 연동 팁</Text>
+                    <Text size="xs" c="dimmed">
+                        Zapier "Webhooks by Zapier" → POST 액션 선택 → URL 에 위 엔드포인트, Body 에 JSON 입력.
+                        Make 도 동일 (HTTP 모듈 → Make a request).
+                    </Text>
                 </Paper>
 
                 <Paper withBorder p="md" radius="md">

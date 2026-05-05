@@ -12,7 +12,7 @@ import {
   IconLogout, IconWorld, IconCalendarEvent,
   IconSun, IconMoon, IconSearch, IconCalendarMonth, IconRobot,
   IconChartBar, IconKey, IconWebhook, IconBolt, IconUsers, IconCreditCard,
-  IconCoin
+  IconCoin, IconUsersGroup
 } from '@tabler/icons-react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
@@ -311,10 +311,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Divider my="sm" />
             <NavLink
               component={Link}
+              href="/dashboard/workspace"
+              label="🏢 워크스페이스"
+              leftSection={<IconUsersGroup size={18} stroke={1.5} />}
+              active={!!pathname && pathname.startsWith('/dashboard/workspace')}
+            />
+            <NavLink
+              component={Link}
               href="/dashboard/reseller"
               label="🤝 리셀러 프로그램"
               leftSection={<IconCoin size={18} stroke={1.5} />}
               active={!!pathname && pathname.startsWith('/dashboard/reseller')}
+            />
+            <NavLink
+              component={Link}
+              href="/dashboard/settings/webhooks"
+              label="🔗 API·Webhook"
+              leftSection={<IconWebhook size={18} stroke={1.5} />}
+              active={!!pathname && pathname.includes('/webhooks')}
             />
             <NavLink
               component={Link}

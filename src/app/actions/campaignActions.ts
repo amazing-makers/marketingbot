@@ -557,3 +557,44 @@ export async function createSplitCampaign(data: {
     totalTasks: primeTimes.length * channelContents.length,
   };
 }
+
+/**
+ * Phase 13 — 캘린더 드래그앤드롭으로 task 재예약.
+ * 시간(HH:mm)은 유지, 날짜만 변경. 본인 소유 PENDING task 만 가능.
+ */
+export async function rescheduleTask(input: {
+  taskId: string;
+  newDate: string; // YYYY-MM-DD
+}): Promise<{ ok: boolean; newScheduledAt?: string; error?: string }> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: 'Unauthorized' };
+
+  const task = await prisma.scheduledTask.findUnique({
+    where: { id: input.taskId },
+    include: { campaign: { select: { userId: true } } },
+  });
+  if (!task) return { ok: false, error: 'Task not found' };
+  if (task.campaign.userId !== session.user.id) return { ok: false, error: 'Forbidden' };
+  if (task.status !== 'PENDING') return { ok: false, error: '이미 처리된 발행은 재예약할 수 없습니다' };
+
+  // 기존 시간(HH:mm:ss) 유지 + 날짜만 변경
+  const original = new Date(task.scheduledAt);
+  const [y, m, d] = input.newDate.split('-').map(Number);
+  const newScheduledAt = new Date(
+    y, m - 1, d,
+    original.getHours(), original.getMinutes(), original.getSeconds(), original.getMilliseconds(),
+  );
+
+  // 과거로의 이동 방지 (1분 마진)
+  if (newScheduledAt.getTime() < Date.now() - 60 * 1000) {
+    return { ok: false, error: '과거로는 옮길 수 없습니다' };
+  }
+
+  await prisma.scheduledTask.update({
+    where: { id: input.taskId },
+    data: { scheduledAt: newScheduledAt },
+  });
+
+  revalidatePath('/dashboard/campaigns/calendar');
+  return { ok: true, newScheduledAt: newScheduledAt.toISOString() };
+}

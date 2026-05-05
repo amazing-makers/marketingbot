@@ -180,6 +180,65 @@ export async function removeWorkspaceMember(input: {
 }
 
 /**
+ * 특정 워크스페이스의 멤버 목록 + 권한 정보 (멤버만 조회 가능).
+ */
+export async function listWorkspaceMembers(workspaceId: string) {
+    const userId = await getSessionUserId();
+    const me = await prisma.workspaceMember.findUnique({
+        where: { workspaceId_userId: { workspaceId, userId } },
+    });
+    if (!me) throw new Error('해당 워크스페이스의 멤버가 아닙니다');
+
+    const ws = await prisma.workspace.findUnique({
+        where: { id: workspaceId },
+        select: { id: true, name: true, slug: true, ownerId: true, plan: true, brandColor: true, logoUrl: true, description: true },
+    });
+    if (!ws) throw new Error('워크스페이스를 찾을 수 없습니다');
+
+    const members = await prisma.workspaceMember.findMany({
+        where: { workspaceId },
+        include: { user: { select: { id: true, email: true, name: true } } },
+        orderBy: { joinedAt: 'asc' },
+    });
+
+    return {
+        workspace: { ...ws, isOwner: ws.ownerId === userId },
+        myRole: me.role,
+        members: members.map(m => ({
+            userId: m.userId,
+            email: m.user.email,
+            name: m.user.name,
+            role: m.role,
+            joinedAt: m.joinedAt,
+            isOwner: m.userId === ws.ownerId,
+            isMe: m.userId === userId,
+        })),
+    };
+}
+
+/**
+ * 멤버 권한 변경 (Owner 만 가능, Owner 자신은 변경 불가).
+ */
+export async function updateMemberRole(input: {
+    workspaceId: string;
+    userId: string;
+    role: 'ADMIN' | 'MEMBER' | 'VIEWER';
+}): Promise<{ ok: boolean; error?: string }> {
+    const callerId = await getSessionUserId();
+    const ws = await prisma.workspace.findUnique({ where: { id: input.workspaceId }, select: { ownerId: true } });
+    if (!ws) return { ok: false, error: '워크스페이스를 찾을 수 없습니다' };
+    if (ws.ownerId !== callerId) return { ok: false, error: 'Owner 만 권한을 변경할 수 있습니다' };
+    if (input.userId === ws.ownerId) return { ok: false, error: 'Owner 권한은 변경할 수 없습니다' };
+
+    await prisma.workspaceMember.update({
+        where: { workspaceId_userId: { workspaceId: input.workspaceId, userId: input.userId } },
+        data: { role: input.role },
+    });
+    revalidatePath('/dashboard/workspace');
+    return { ok: true };
+}
+
+/**
  * 활성 워크스페이스 정보 — server component / 헤더 표시용.
  */
 export async function getCurrentWorkspace() {

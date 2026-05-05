@@ -12,7 +12,8 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
-import { listCalendarEntries } from '@/app/actions/campaignActions';
+import { notifications } from '@mantine/notifications';
+import { listCalendarEntries, rescheduleTask } from '@/app/actions/campaignActions';
 
 dayjs.locale('ko');
 
@@ -65,6 +66,50 @@ export default function CalendarClient() {
     const [cursor, setCursor] = useState(() => dayjs().startOf('month'));
     const [byDay, setByDay] = useState<Record<string, Entry[]>>({});
     const [loading, setLoading] = useState(true);
+    const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
+    const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
+
+    /**
+     * 드래그앤드롭으로 task 재예약 — 시간(HH:mm)은 유지, 날짜만 이동.
+     * PENDING 상태가 아닌 task / 시리즈 task / 과거 날짜 드롭은 차단.
+     */
+    const handleDrop = async (taskId: string, fromKey: string, toKey: string) => {
+        setDraggingTaskId(null);
+        setDropTargetKey(null);
+        if (fromKey === toKey) return;
+
+        // 낙관적 UI: 즉시 화면에서 옮김
+        const prevByDay = byDay;
+        const fromEntries = byDay[fromKey] || [];
+        const moving = fromEntries.find(e => e.taskId === taskId);
+        if (!moving) return;
+
+        const newScheduledAt = dayjs(moving.scheduledAt)
+            .year(dayjs(toKey).year())
+            .month(dayjs(toKey).month())
+            .date(dayjs(toKey).date())
+            .toISOString();
+
+        const optimistic = { ...byDay };
+        optimistic[fromKey] = fromEntries.filter(e => e.taskId !== taskId);
+        optimistic[toKey] = [...(byDay[toKey] || []), { ...moving, scheduledAt: newScheduledAt }]
+            .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
+        setByDay(optimistic);
+
+        const r = await rescheduleTask({ taskId, newDate: toKey });
+        if (!r.ok) {
+            // 롤백
+            setByDay(prevByDay);
+            notifications.show({ color: 'orange', title: '재예약 실패', message: r.error || '실패' });
+        } else {
+            notifications.show({
+                color: 'teal',
+                title: '✅ 재예약됨',
+                message: `${dayjs(moving.scheduledAt).format('M월 D일')} → ${dayjs(toKey).format('M월 D일')}`,
+                autoClose: 3000,
+            });
+        }
+    };
 
     // 월의 캘린더 그리드 — 6주 × 7일 = 42칸 (이전 월 끝 ~ 다음 월 시작 일부 포함)
     const gridStart = useMemo(() => cursor.startOf('month').startOf('week'), [cursor]);
@@ -170,17 +215,43 @@ export default function CalendarClient() {
                         const isToday = d.isSame(today, 'day');
                         const isWeekend = d.day() === 0 || d.day() === 6;
 
+                        const isDropTarget = dropTargetKey === key && !!draggingTaskId;
+
                         return (
                             <Box
                                 key={key}
+                                onDragOver={(e) => {
+                                    if (!draggingTaskId) return;
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = 'move';
+                                    if (dropTargetKey !== key) setDropTargetKey(key);
+                                }}
+                                onDragLeave={() => {
+                                    if (dropTargetKey === key) setDropTargetKey(null);
+                                }}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    const taskId = e.dataTransfer.getData('text/plain');
+                                    const fromKey = e.dataTransfer.getData('text/from-key');
+                                    if (taskId && fromKey) {
+                                        handleDrop(taskId, fromKey, key);
+                                    }
+                                }}
                                 style={{
                                     minHeight: 110,
                                     padding: 6,
                                     borderRight: '1px solid #f1f3f5',
                                     borderBottom: '1px solid #f1f3f5',
-                                    background: isToday ? 'var(--mantine-color-brand-light, #fff7e6)' : (isCurrentMonth ? 'white' : '#fafafa'),
+                                    background: isDropTarget
+                                        ? 'var(--mantine-color-violet-1)'
+                                        : isToday
+                                            ? 'var(--mantine-color-brand-light, #fff7e6)'
+                                            : (isCurrentMonth ? 'white' : '#fafafa'),
                                     opacity: isCurrentMonth ? 1 : 0.5,
                                     position: 'relative',
+                                    transition: 'background 0.15s',
+                                    outline: isDropTarget ? '2px dashed var(--mantine-color-violet-5)' : undefined,
+                                    outlineOffset: -2,
                                 }}
                             >
                                 {/* 날짜 + (있으면) "+N" 새 캠페인 단축 */}
@@ -214,15 +285,20 @@ export default function CalendarClient() {
                                         const color = CHANNEL_COLORS[e.channelType] || 'gray';
                                         const time = dayjs(e.scheduledAt).format('HH:mm');
                                         const isSeries = !!e.seriesId;
+                                        const isDraggable = !isSeries && e.status === 'PENDING';
+                                        const isDragging = draggingTaskId === e.taskId;
                                         const tooltipLabel = isSeries
                                             ? `${time} · ${e.channelType} · 🤖 시리즈 "${e.seriesName}"`
-                                            : `${time} · ${e.channelType} (${e.accountName}) · ${e.campaignName}`;
+                                            : isDraggable
+                                                ? `${time} · ${e.channelType} (${e.accountName}) · ${e.campaignName}\n💡 드래그해서 다른 날짜로 옮기기 가능`
+                                                : `${time} · ${e.channelType} (${e.accountName}) · ${e.campaignName}`;
                                         return (
                                             <Tooltip
                                                 key={e.taskId}
                                                 label={tooltipLabel}
                                                 withArrow
                                                 position="top"
+                                                multiline
                                             >
                                                 <Paper
                                                     component={Link}
@@ -230,6 +306,18 @@ export default function CalendarClient() {
                                                         ? `/dashboard/campaigns/series/${e.seriesId}`
                                                         : `/dashboard/campaigns/${e.campaignId}`
                                                     }
+                                                    draggable={isDraggable}
+                                                    onDragStart={(ev: any) => {
+                                                        if (!isDraggable) return;
+                                                        ev.dataTransfer.setData('text/plain', e.taskId);
+                                                        ev.dataTransfer.setData('text/from-key', key);
+                                                        ev.dataTransfer.effectAllowed = 'move';
+                                                        setDraggingTaskId(e.taskId);
+                                                    }}
+                                                    onDragEnd={() => {
+                                                        setDraggingTaskId(null);
+                                                        setDropTargetKey(null);
+                                                    }}
                                                     radius={4}
                                                     p={3}
                                                     style={{
@@ -238,8 +326,9 @@ export default function CalendarClient() {
                                                             ? 'var(--mantine-color-violet-0)'
                                                             : `var(--mantine-color-${color}-0)`,
                                                         textDecoration: 'none',
-                                                        cursor: 'pointer',
-                                                        opacity: e.status === 'SUCCESS' ? 0.6 : 1,
+                                                        cursor: isDraggable ? 'grab' : 'pointer',
+                                                        opacity: isDragging ? 0.4 : (e.status === 'SUCCESS' ? 0.6 : 1),
+                                                        transition: 'opacity 0.15s',
                                                     }}
                                                 >
                                                     <Group gap={4} wrap="nowrap">
@@ -295,7 +384,7 @@ export default function CalendarClient() {
                         <Text size="xs" c="dimmed">시리즈</Text>
                     </Group>
                     <Box style={{ flex: 1 }} />
-                    <Text size="xs" c="dimmed">셀 클릭 → 캠페인/시리즈 상세 · "+" → 새 캠페인</Text>
+                    <Text size="xs" c="dimmed">💡 예약(주황) 캠페인은 다른 날짜로 드래그해서 옮길 수 있어요 · "+" → 새 캠페인</Text>
                 </Group>
             </Paper>
         </Stack>
