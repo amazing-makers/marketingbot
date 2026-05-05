@@ -129,6 +129,57 @@ export async function GET(req: Request) {
         }
     }
 
+    // ─── Phase 17 — 파트너별 commission 합계 알림 ───
+    // resellerId 별로 이번 사이클에 누적된 amount 모아서 1통씩 발송 (스팸 방지).
+    try {
+        const { sendEmail } = await import('@/lib/email/send');
+        const { NewCommissionEmail } = await import('@/lib/email/templates/PartnerNotifications');
+        const baseUrl = process.env.NEXTAUTH_URL || 'https://marketingbot.amakers.co.kr';
+
+        const periodCommissions = await prisma.referralCommission.findMany({
+            where: { periodYearMonth, status: 'PENDING' },
+            include: {
+                reseller: {
+                    select: { name: true, contactEmail: true, user: { select: { email: true } } },
+                },
+            },
+        });
+
+        const byPartner = new Map<string, { name: string; email: string; total: number; count: number }>();
+        for (const c of periodCommissions) {
+            const email = c.reseller.contactEmail || c.reseller.user.email;
+            if (!email) continue;
+            const existing = byPartner.get(c.resellerId);
+            if (existing) {
+                existing.total += Number(c.amount);
+                existing.count += 1;
+            } else {
+                byPartner.set(c.resellerId, {
+                    name: c.reseller.name,
+                    email,
+                    total: Number(c.amount),
+                    count: 1,
+                });
+            }
+        }
+
+        for (const [, p] of byPartner) {
+            sendEmail({
+                to: p.email,
+                subject: `💰 ${periodYearMonth} commission 정산 대기 — ₩${p.total.toLocaleString()}`,
+                react: NewCommissionEmail({
+                    partnerName: p.name,
+                    period: periodYearMonth,
+                    amount: p.total,
+                    referredCount: p.count,
+                    dashboardUrl: `${baseUrl}/dashboard/partner`,
+                }),
+            }).catch(err => console.warn('[partner notification] commission email failed', err));
+        }
+    } catch (err) {
+        console.warn('[partner notification] commission batch failed', err);
+    }
+
     return NextResponse.json({
         ok: true,
         period: periodYearMonth,

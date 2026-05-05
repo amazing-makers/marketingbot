@@ -110,6 +110,41 @@ export async function registerUser(formData: FormData) {
       });
     });
 
+    // Phase 17 — 추천 코드로 가입한 경우 파트너에게 알림
+    if (referredByCodeId) {
+      (async () => {
+        try {
+          const code = await prisma.referralCode.findUnique({
+            where: { id: referredByCodeId! },
+            include: {
+              reseller: {
+                select: { name: true, contactEmail: true, status: true, user: { select: { email: true } } },
+              },
+            },
+          });
+          if (!code || code.reseller.status !== 'ACTIVE') return;
+          const partnerEmail = code.reseller.contactEmail || code.reseller.user.email;
+          if (!partnerEmail) return;
+
+          const { sendEmail } = await import("@/lib/email/send");
+          const { NewReferralEmail } = await import("@/lib/email/templates/PartnerNotifications");
+          await sendEmail({
+            to: partnerEmail,
+            subject: `🎉 ${code.code} — 새 추천 사용자 가입`,
+            react: NewReferralEmail({
+              partnerName: code.reseller.name,
+              referredEmail: email,
+              referredName: name,
+              referralCode: code.code,
+              dashboardUrl: `${process.env.NEXTAUTH_URL || 'https://marketingbot.amakers.co.kr'}/dashboard/partner`,
+            }),
+          });
+        } catch (err) {
+          console.warn('[partner notification] new referral email failed', err);
+        }
+      })();
+    }
+
     return { success: true };
   } catch (error) {
     console.error("Registration error:", error);

@@ -2,16 +2,17 @@
 
 import {
     Container, Title, Text, Stack, Group, Card, Badge, Button, Modal,
-    TextInput, Select, Anchor, Box, Table, ActionIcon, Tooltip,
+    TextInput, Select, Anchor, Box, Table, ActionIcon, Tooltip, Textarea, Alert,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import { useState } from 'react';
-import { IconUsersGroup, IconUserPlus, IconCrown, IconTrash, IconEdit } from '@tabler/icons-react';
+import { IconUsersGroup, IconUserPlus, IconCrown, IconTrash, IconEdit, IconMail, IconClock, IconBan } from '@tabler/icons-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
-import { inviteWorkspaceMember, removeWorkspaceMember, updateMemberRole } from '@/app/actions/workspaceActions';
+import { removeWorkspaceMember, updateMemberRole } from '@/app/actions/workspaceActions';
+import { inviteToWorkspace, revokeInvitation } from '@/app/actions/invitationActions';
 
 interface Member {
     userId: string;
@@ -21,6 +22,14 @@ interface Member {
     joinedAt: string;
     isOwner: boolean;
     isMe: boolean;
+}
+
+interface PendingInvite {
+    id: string;
+    email: string;
+    role: string;
+    expiresAt: string;
+    createdAt: string;
 }
 
 interface Data {
@@ -37,6 +46,7 @@ interface Data {
     };
     myRole: string;
     members: Member[];
+    pendingInvitations: PendingInvite[];
 }
 
 const ROLE_LABELS: Record<string, { label: string; color: string }> = {
@@ -53,7 +63,11 @@ export default function WorkspaceDetailClient({ data }: { data: Data }) {
     const [selectedMember, setSelectedMember] = useState<Member | null>(null);
 
     const inviteForm = useForm({
-        initialValues: { email: '', role: 'MEMBER' as 'ADMIN' | 'MEMBER' | 'VIEWER' },
+        initialValues: {
+            email: '',
+            role: 'MEMBER' as 'ADMIN' | 'MEMBER' | 'VIEWER',
+            message: '',
+        },
         validate: {
             email: (v) => (/^\S+@\S+$/.test(v) ? null : '유효한 이메일'),
         },
@@ -69,17 +83,45 @@ export default function WorkspaceDetailClient({ data }: { data: Data }) {
     const handleInvite = async (values: typeof inviteForm.values) => {
         setBusy(true);
         try {
-            const r = await inviteWorkspaceMember({
+            const r = await inviteToWorkspace({
                 workspaceId: data.workspace.id,
                 email: values.email,
                 role: values.role,
+                message: values.message?.trim() || undefined,
             });
             if (!r.ok) {
                 notifications.show({ color: 'orange', title: '초대 실패', message: r.error || '실패' });
+                return;
+            }
+            if (r.type === 'instant_added') {
+                notifications.show({ color: 'teal', title: '✅ 멤버 추가됨', message: `${values.email} (이미 가입된 사용자)` });
             } else {
-                notifications.show({ color: 'teal', title: '✅ 초대 완료', message: values.email });
-                inviteModalCtl.close();
-                inviteForm.reset();
+                notifications.show({
+                    color: 'teal',
+                    title: '📧 초대 메일 발송됨',
+                    message: `${values.email} — 7일 안에 수락하면 자동 합류`,
+                    autoClose: 5000,
+                });
+            }
+            inviteModalCtl.close();
+            inviteForm.reset();
+            window.location.reload();
+        } catch (e: any) {
+            notifications.show({ color: 'red', title: '실패', message: e?.message || '실패' });
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const handleRevokeInvite = async (invId: string, email: string) => {
+        if (!confirm(`${email} 의 초대를 취소하시겠습니까?`)) return;
+        setBusy(true);
+        try {
+            const r = await revokeInvitation(invId);
+            if (!r.ok) {
+                notifications.show({ color: 'orange', title: '취소 실패', message: r.error || '실패' });
+            } else {
+                notifications.show({ color: 'teal', title: '초대 취소됨', message: email });
                 window.location.reload();
             }
         } finally {
@@ -222,14 +264,75 @@ export default function WorkspaceDetailClient({ data }: { data: Data }) {
                         </Table.Tbody>
                     </Table>
                 </Card>
+
+                {/* === 대기 중인 초대 === */}
+                {data.pendingInvitations.length > 0 && (
+                    <Card withBorder p="md" radius="md">
+                        <Group gap={6} mb="sm">
+                            <IconMail size={18} />
+                            <Text fw={700}>대기 중인 초대 ({data.pendingInvitations.length})</Text>
+                        </Group>
+                        <Table>
+                            <Table.Thead>
+                                <Table.Tr>
+                                    <Table.Th>이메일</Table.Th>
+                                    <Table.Th>권한</Table.Th>
+                                    <Table.Th>발송일</Table.Th>
+                                    <Table.Th>만료</Table.Th>
+                                    <Table.Th>액션</Table.Th>
+                                </Table.Tr>
+                            </Table.Thead>
+                            <Table.Tbody>
+                                {data.pendingInvitations.map(inv => {
+                                    const expired = new Date(inv.expiresAt) < new Date();
+                                    const daysLeft = Math.max(0, Math.ceil((new Date(inv.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+                                    return (
+                                        <Table.Tr key={inv.id}>
+                                            <Table.Td><Text size="sm">{inv.email}</Text></Table.Td>
+                                            <Table.Td>
+                                                <Badge size="sm" color={ROLE_LABELS[inv.role]?.color || 'gray'} variant="light">
+                                                    {ROLE_LABELS[inv.role]?.label || inv.role}
+                                                </Badge>
+                                            </Table.Td>
+                                            <Table.Td><Text size="xs" c="dimmed">{dayjs(inv.createdAt).format('YYYY-MM-DD HH:mm')}</Text></Table.Td>
+                                            <Table.Td>
+                                                <Group gap={4}>
+                                                    <IconClock size={12} />
+                                                    <Text size="xs" c={expired ? 'red' : daysLeft <= 1 ? 'orange' : 'dimmed'}>
+                                                        {expired ? '만료됨' : `${daysLeft}일 남음`}
+                                                    </Text>
+                                                </Group>
+                                            </Table.Td>
+                                            <Table.Td>
+                                                {canInvite && (
+                                                    <Tooltip label="초대 취소">
+                                                        <ActionIcon size="sm" variant="light" color="red" onClick={() => handleRevokeInvite(inv.id, inv.email)} loading={busy}>
+                                                            <IconBan size={13} />
+                                                        </ActionIcon>
+                                                    </Tooltip>
+                                                )}
+                                            </Table.Td>
+                                        </Table.Tr>
+                                    );
+                                })}
+                            </Table.Tbody>
+                        </Table>
+                    </Card>
+                )}
             </Stack>
 
             {/* 초대 모달 */}
-            <Modal opened={inviteModal} onClose={inviteModalCtl.close} title="멤버 초대" size="sm">
+            <Modal opened={inviteModal} onClose={inviteModalCtl.close} title="멤버 초대" size="md">
                 <form onSubmit={inviteForm.onSubmit(handleInvite)}>
                     <Stack gap="sm">
+                        <Alert color="blue" variant="light" icon={<IconMail size={14} />}>
+                            <Text size="xs">
+                                <strong>가입자</strong>: 즉시 멤버로 추가됩니다.<br />
+                                <strong>미가입자</strong>: 초대 메일이 발송되어 7일 안에 가입+수락 시 자동 합류합니다.
+                            </Text>
+                        </Alert>
                         <TextInput
-                            label="이메일 (이미 가입된 사용자)"
+                            label="이메일"
                             placeholder="user@example.com"
                             required
                             {...inviteForm.getInputProps('email')}
@@ -244,12 +347,20 @@ export default function WorkspaceDetailClient({ data }: { data: Data }) {
                             allowDeselect={false}
                             {...inviteForm.getInputProps('role')}
                         />
-                        <Text size="xs" c="dimmed">
-                            💡 미가입 이메일은 현재 지원하지 않아요 (이메일 invite 토큰은 추후 추가 예정).
-                        </Text>
+                        <Textarea
+                            label="초대 메시지 (선택)"
+                            placeholder="안녕하세요! 저희 워크스페이스에 함께해주세요 😊"
+                            autosize
+                            minRows={2}
+                            maxRows={5}
+                            {...inviteForm.getInputProps('message')}
+                        />
                         <Group justify="flex-end">
                             <Button variant="subtle" onClick={inviteModalCtl.close}>취소</Button>
-                            <Button type="submit" loading={busy}>초대</Button>
+                            <Button type="submit" loading={busy} color="violet">
+                                {/* email 이 가입자면 즉시추가, 아니면 메일발송 — 상태 사전 판별 어려우니 통합 라벨 */}
+                                초대 보내기
+                            </Button>
                         </Group>
                     </Stack>
                 </form>
