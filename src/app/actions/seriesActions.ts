@@ -43,6 +43,8 @@ export interface CreateSeriesInput {
     endAt?: Date;
     /** 시작 시점부터 즉시 RUNNING 으로 시작 (false 면 DRAFT 로 저장 후 사용자가 시작) */
     startNow?: boolean;
+    /** Phase 28 — 태그 (검색·필터용) */
+    tags?: string[];
 }
 
 // ════════════════════════════════════════════════════════════
@@ -93,6 +95,7 @@ export async function createSeries(input: CreateSeriesInput): Promise<{ id: stri
             startAt,
             endAt: input.endAt,
             nextRunAt,
+            tags: (input.tags || []).map(t => t.trim()).filter(Boolean),
         },
     });
 

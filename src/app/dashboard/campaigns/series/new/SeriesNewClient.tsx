@@ -3,7 +3,7 @@
 import {
     Container, Title, Text, Stack, Group, TextInput, Textarea, Select,
     MultiSelect, NumberInput, Button, Paper, Card, Box, Badge, SimpleGrid,
-    Divider, Anchor, ThemeIcon, Modal, Loader, ActionIcon
+    Divider, Anchor, ThemeIcon, Modal, Loader, ActionIcon, TagsInput
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { DateTimePicker } from '@mantine/dates';
@@ -123,6 +123,8 @@ export default function SeriesNewClient() {
             briefIndustry: '',
             briefCta: '',
             briefBrandName: '',
+            // Phase 28 — 태그
+            tags: [] as string[],
         },
     });
 
@@ -225,6 +227,7 @@ export default function SeriesNewClient() {
                 startAt: v.startAt,
                 endAt: v.endAt,
                 startNow: v.startNow,
+                tags: v.tags,
             });
             notifications.show({
                 color: 'teal',
@@ -263,6 +266,11 @@ export default function SeriesNewClient() {
                             placeholder="예: 봄 시즌 30일 자동 운영"
                             required
                             {...form.getInputProps('name')}
+                        />
+                        <TagsInput
+                            label="🏷️ 태그 (선택, 검색·필터용)"
+                            placeholder="Enter 로 추가 — 예: 봄시즌, 신메뉴"
+                            {...form.getInputProps('tags')}
                         />
                         <MultiSelect
                             label="어떤 채널에 올릴까요? (여러 개 선택 가능)"

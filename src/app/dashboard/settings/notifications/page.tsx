@@ -28,6 +28,7 @@ export default async function NotificationsPage() {
         webhookUrl: c.webhookUrl,
         label: c.label,
         enabled: c.enabled,
+        kindFilter: (c.kindFilter as string[] | null) ?? null,
         lastUsedAt: c.lastUsedAt?.toISOString() || null,
         createdAt: c.createdAt.toISOString(),
       }))}

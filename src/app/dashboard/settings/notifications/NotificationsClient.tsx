@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import {
-    Container, Title, Text, Switch, Stack, Paper, Button, Group, TextInput, Select, Modal, Badge, ActionIcon, Tooltip, Box,
+    Container, Title, Text, Switch, Stack, Paper, Button, Group, TextInput, Select, MultiSelect, Modal, Badge, ActionIcon, Tooltip, Box,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
@@ -14,6 +14,7 @@ import {
     toggleNotificationChannel,
     deleteNotificationChannel,
     testNotificationChannel,
+    updateChannelKindFilter,
 } from '@/app/actions/notificationChannelActions';
 
 interface ExternalChannel {
@@ -22,9 +23,19 @@ interface ExternalChannel {
     webhookUrl: string;
     label: string | null;
     enabled: boolean;
+    kindFilter: string[] | null; // null = 전체 종류 발송
     lastUsedAt: string | null;
     createdAt: string;
 }
+
+const ALL_NOTIFICATION_KINDS = [
+    { value: 'REFERRAL_NEW', label: '🎉 신규 추천 가입' },
+    { value: 'COMMISSION_NEW', label: '💰 Commission 누적' },
+    { value: 'TIER_UPGRADE', label: '🏆 등급 승급' },
+    { value: 'WORKSPACE_INVITE', label: '🤝 워크스페이스 초대' },
+    { value: 'SERIES_COMPLETE', label: '✅ 시리즈 완료' },
+    { value: 'SYSTEM', label: '📣 공지·기타' },
+];
 
 interface NotificationsClientProps {
     initialPrefs: { failures: boolean; weekly: boolean; welcome: boolean };
@@ -104,6 +115,13 @@ export default function NotificationsClient({ initialPrefs, initialChannels }: N
         }
     };
 
+    const handleKindFilter = async (id: string, kinds: string[] | null) => {
+        // null = 전체 받음 / 빈 배열 = 아무것도 안 받음 (skip)
+        const next = kinds && kinds.length === ALL_NOTIFICATION_KINDS.length ? null : kinds;
+        await updateChannelKindFilter({ id, kinds: next });
+        setChannels(prev => prev.map(c => c.id === id ? { ...c, kindFilter: next } : c));
+    };
+
     return (
         <Container size="sm" py="xl">
             <Title order={2} mb="md">알림 설정</Title>
@@ -155,6 +173,17 @@ export default function NotificationsClient({ initialPrefs, initialChannels }: N
                                         </ActionIcon>
                                     </Group>
                                 </Group>
+                                <MultiSelect
+                                    mt="xs"
+                                    size="xs"
+                                    label="이 채널로 받을 알림 종류 (선택 안 하면 전체 받음)"
+                                    placeholder="전체 (모든 종류)"
+                                    data={ALL_NOTIFICATION_KINDS}
+                                    value={c.kindFilter || []}
+                                    onChange={(v: string[]) => handleKindFilter(c.id, v.length === 0 ? null : v)}
+                                    clearable
+                                    searchable
+                                />
                             </Box>
                         ))}
                     </Stack>

@@ -49,7 +49,9 @@ export default function SetupChecklist() {
     };
 
     return (
-        <Paper withBorder p="md" radius="md" mb="md" style={{ background: 'linear-gradient(135deg, #faf5ff 0%, #eff6ff 100%)' }}>
+        <Paper withBorder p="md" radius="md" mb="md" style={{
+            background: 'light-dark(linear-gradient(135deg, #faf5ff 0%, #eff6ff 100%), linear-gradient(135deg, var(--mantine-color-violet-9) 0%, var(--mantine-color-blue-9) 100%))',
+        }}>
             <Group justify="space-between" mb="xs">
                 <Group gap="sm">
                     <Text size="lg">🚀</Text>
@@ -84,7 +86,7 @@ export default function SetupChecklist() {
                             <Box style={{
                                 padding: 8,
                                 borderRadius: 6,
-                                background: item.done ? 'var(--mantine-color-teal-0)' : 'white',
+                                background: item.done ? 'var(--mantine-color-teal-0)' : 'var(--mantine-color-body)',
                                 border: `1px solid ${item.done ? 'var(--mantine-color-teal-3)' : 'var(--mantine-color-default-border)'}`,
                                 cursor: 'pointer',
                                 opacity: item.done ? 0.7 : 1,
