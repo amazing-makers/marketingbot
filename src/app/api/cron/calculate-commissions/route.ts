@@ -180,6 +180,64 @@ export async function GET(req: Request) {
         console.warn('[partner notification] commission batch failed', err);
     }
 
+    // ─── Phase 18-5 — 티어 승급 감지 + 알림 ───
+    // 사이클 후 reseller 별 누적을 다시 계산해서 이전 사이클 대비 등급이 올라갔는지 확인.
+    // 이전 lifetime = 사이클 전 누적 = lifetimeMap (위에서 미리 집계)
+    // 새 lifetime = 사이클 후 누적 = lifetimeMap + 이번에 추가된 amount
+    try {
+        const { sendEmail } = await import('@/lib/email/send');
+        const { TierUpgradeEmail } = await import('@/lib/email/templates/PartnerNotifications');
+        const baseUrl = process.env.NEXTAUTH_URL || 'https://marketingbot.amakers.co.kr';
+
+        // 이번 사이클에 추가된 reseller 별 amount
+        const addedByReseller = new Map<string, number>();
+        for (const u of referredUsers) {
+            const reseller = u.referredByCode?.reseller;
+            if (!reseller || reseller.status !== 'ACTIVE') continue;
+            const plan = u.subscription?.plan ?? 'FREE';
+            const baseRevenue = PLAN_PRICE_KRW[plan] ?? 0;
+            if (baseRevenue <= 0) continue;
+            const lifetime = lifetimeMap.get(reseller.id) ?? 0;
+            const tierInfo = calcPartnerTier(lifetime);
+            const effectiveRate = Math.max(reseller.commissionRate, tierInfo.current.commissionRate);
+            const amount = Math.round(baseRevenue * effectiveRate);
+            addedByReseller.set(reseller.id, (addedByReseller.get(reseller.id) ?? 0) + amount);
+        }
+
+        for (const [resellerId, addedAmount] of addedByReseller) {
+            const before = lifetimeMap.get(resellerId) ?? 0;
+            const after = before + addedAmount;
+            const tierBefore = calcPartnerTier(before);
+            const tierAfter = calcPartnerTier(after);
+            if (tierBefore.current.tier === tierAfter.current.tier) continue; // 등급 변동 없음
+
+            // 승급 — 메일 발송
+            const reseller = await prisma.reseller.findUnique({
+                where: { id: resellerId },
+                select: { name: true, contactEmail: true, user: { select: { email: true } } },
+            });
+            if (!reseller) continue;
+            const email = reseller.contactEmail || reseller.user.email;
+            if (!email) continue;
+
+            sendEmail({
+                to: email,
+                subject: `🏆 등급 승급! ${tierBefore.current.label} → ${tierAfter.current.label}`,
+                react: TierUpgradeEmail({
+                    partnerName: reseller.name,
+                    fromTier: `${tierBefore.current.emoji} ${tierBefore.current.label}`,
+                    toTier: `${tierAfter.current.emoji} ${tierAfter.current.label}`,
+                    fromRate: tierBefore.current.commissionRate,
+                    toRate: tierAfter.current.commissionRate,
+                    perks: tierAfter.current.perks,
+                    dashboardUrl: `${baseUrl}/dashboard/partner`,
+                }),
+            }).catch(err => console.warn('[partner notification] tier upgrade email failed', err));
+        }
+    } catch (err) {
+        console.warn('[partner notification] tier check failed', err);
+    }
+
     return NextResponse.json({
         ok: true,
         period: periodYearMonth,

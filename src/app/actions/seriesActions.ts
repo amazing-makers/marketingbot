@@ -8,6 +8,7 @@ import { generateCaption, type ContentBrief } from '@/lib/ai/caption';
 import { generateImage } from '@/lib/ai/image-gen';
 import { isR2Configured, uploadToR2 } from '@/lib/storage/r2';
 import { translateText } from '@/lib/ai/translator';
+import { getActiveWorkspaceFilter } from '@/lib/workspace/scope';
 
 async function getSessionUser() {
     const session = await auth();
@@ -50,6 +51,7 @@ export interface CreateSeriesInput {
 
 export async function createSeries(input: CreateSeriesInput): Promise<{ id: string }> {
     const user = await getSessionUser();
+    const filter = await getActiveWorkspaceFilter(user.id!);
     if (!input.name?.trim()) throw new Error('시리즈 이름을 입력하세요');
     if (!input.channelIds?.length) throw new Error('채널을 1개 이상 선택하세요');
     if (input.totalPosts < 1 || input.totalPosts > 1000) {
@@ -73,6 +75,7 @@ export async function createSeries(input: CreateSeriesInput): Promise<{ id: stri
     const series = await prisma.campaignSeries.create({
         data: {
             userId: user.id!,
+            workspaceId: filter.workspaceId,
             name: input.name.trim(),
             channelIds: input.channelIds as any,
             mode: input.mode,
@@ -98,8 +101,9 @@ export async function createSeries(input: CreateSeriesInput): Promise<{ id: stri
 
 export async function listSeries() {
     const user = await getSessionUser();
+    const filter = await getActiveWorkspaceFilter(user.id!);
     const list = await prisma.campaignSeries.findMany({
-        where: { userId: user.id! },
+        where: { userId: filter.userId, workspaceId: filter.workspaceId },
         orderBy: { createdAt: 'desc' },
     });
     return list.map(s => ({
@@ -164,8 +168,9 @@ export async function deleteSeries(id: string): Promise<{ ok: boolean }> {
  */
 export async function getSeriesDetail(id: string) {
     const user = await getSessionUser();
+    const filter = await getActiveWorkspaceFilter(user.id!);
     const series = await prisma.campaignSeries.findFirst({
-        where: { id, userId: user.id! },
+        where: { id, userId: filter.userId, workspaceId: filter.workspaceId },
     });
     if (!series) throw new Error('시리즈 미존재');
 

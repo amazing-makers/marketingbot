@@ -4,6 +4,7 @@ import dayjs from 'dayjs';
 import { redirect } from 'next/navigation';
 import { getDailyTrend, getChannelDistribution, getSuccessRate, getHourlyDistribution } from '@/app/actions/statsActions';
 import { DashboardStatsClient } from './DashboardStatsClient';
+import WorkspaceContextBanner from '@/components/workspace/WorkspaceContextBanner';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,15 +75,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     };
 
     return (
-        <DashboardStatsClient 
-            summary={summaryStats}
-            quickStart={quickStartData}
-            recentCampaigns={recentCampaigns}
-            daily={daily} 
-            channels={channels} 
-            success={success} 
-            hourly={hourly} 
-            initialDays={days} 
-        />
+        <>
+            <WorkspaceContextBanner />
+            <DashboardStatsClient
+                summary={summaryStats}
+                quickStart={quickStartData}
+                recentCampaigns={recentCampaigns}
+                daily={daily}
+                channels={channels}
+                success={success}
+                hourly={hourly}
+                initialDays={days}
+            />
+        </>
     );
 }

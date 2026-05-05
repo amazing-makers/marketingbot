@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { ChannelType } from "@prisma/client";
 import { encryptJSON } from "@/lib/crypto/aes";
+import { getActiveWorkspaceFilter } from "@/lib/workspace/scope";
 
 // 세션 확인 유틸리티
 async function getSessionUser() {
@@ -15,8 +16,9 @@ async function getSessionUser() {
 
 export async function listChannels() {
   const user = await getSessionUser();
+  const filter = await getActiveWorkspaceFilter(user.id!);
   const channels = await prisma.marketingChannel.findMany({
-    where: { userId: user.id },
+    where: { userId: filter.userId, workspaceId: filter.workspaceId },
     orderBy: { createdAt: "desc" },
   });
 
@@ -35,6 +37,7 @@ export async function createChannel(data: {
   credentials: any;
 }) {
   const user = await getSessionUser();
+  const filter = await getActiveWorkspaceFilter(user.id!);
 
   // AES-256-GCM 암호화 적용
   const encryptedCredentials = encryptJSON(data.credentials);
@@ -42,6 +45,7 @@ export async function createChannel(data: {
   const channel = await prisma.marketingChannel.create({
     data: {
       userId: user.id!,
+      workspaceId: filter.workspaceId,
       type: data.type,
       accountName: data.accountName,
       region: data.region || 'korea',

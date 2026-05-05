@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { TaskStatus } from "@prisma/client";
 import { translateText } from "@/lib/ai/translator";
 import { suggestPrimeTime, suggestPrimeTimes, getPrimeHourLabels, type Region } from "@/lib/scheduling/prime-time";
+import { getActiveWorkspaceFilter } from "@/lib/workspace/scope";
 
 async function getSessionUser() {
   const session = await auth();
@@ -80,9 +81,10 @@ export async function previewTranslation(input: {
  */
 export async function listCalendarEntries(input: { from: Date; to: Date }) {
   const user = await getSessionUser();
+  const filter = await getActiveWorkspaceFilter(user.id!);
   const tasks = await prisma.scheduledTask.findMany({
     where: {
-      campaign: { userId: user.id! },
+      campaign: { userId: filter.userId, workspaceId: filter.workspaceId },
       scheduledAt: { gte: input.from, lte: input.to },
     },
     include: {
@@ -137,8 +139,9 @@ export async function listCalendarEntries(input: { from: Date; to: Date }) {
 
 export async function listCampaigns() {
   const user = await getSessionUser();
+  const filter = await getActiveWorkspaceFilter(user.id!);
   return await prisma.campaign.findMany({
-    where: { userId: user.id },
+    where: { userId: filter.userId, workspaceId: filter.workspaceId },
     include: {
       _count: {
         select: { tasks: true }
@@ -150,8 +153,9 @@ export async function listCampaigns() {
 
 export async function getCampaign(id: string) {
   const user = await getSessionUser();
-  return await prisma.campaign.findUnique({
-    where: { id, userId: user.id },
+  const filter = await getActiveWorkspaceFilter(user.id!);
+  return await prisma.campaign.findFirst({
+    where: { id, userId: filter.userId, workspaceId: filter.workspaceId },
     include: {
       tasks: {
         include: { channel: true }
@@ -173,13 +177,14 @@ export async function createCampaign(data: {
   autoTranslate?: boolean;
 }) {
   const user = await getSessionUser();
+  const filter = await getActiveWorkspaceFilter(user.id!);
 
   const sourceLanguage = data.sourceLanguage || 'ko';
   const autoTranslate = data.autoTranslate !== false;
 
-  // 채널 정보 (region/language) 미리 로드 — 자동 번역에 사용
+  // 채널 정보 (region/language) 미리 로드 — 같은 워크스페이스 컨텍스트 안에서만
   const channels = await prisma.marketingChannel.findMany({
-    where: { id: { in: data.channelIds }, userId: user.id },
+    where: { id: { in: data.channelIds }, userId: filter.userId, workspaceId: filter.workspaceId },
   });
   if (channels.length !== data.channelIds.length) {
     throw new Error('일부 채널을 찾을 수 없습니다.');
@@ -212,6 +217,7 @@ export async function createCampaign(data: {
     const newCampaign = await tx.campaign.create({
       data: {
         userId: user.id!,
+        workspaceId: filter.workspaceId,
         name: data.name,
         description: data.description,
         status: "SCHEDULED",
@@ -463,6 +469,7 @@ export async function createSplitCampaign(data: {
   autoTranslate?: boolean;
 }) {
   const user = await getSessionUser();
+  const filter = await getActiveWorkspaceFilter(user.id!);
 
   if (data.channelIds.length === 0) throw new Error('채널을 1개 이상 선택하세요');
   const splitCount = Math.max(2, Math.min(data.splitCount, 12));
@@ -470,9 +477,9 @@ export async function createSplitCampaign(data: {
   const sourceLanguage = data.sourceLanguage || 'ko';
   const autoTranslate = data.autoTranslate !== false;
 
-  // 채널 정보
+  // 채널 정보 (워크스페이스 컨텍스트 안에서만)
   const channels = await prisma.marketingChannel.findMany({
-    where: { id: { in: data.channelIds }, userId: user.id! },
+    where: { id: { in: data.channelIds }, userId: filter.userId, workspaceId: filter.workspaceId },
   });
   if (channels.length !== data.channelIds.length) {
     throw new Error('일부 채널을 찾을 수 없습니다.');
@@ -507,6 +514,7 @@ export async function createSplitCampaign(data: {
     const newCampaign = await tx.campaign.create({
       data: {
         userId: user.id!,
+        workspaceId: filter.workspaceId,
         name: data.name,
         description: (data.description ? data.description + ' · ' : '') + `분할 발행 ${splitCount}회 (${baseRegion} 황금시간대)`,
         status: 'SCHEDULED',

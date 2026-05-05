@@ -220,6 +220,8 @@ model MarketingChannel {
   id                   String        @id @default(cuid())
   userId               String
   user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Phase 18 — 워크스페이스별 격리. null = 사용자 개인 작업 (호환성 유지).
+  workspaceId          String?
   type                 ChannelType
   accountName          String
   encryptedCredentials String        @db.Text
@@ -237,6 +239,7 @@ model MarketingChannel {
   scheduledTasks ScheduledTask[]
 
   @@index([userId])
+  @@index([userId, workspaceId])
   @@index([type])
   @@index([region])
 }
@@ -245,6 +248,8 @@ model Campaign {
   id          String    @id @default(cuid())
   userId      String
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Phase 18 — 워크스페이스별 격리. null = 사용자 개인.
+  workspaceId String?
   name        String
   description String?
   status      String    @default("DRAFT")
@@ -260,6 +265,7 @@ model Campaign {
   tasks ScheduledTask[]
 
   @@index([userId])
+  @@index([userId, workspaceId])
   @@index([seriesId])
 }
 
@@ -306,6 +312,8 @@ model CampaignSeries {
   id                  String    @id @default(cuid())
   userId              String
   user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Phase 18 — 워크스페이스별 격리. null = 사용자 개인.
+  workspaceId         String?
   name                String
   channelIds          Json // string[] — 발행 대상 채널들
   // Phase 11 — 새 mode: POOL / AI_IMAGE / AI_VIDEO
@@ -341,21 +349,25 @@ model CampaignSeries {
   campaigns Campaign[]
 
   @@index([userId])
+  @@index([userId, workspaceId])
   @@index([status, nextRunAt])
 }
 
 model AgentInstance {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  machineId  String   @unique
-  name       String?
-  version    String
-  os         String?
-  lastSeenAt DateTime @default(now())
-  createdAt  DateTime @default(now())
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Phase 18 — 워크스페이스별 격리. null = 사용자 개인.
+  workspaceId String?
+  machineId   String   @unique
+  name        String?
+  version     String
+  os          String?
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
 
   @@index([userId])
+  @@index([userId, workspaceId])
 }
 
 // ════════════════════════════════════════════════════════════
