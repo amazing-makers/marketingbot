@@ -1,7 +1,7 @@
 'use client';
 
-import { Container, Title, Text, Stack, Paper, Group, ThemeIcon, Anchor } from '@mantine/core';
-import { IconBolt, IconBell, IconChevronRight, IconWebhook } from '@tabler/icons-react';
+import { Container, Title, Text, Stack, Paper, Group, ThemeIcon, Anchor, Button, SimpleGrid } from '@mantine/core';
+import { IconBolt, IconBell, IconChevronRight, IconWebhook, IconDownload, IconFileSpreadsheet } from '@tabler/icons-react';
 import Link from 'next/link';
 
 const SECTIONS = [
@@ -59,6 +59,31 @@ export default function SettingsHomePage() {
                         </Anchor>
                     ))}
                 </Stack>
+
+                {/* Phase 23 — 데이터 내보내기 */}
+                <Paper withBorder p="md" radius="md">
+                    <Group gap={6} mb="sm">
+                        <IconFileSpreadsheet size={20} color="var(--mantine-color-teal-6)" />
+                        <Title order={5}>📊 데이터 내보내기 (CSV)</Title>
+                    </Group>
+                    <Text size="xs" c="dimmed" mb="md">
+                        활성 워크스페이스 기준 — Excel·Google Sheets 호환 (UTF-8 BOM 포함)
+                    </Text>
+                    <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
+                        <Button component="a" href="/api/export/campaigns" variant="light" leftSection={<IconDownload size={14} />} size="compact-sm">
+                            캠페인
+                        </Button>
+                        <Button component="a" href="/api/export/channels" variant="light" leftSection={<IconDownload size={14} />} size="compact-sm">
+                            채널
+                        </Button>
+                        <Button component="a" href="/api/export/tasks" variant="light" leftSection={<IconDownload size={14} />} size="compact-sm">
+                            발행 이력
+                        </Button>
+                        <Button component="a" href="/api/export/invoices" variant="light" leftSection={<IconDownload size={14} />} size="compact-sm">
+                            인보이스
+                        </Button>
+                    </SimpleGrid>
+                </Paper>
             </Stack>
         </Container>
     );

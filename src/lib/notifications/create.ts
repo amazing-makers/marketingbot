@@ -39,6 +39,20 @@ export async function createNotification(input: CreateNotificationInput): Promis
     } catch (e) {
         console.warn('[notification] create failed', { userId: input.userId, kind: input.kind }, e);
     }
+
+    // Phase 23 — Web Push 동시 발송 (VAPID 키 없으면 자동 skip)
+    try {
+        const { sendPushToUser } = await import('./push');
+        await sendPushToUser(input.userId, {
+            title: input.title,
+            body: input.body,
+            link: input.link,
+            kind: input.kind,
+        });
+    } catch (e) {
+        // push 실패는 차단 안 함
+        console.warn('[notification] push send failed', e);
+    }
 }
 
 /**

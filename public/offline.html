@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>오프라인 — 마케팅봇</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #faf5ff 0%, #eff6ff 100%);
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #1a1a1a;
+        }
+        .box {
+            text-align: center;
+            padding: 32px;
+            max-width: 400px;
+        }
+        .emoji { font-size: 64px; margin-bottom: 16px; }
+        h1 { margin: 0 0 8px; font-size: 24px; color: #7c3aed; }
+        p { color: #666; line-height: 1.6; margin: 8px 0; }
+        button {
+            margin-top: 16px;
+            padding: 12px 24px;
+            background: #7c3aed;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button:hover { background: #6d28d9; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <div class="emoji">📡</div>
+        <h1>오프라인 상태입니다</h1>
+        <p>인터넷 연결을 확인하고 다시 시도해주세요.</p>
+        <p style="font-size: 12px;">대시보드와 캠페인은 인터넷 연결이 필요합니다. 인앱 알림은 다시 연결되면 자동으로 동기화됩니다.</p>
+        <button onclick="location.reload()">다시 시도</button>
+    </div>
+</body>
+</html>
