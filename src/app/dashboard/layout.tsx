@@ -144,6 +144,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       keywords: ['ab', 'test', '실험', '비교', 'split'],
     },
     {
+      id: 'ai-compare',
+      label: '🆚 AI 모델 비교',
+      description: '같은 프롬프트로 여러 AI 엔진 결과 비교 → 가장 좋은 출력 선택',
+      onClick: () => router.push('/dashboard/ai-compare'),
+      leftSection: <IconBolt size={18} />,
+      keywords: ['ai', 'compare', 'gemini', 'claude', 'groq', '비교'],
+    },
+    {
       id: 'new-campaign',
       label: '새 캠페인 작성',
       description: 'AI 자동 + 황금시간대 + 분할 발행',

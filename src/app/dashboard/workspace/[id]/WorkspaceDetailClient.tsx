@@ -22,6 +22,10 @@ interface Member {
     joinedAt: string;
     isOwner: boolean;
     isMe: boolean;
+    weekCampaigns?: number;
+    monthCampaigns?: number;
+    weekSeries?: number;
+    monthSeries?: number;
 }
 
 interface PendingInvite {
@@ -224,18 +228,24 @@ export default function WorkspaceDetailClient({ data }: { data: Data }) {
                 {/* 멤버 목록 */}
                 <Card withBorder p="md" radius="md">
                     <Group gap={6} mb="sm"><IconUsersGroup size={18} /><Text fw={700}>멤버 ({data.members.length}명)</Text></Group>
+                    <Table.ScrollContainer minWidth={780}>
                     <Table striped highlightOnHover>
                         <Table.Thead>
                             <Table.Tr>
                                 <Table.Th>이메일</Table.Th>
                                 <Table.Th>이름</Table.Th>
                                 <Table.Th>권한</Table.Th>
+                                <Table.Th>이번 주 활동</Table.Th>
+                                <Table.Th>최근 30일</Table.Th>
                                 <Table.Th>가입일</Table.Th>
                                 <Table.Th>액션</Table.Th>
                             </Table.Tr>
                         </Table.Thead>
                         <Table.Tbody>
-                            {data.members.map(m => (
+                            {data.members.map(m => {
+                                const week = (m.weekCampaigns || 0) + (m.weekSeries || 0);
+                                const month = (m.monthCampaigns || 0) + (m.monthSeries || 0);
+                                return (
                                 <Table.Tr key={m.userId}>
                                     <Table.Td>
                                         <Group gap={6}>
@@ -253,6 +263,24 @@ export default function WorkspaceDetailClient({ data }: { data: Data }) {
                                         >
                                             {ROLE_LABELS[m.role]?.label || m.role}
                                         </Badge>
+                                    </Table.Td>
+                                    {/* Phase 38 — 활동 통계 */}
+                                    <Table.Td>
+                                        {week > 0 ? (
+                                            <Group gap={4}>
+                                                <Badge size="xs" variant="light" color="blue">📋 {m.weekCampaigns || 0}</Badge>
+                                                {(m.weekSeries || 0) > 0 && <Badge size="xs" variant="light" color="violet">🤖 {m.weekSeries}</Badge>}
+                                            </Group>
+                                        ) : (
+                                            <Text size="11px" c="dimmed">활동 없음</Text>
+                                        )}
+                                    </Table.Td>
+                                    <Table.Td>
+                                        {month > 0 ? (
+                                            <Text size="sm" fw={600}>{month}건</Text>
+                                        ) : (
+                                            <Text size="11px" c="dimmed">-</Text>
+                                        )}
                                     </Table.Td>
                                     <Table.Td><Text size="xs" c="dimmed">{dayjs(m.joinedAt).format('YYYY-MM-DD')}</Text></Table.Td>
                                     <Table.Td>
@@ -272,9 +300,11 @@ export default function WorkspaceDetailClient({ data }: { data: Data }) {
                                         )}
                                     </Table.Td>
                                 </Table.Tr>
-                            ))}
+                                );
+                            })}
                         </Table.Tbody>
                     </Table>
+                    </Table.ScrollContainer>
                 </Card>
 
                 {/* === 대기 중인 초대 === */}

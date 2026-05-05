@@ -201,6 +201,41 @@ export async function listWorkspaceMembers(workspaceId: string) {
         orderBy: { joinedAt: 'asc' },
     });
 
+    // Phase 38 — 멤버별 활동 통계 (이번 주 / 이번 달 캠페인·시리즈 수)
+    const memberIds = members.map(m => m.userId);
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - 7);
+    const monthStart = new Date();
+    monthStart.setDate(monthStart.getDate() - 30);
+
+    const [weekCampaigns, monthCampaigns, weekSeries, monthSeries] = memberIds.length === 0 ? [[], [], [], []] : await Promise.all([
+        prisma.campaign.groupBy({
+            by: ['userId'],
+            where: { workspaceId, userId: { in: memberIds }, createdAt: { gte: weekStart } },
+            _count: { _all: true },
+        }),
+        prisma.campaign.groupBy({
+            by: ['userId'],
+            where: { workspaceId, userId: { in: memberIds }, createdAt: { gte: monthStart } },
+            _count: { _all: true },
+        }),
+        prisma.campaignSeries.groupBy({
+            by: ['userId'],
+            where: { workspaceId, userId: { in: memberIds }, createdAt: { gte: weekStart } },
+            _count: { _all: true },
+        }),
+        prisma.campaignSeries.groupBy({
+            by: ['userId'],
+            where: { workspaceId, userId: { in: memberIds }, createdAt: { gte: monthStart } },
+            _count: { _all: true },
+        }),
+    ]);
+
+    const wc = Object.fromEntries(weekCampaigns.map(g => [g.userId, g._count._all]));
+    const mc = Object.fromEntries(monthCampaigns.map(g => [g.userId, g._count._all]));
+    const ws7 = Object.fromEntries(weekSeries.map(g => [g.userId, g._count._all]));
+    const ws30 = Object.fromEntries(monthSeries.map(g => [g.userId, g._count._all]));
+
     return {
         workspace: { ...ws, isOwner: ws.ownerId === userId },
         myRole: me.role,
@@ -212,6 +247,10 @@ export async function listWorkspaceMembers(workspaceId: string) {
             joinedAt: m.joinedAt,
             isOwner: m.userId === ws.ownerId,
             isMe: m.userId === userId,
+            weekCampaigns: wc[m.userId] || 0,
+            monthCampaigns: mc[m.userId] || 0,
+            weekSeries: ws7[m.userId] || 0,
+            monthSeries: ws30[m.userId] || 0,
         })),
     };
 }
