@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import dayjs from "dayjs";
 import { z } from "zod";
+import { headers } from "next/headers";
+import crypto from "crypto";
 
 const registerSchema = z.object({
   email: z.string().email("유효한 이메일을 입력하세요."),
@@ -191,4 +193,127 @@ export async function registerUser(formData: FormData) {
     console.error("Registration error:", error);
     return { error: { message: "회원가입 처리 중 오류가 발생했습니다." } };
   }
+}
+
+// ════════════════════════════════════════════════════════════
+//  Phase 34 — 새 디바이스 로그인 알림
+// ════════════════════════════════════════════════════════════
+
+/**
+ * 로그인 직후 호출 — UA + IP fingerprint 가 처음 보는 조합이면 사용자에게 알림.
+ *
+ * 90일 내에 같은 fingerprint 의 LOGIN_NEW_DEVICE 알림이 있었으면 skip.
+ * Notification 테이블 자체를 fingerprint history 로 활용 — 별도 모델 불필요.
+ *
+ * fingerprint = SHA256(UA + IP-처음3옥텟). 첫 3옥텟만 사용 → 같은 ISP/네트워크면 동일.
+ *
+ * 호출 위치: login/page.tsx 의 signIn 성공 직후 (fire-and-forget).
+ */
+export async function recordLoginEvent(userId: string): Promise<{ ok: boolean; alerted?: boolean }> {
+  try {
+    const h = await headers();
+    const userAgent = (h.get("user-agent") || "unknown").slice(0, 300);
+    const ipRaw = h.get("x-forwarded-for")?.split(",")[0]?.trim()
+      || h.get("x-real-ip")
+      || "0.0.0.0";
+    // IPv4 의 첫 3옥텟만 사용 (개인정보 보호 + ISP 단위 식별)
+    const ipPrefix = ipRaw.includes(".") ? ipRaw.split(".").slice(0, 3).join(".") + ".0" : ipRaw;
+
+    const fingerprint = crypto
+      .createHash("sha256")
+      .update(`${userAgent}|${ipPrefix}`)
+      .digest("hex")
+      .slice(0, 16);
+
+    // 90일 내 같은 fingerprint 본 적 있는지
+    const ninetyDaysAgo = dayjs().subtract(90, "day").toDate();
+    const seen = await prisma.notification.findFirst({
+      where: {
+        userId,
+        kind: "LOGIN_NEW_DEVICE",
+        createdAt: { gte: ninetyDaysAgo },
+      },
+      select: { metadata: true },
+    });
+
+    // 같은 fingerprint 가 metadata 에 있으면 skip
+    if (seen) {
+      const meta = (seen.metadata as any) || {};
+      if (meta.fingerprint === fingerprint) {
+        return { ok: true, alerted: false };
+      }
+    }
+
+    // 첫 로그인이면 (createdAt < 5분) skip — 가입 직후라 노이즈
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, name: true, createdAt: true, emailPreferences: true },
+    });
+    if (!user) return { ok: false };
+    if (dayjs().diff(user.createdAt, "minute") < 5) {
+      return { ok: true, alerted: false };
+    }
+
+    // UA 간단 파싱 (Chrome on Windows / Safari on iPhone 등)
+    const summary = summarizeUserAgent(userAgent);
+
+    // 인앱 알림
+    const { createNotification } = await import("@/lib/notifications/create");
+    await createNotification({
+      userId,
+      kind: "LOGIN_NEW_DEVICE",
+      title: `🔐 새 위치에서 로그인`,
+      body: `${summary} · IP ${ipRaw}`,
+      link: "/dashboard/settings/profile",
+      metadata: { fingerprint, ipAddress: ipRaw, userAgent: userAgent.slice(0, 100) },
+    });
+
+    // 이메일 발송 (조용히 실패)
+    if (user.email) {
+      const prefs = (user.emailPreferences as any) || {};
+      if (prefs.welcome !== false) {
+        try {
+          const { sendEmail } = await import("@/lib/email/send");
+          const { NewDeviceLoginEmail } = await import("@/lib/email/templates/NewDeviceLogin");
+          const appUrl = process.env.NEXTAUTH_URL || "https://marketingbot.amakers.co.kr";
+          await sendEmail({
+            to: user.email,
+            subject: "🔐 [마케팅봇] 새 위치에서 로그인",
+            react: NewDeviceLoginEmail({
+              name: user.name || user.email.split("@")[0],
+              ipAddress: ipRaw,
+              userAgentSummary: summary,
+              loginAt: dayjs().format("YYYY-MM-DD HH:mm"),
+              securityUrl: `${appUrl}/dashboard/settings/profile`,
+            }),
+          });
+        } catch (e) {
+          console.warn("[login-alert] email failed:", e);
+        }
+      }
+    }
+
+    return { ok: true, alerted: true };
+  } catch (e) {
+    console.warn("[login-alert] error:", e);
+    return { ok: false };
+  }
+}
+
+function summarizeUserAgent(ua: string): string {
+  const lc = ua.toLowerCase();
+  let browser = "Unknown";
+  if (lc.includes("edg/")) browser = "Edge";
+  else if (lc.includes("chrome/") && !lc.includes("edg/")) browser = "Chrome";
+  else if (lc.includes("firefox/")) browser = "Firefox";
+  else if (lc.includes("safari/") && !lc.includes("chrome/")) browser = "Safari";
+
+  let os = "Unknown OS";
+  if (lc.includes("windows")) os = "Windows";
+  else if (lc.includes("mac os") || lc.includes("macintosh")) os = "macOS";
+  else if (lc.includes("iphone") || lc.includes("ipad")) os = "iOS";
+  else if (lc.includes("android")) os = "Android";
+  else if (lc.includes("linux")) os = "Linux";
+
+  return `${browser} on ${os}`;
 }

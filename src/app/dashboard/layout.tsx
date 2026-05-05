@@ -24,6 +24,7 @@ import WorkspaceSwitcher from '@/components/workspace/WorkspaceSwitcher';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import InstallPrompt from '@/components/pwa/InstallPrompt';
 import FeedbackButton from '@/components/feedback/FeedbackButton';
+import ChangelogBadge from '@/components/changelog/ChangelogBadge';
 import { getMyAccountFlags } from '@/app/actions/resellerActions';
 import { globalSearch, type SearchHit } from '@/app/actions/globalSearchActions';
 
@@ -340,6 +341,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             <Group gap="xs" wrap="nowrap">
               <HeaderLicense />
+              {session?.user && <ChangelogBadge />}
               {session?.user && <NotificationBell />}
               <DarkModeToggle />
               {session?.user && (

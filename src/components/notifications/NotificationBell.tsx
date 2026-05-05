@@ -30,7 +30,20 @@ const KIND_EMOJI: Record<string, string> = {
     TIER_UPGRADE: '🏆',
     WORKSPACE_INVITE: '🤝',
     SERIES_COMPLETE: '✅',
+    TRIAL_EXPIRING: '⏰',
+    TRIAL_RECOVERY: '🎁',
     SYSTEM: '📣',
+};
+
+const KIND_LABEL: Record<string, string> = {
+    REFERRAL_NEW: '추천 가입',
+    COMMISSION_NEW: 'Commission',
+    TIER_UPGRADE: '등급 승급',
+    WORKSPACE_INVITE: '워크스페이스 초대',
+    SERIES_COMPLETE: '시리즈 완료',
+    TRIAL_EXPIRING: '체험 만료',
+    TRIAL_RECOVERY: '재가입 안내',
+    SYSTEM: '공지·기타',
 };
 
 export default function NotificationBell() {
@@ -38,6 +51,17 @@ export default function NotificationBell() {
     const [items, setItems] = useState<NotificationItem[]>([]);
     const [unread, setUnread] = useState(0);
     const [busy, setBusy] = useState(false);
+    const [kindFilter, setKindFilter] = useState<string | null>(null);
+
+    // Phase 34 — kind 별 카운트
+    const kindCounts: Record<string, { total: number; unread: number }> = {};
+    for (const it of items) {
+        const k = it.kind;
+        if (!kindCounts[k]) kindCounts[k] = { total: 0, unread: 0 };
+        kindCounts[k].total++;
+        if (!it.readAt) kindCounts[k].unread++;
+    }
+    const filteredItems = kindFilter ? items.filter(i => i.kind === kindFilter) : items;
 
     const refresh = useCallback(async () => {
         try {
@@ -109,15 +133,65 @@ export default function NotificationBell() {
                         </Button>
                     )}
                 </Group>
+
+                {/* Phase 34 — kind 별 그룹 필터 (2개 이상 종류일 때만 표시) */}
+                {Object.keys(kindCounts).length >= 2 && (
+                    <Group gap={4} px="sm" py={6} style={{ borderBottom: '1px solid var(--mantine-color-default-border)', flexWrap: 'wrap' }}>
+                        <Box
+                            onClick={() => setKindFilter(null)}
+                            style={{
+                                fontSize: 11,
+                                padding: '2px 8px',
+                                borderRadius: 12,
+                                cursor: 'pointer',
+                                background: kindFilter === null ? 'var(--mantine-color-violet-6)' : 'var(--mantine-color-default-hover)',
+                                color: kindFilter === null ? 'white' : 'var(--mantine-color-text)',
+                                fontWeight: 600,
+                            }}
+                        >
+                            전체 {items.length}
+                        </Box>
+                        {Object.entries(kindCounts).sort((a, b) => b[1].total - a[1].total).map(([kind, c]) => (
+                            <Box
+                                key={kind}
+                                onClick={() => setKindFilter(kind)}
+                                style={{
+                                    fontSize: 11,
+                                    padding: '2px 8px',
+                                    borderRadius: 12,
+                                    cursor: 'pointer',
+                                    background: kindFilter === kind ? 'var(--mantine-color-violet-6)' : 'var(--mantine-color-default-hover)',
+                                    color: kindFilter === kind ? 'white' : 'var(--mantine-color-text)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 3,
+                                }}
+                            >
+                                <span>{KIND_EMOJI[kind] || '📣'}</span>
+                                <span>{KIND_LABEL[kind] || kind} {c.total}</span>
+                                {c.unread > 0 && (
+                                    <Box style={{
+                                        background: 'var(--mantine-color-red-6)',
+                                        color: 'white',
+                                        fontSize: 9,
+                                        padding: '0 4px',
+                                        borderRadius: 8,
+                                        fontWeight: 700,
+                                    }}>{c.unread}</Box>
+                                )}
+                            </Box>
+                        ))}
+                    </Group>
+                )}
                 <ScrollArea.Autosize mah={420}>
-                    {items.length === 0 ? (
+                    {filteredItems.length === 0 ? (
                         <Box style={{ textAlign: 'center', padding: 32, color: 'var(--mantine-color-dimmed)' }}>
                             <IconBell size={32} style={{ opacity: 0.3 }} />
-                            <Text size="sm" mt="xs">알림이 없습니다</Text>
+                            <Text size="sm" mt="xs">{kindFilter ? '이 종류의 알림이 없습니다' : '알림이 없습니다'}</Text>
                         </Box>
                     ) : (
                         <Stack gap={0}>
-                            {items.map(item => {
+                            {filteredItems.map(item => {
                                 const isRead = !!item.readAt;
                                 return (
                                     <Box

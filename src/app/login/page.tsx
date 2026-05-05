@@ -3,9 +3,10 @@
 import { TextInput, PasswordInput, Button, Paper, Title, Container, Stack, Anchor, Text } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
-import { signIn } from 'next-auth/react';
+import { signIn, getSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { recordLoginEvent } from '@/app/actions/authActions';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -38,6 +39,14 @@ export default function LoginPage() {
         message: '대시보드로 이동합니다.',
         color: 'green',
       });
+      // Phase 34 — 새 디바이스 로그인 감지 (fire-and-forget)
+      try {
+        const session = await getSession();
+        const userId = (session?.user as any)?.id;
+        if (userId) {
+          recordLoginEvent(userId).catch(() => {});
+        }
+      } catch { /* ignore */ }
       router.push('/dashboard');
       router.refresh();
     }

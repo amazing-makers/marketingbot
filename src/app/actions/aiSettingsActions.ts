@@ -106,6 +106,19 @@ export async function getUsageStats(): Promise<{
         totalCalls: number;
         totalCostUsd: number;
     }>;
+    /** Phase 34 — 현재 플랜 한도 + 이번 달 누적 vs 한도 (한도는 일일 × 30 추정) */
+    planLimits?: {
+        plan: string;
+        label: string;
+        captionDaily: number;
+        imageDaily: number;
+        captionMonthEstimate: number;  // daily × 30
+        imageMonthEstimate: number;
+        thisMonthCaption: number;
+        thisMonthImage: number;
+        captionPctUsed: number;        // vs month estimate
+        imagePctUsed: number;
+    };
     error?: string;
 }> {
     const session = await auth();
@@ -140,7 +153,30 @@ export async function getUsageStats(): Promise<{
             const totalCostUsd = rows.reduce((s, r) => s + r.estimatedCostUsd, 0);
             return { monthKey: m, rows, totalCalls, totalCostUsd };
         });
-        return { success: true, months: result };
+
+        // Phase 34 — 플랜 한도 + 이번 달 사용량 비교
+        const { getUserEffectivePlan, getPlanLimits } = await import('@/lib/billing/plan-limits');
+        const plan = await getUserEffectivePlan(session.user.id);
+        const limits = getPlanLimits(plan);
+        const thisMonth = result[0];
+        const thisMonthCaption = (thisMonth?.rows || []).filter(r => r.kind === 'caption').reduce((s, r) => s + r.count, 0);
+        const thisMonthImage = (thisMonth?.rows || []).filter(r => r.kind === 'image_gen').reduce((s, r) => s + r.count, 0);
+        const captionMonthEstimate = limits.aiCaptionDaily * 30;
+        const imageMonthEstimate = limits.aiImageDaily * 30;
+        const planLimits = {
+            plan,
+            label: limits.label,
+            captionDaily: limits.aiCaptionDaily,
+            imageDaily: limits.aiImageDaily,
+            captionMonthEstimate,
+            imageMonthEstimate,
+            thisMonthCaption,
+            thisMonthImage,
+            captionPctUsed: captionMonthEstimate > 0 ? Math.min(100, Math.round((thisMonthCaption / captionMonthEstimate) * 100)) : 0,
+            imagePctUsed: imageMonthEstimate > 0 ? Math.min(100, Math.round((thisMonthImage / imageMonthEstimate) * 100)) : 0,
+        };
+
+        return { success: true, months: result, planLimits };
     } catch (e: any) {
         console.error('[getUsageStats]', e);
         return { success: false, error: e?.message || '사용량 로드 실패' };

@@ -157,12 +157,14 @@ export default function AiSettingsClient({ initialConfig, loadError }: AiSetting
     const [budget, setBudget] = useState<number>(cfg.monthlyBudgetUsd || 0);
     const [testResults, setTestResults] = useState<Record<string, { ok: boolean; latencyMs?: number; error?: string }>>({});
     const [usage, setUsage] = useState<any[] | null>(null);
+    const [planLimits, setPlanLimits] = useState<any>(null);
     const [usageBusy, setUsageBusy] = useState(false);
 
     async function loadUsage() {
         setUsageBusy(true);
         const r = await getUsageStats();
         setUsage(r.success ? r.months || [] : []);
+        setPlanLimits(r.success ? r.planLimits : null);
         setUsageBusy(false);
     }
 
@@ -517,6 +519,73 @@ export default function AiSettingsClient({ initialConfig, loadError }: AiSetting
                                     새로고침
                                 </Button>
                             </Group>
+
+                            {/* Phase 34 — 플랜 한도 vs 이번 달 사용량 */}
+                            {planLimits && (
+                                <Paper withBorder p="md" radius="md" style={{ background: 'var(--mantine-color-violet-0)' }}>
+                                    <Group justify="space-between" mb="md">
+                                        <Group gap={6}>
+                                            <Text fw={700} size="sm">📊 이번 달 한도 사용률</Text>
+                                            <Badge color="violet" variant="light" size="sm">{planLimits.label}</Badge>
+                                        </Group>
+                                        <Anchor href="/dashboard/settings/billing" size="xs" c="violet" fw={600}>
+                                            플랜 업그레이드 →
+                                        </Anchor>
+                                    </Group>
+                                    <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                                        <div>
+                                            <Group justify="space-between" mb={4}>
+                                                <Text size="xs" fw={600}>📝 캡션 생성</Text>
+                                                <Text size="xs" c={planLimits.captionPctUsed >= 90 ? 'red' : 'dimmed'}>
+                                                    {planLimits.thisMonthCaption} / {planLimits.captionMonthEstimate} (월간 추정)
+                                                </Text>
+                                            </Group>
+                                            <Group gap={4} mb={2}>
+                                                <Text size="11px" c="dimmed">일일 한도: {planLimits.captionDaily}건</Text>
+                                            </Group>
+                                            <div style={{
+                                                height: 6,
+                                                background: 'var(--mantine-color-default-border)',
+                                                borderRadius: 3,
+                                                overflow: 'hidden',
+                                            }}>
+                                                <div style={{
+                                                    width: `${planLimits.captionPctUsed}%`,
+                                                    height: '100%',
+                                                    background: planLimits.captionPctUsed >= 90 ? 'var(--mantine-color-red-6)'
+                                                        : planLimits.captionPctUsed >= 70 ? 'var(--mantine-color-orange-6)'
+                                                            : 'var(--mantine-color-teal-6)',
+                                                }} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <Group justify="space-between" mb={4}>
+                                                <Text size="xs" fw={600}>🎨 이미지 생성</Text>
+                                                <Text size="xs" c={planLimits.imagePctUsed >= 90 ? 'red' : 'dimmed'}>
+                                                    {planLimits.thisMonthImage} / {planLimits.imageMonthEstimate} (월간 추정)
+                                                </Text>
+                                            </Group>
+                                            <Group gap={4} mb={2}>
+                                                <Text size="11px" c="dimmed">일일 한도: {planLimits.imageDaily}건</Text>
+                                            </Group>
+                                            <div style={{
+                                                height: 6,
+                                                background: 'var(--mantine-color-default-border)',
+                                                borderRadius: 3,
+                                                overflow: 'hidden',
+                                            }}>
+                                                <div style={{
+                                                    width: `${planLimits.imagePctUsed}%`,
+                                                    height: '100%',
+                                                    background: planLimits.imagePctUsed >= 90 ? 'var(--mantine-color-red-6)'
+                                                        : planLimits.imagePctUsed >= 70 ? 'var(--mantine-color-orange-6)'
+                                                            : 'var(--mantine-color-teal-6)',
+                                                }} />
+                                            </div>
+                                        </div>
+                                    </SimpleGrid>
+                                </Paper>
+                            )}
 
                             {!usage && <Loader />}
                             {usage && usage.every((m) => m.totalCalls === 0) && (
