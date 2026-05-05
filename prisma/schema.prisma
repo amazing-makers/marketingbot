@@ -142,6 +142,9 @@ model User {
   // Phase 20 — 인앱 알림
   notifications Notification[]
 
+  // Phase 22 — Web Push 구독
+  pushSubscriptions PushSubscription[]
+
   emailPreferences Json @default("{\"failures\": true, \"weekly\": true, \"welcome\": true}")
 }
 
@@ -657,4 +660,26 @@ model ClientInvoice {
   @@unique([partnerClientId, invoiceNumber])
   @@index([partnerClientId, status])
   @@index([periodYearMonth])
+}
+
+// ════════════════════════════════════════════════════════════
+//  Phase 22 — Web Push Subscription (브라우저 푸시 알림)
+//
+// 사용자 디바이스/브라우저별 push subscription 저장.
+// VAPID 키 (env: VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY) 필수.
+// 알림 발생 시 인앱 + 이메일 + Web Push 동시 처리 (각각 독립).
+// ════════════════════════════════════════════════════════════
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique // 브라우저별 unique URL
+  p256dh    String // 클라이언트 공개키
+  authKey   String // 인증 secret
+  userAgent String? // 식별용
+  createdAt DateTime @default(now())
+  lastUsed  DateTime @default(now())
+
+  @@index([userId])
 }

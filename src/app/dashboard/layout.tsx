@@ -12,7 +12,7 @@ import {
   IconLogout, IconWorld, IconCalendarEvent,
   IconSun, IconMoon, IconSearch, IconCalendarMonth, IconRobot,
   IconChartBar, IconKey, IconWebhook, IconBolt, IconUsers, IconCreditCard,
-  IconUsersGroup, IconShield, IconBriefcase
+  IconUsersGroup, IconShield, IconBriefcase, IconActivity
 } from '@tabler/icons-react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
@@ -338,6 +338,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               label="홈"
               leftSection={<IconDashboard size={18} stroke={1.5} />}
               active={pathname === '/dashboard'}
+            />
+            <NavLink
+              component={Link}
+              href="/dashboard/analytics"
+              label="📊 심층 분석"
+              leftSection={<IconActivity size={18} stroke={1.5} />}
+              active={!!pathname && pathname.startsWith('/dashboard/analytics')}
             />
             <NavLink
               component={Link}

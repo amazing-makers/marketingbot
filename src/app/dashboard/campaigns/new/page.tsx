@@ -17,6 +17,7 @@ import {
   IconWorld, IconPencil, IconCalendar, IconCloudUpload, IconWand
 } from '@tabler/icons-react';
 import { listChannels } from '@/app/actions/channelActions';
+import VoiceInputButton from '@/components/voice/VoiceInputButton';
 import { createCampaign, createSplitCampaign, loadCampaignDraft, saveCampaignDraft, clearCampaignDraft, suggestPrimeTimeForChannels, previewTranslation } from '@/app/actions/campaignActions';
 import { generateCampaignCaption, generateCampaignImage } from '@/app/actions/aiContentActions';
 import { MarketingChannel } from '@prisma/client';
@@ -765,6 +766,12 @@ function NewCampaignPageInner() {
 
               <Group justify="flex-end" mb={6}>
                 <Group gap="xs">
+                  <VoiceInputButton
+                    onTranscript={(text) => {
+                      const current = form.values.content || '';
+                      form.setFieldValue('content', current + (current ? ' ' : '') + text);
+                    }}
+                  />
                   <Button
                     size="compact-sm"
                     variant="light"

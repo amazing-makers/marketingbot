@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Container, Title, Text, Switch, Stack, Paper, Button, Group } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { updateEmailPreferences } from '@/app/actions/userActions';
+import PushNotificationToggle from '@/components/pwa/PushNotificationToggle';
 
 interface NotificationsClientProps {
   initialPrefs: {
@@ -40,8 +41,13 @@ export default function NotificationsClient({ initialPrefs }: NotificationsClien
   return (
     <Container size="sm" py="xl">
       <Title order={2} mb="md">알림 설정</Title>
-      <Text c="dimmed" mb="xl">받고 싶은 이메일 알림을 선택해 주세요.</Text>
+      <Text c="dimmed" mb="xl">이메일 + 브라우저 푸시 알림을 모두 관리할 수 있어요.</Text>
 
+      <Paper withBorder p="xl" radius="md" mb="md">
+        <PushNotificationToggle />
+      </Paper>
+
+      <Title order={4} mb="sm">📧 이메일 알림</Title>
       <Paper withBorder p="xl" radius="md">
         <Stack gap="xl">
           <Group justify="space-between" wrap="nowrap">

@@ -149,3 +149,109 @@ export async function getHourlyDistribution({ days }: StatsRange = { days: 30 })
     
     return buckets;
 }
+
+// ════════════════════════════════════════════════════════════
+//  Phase 22 — 분석 강화 (Funnel · Cohort · Retention)
+// ════════════════════════════════════════════════════════════
+
+/**
+ * 캠페인 발행 펀넬 — 작성 → 예약 → 발행 → 성공 단계별 전환율.
+ */
+export async function getCampaignFunnel({ days }: StatsRange = { days: 30 }) {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error('Unauthorized');
+    const userId = session.user.id;
+    const since = dayjs().subtract(days, 'day').toDate();
+
+    const campaigns = await prisma.campaign.findMany({
+        where: { userId, createdAt: { gte: since } },
+        select: { id: true, status: true, tasks: { select: { status: true } } },
+    });
+
+    const created = campaigns.length;
+    const scheduled = campaigns.filter(c => c.status === 'SCHEDULED' || c.tasks.length > 0).length;
+    const published = campaigns.filter(c => c.tasks.some(t => t.status === 'SUCCESS' || t.status === 'FAILED')).length;
+    const successful = campaigns.filter(c => c.tasks.some(t => t.status === 'SUCCESS')).length;
+
+    return [
+        { stage: '작성', count: created, percent: 100 },
+        { stage: '예약', count: scheduled, percent: created > 0 ? Math.round((scheduled / created) * 100) : 0 },
+        { stage: '발행 시도', count: published, percent: created > 0 ? Math.round((published / created) * 100) : 0 },
+        { stage: '성공', count: successful, percent: created > 0 ? Math.round((successful / created) * 100) : 0 },
+    ];
+}
+
+/**
+ * 코호트 분석 — 시리즈 시작 주차별로 다음 주들의 active 비율.
+ * 간단 버전: 주별 완성률 (completedPosts / totalPosts).
+ */
+export async function getSeriesCohort() {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error('Unauthorized');
+    const userId = session.user.id;
+
+    // 최근 12주 시리즈
+    const since = dayjs().subtract(12, 'week').toDate();
+    const series = await prisma.campaignSeries.findMany({
+        where: { userId, startAt: { gte: since } },
+        select: {
+            id: true, name: true, startAt: true, totalPosts: true, completedPosts: true, status: true,
+        },
+        orderBy: { startAt: 'desc' },
+    });
+
+    // 주별 그룹핑
+    const cohorts = new Map<string, { week: string; series: number; avgCompletion: number }>();
+    for (const s of series) {
+        const week = dayjs(s.startAt).startOf('week').format('YYYY-MM-DD');
+        const completion = s.totalPosts > 0 ? (s.completedPosts / s.totalPosts) * 100 : 0;
+        const existing = cohorts.get(week);
+        if (existing) {
+            existing.series += 1;
+            existing.avgCompletion = (existing.avgCompletion + completion) / 2;
+        } else {
+            cohorts.set(week, { week, series: 1, avgCompletion: completion });
+        }
+    }
+
+    return Array.from(cohorts.values())
+        .sort((a, b) => b.week.localeCompare(a.week))
+        .map(c => ({ ...c, avgCompletion: Math.round(c.avgCompletion) }));
+}
+
+/**
+ * 채널 retention — 채널이 처음 등록된 후 N일 동안 발행에 사용된 비율.
+ */
+export async function getChannelRetention() {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error('Unauthorized');
+    const userId = session.user.id;
+
+    const channels = await prisma.marketingChannel.findMany({
+        where: { userId },
+        select: {
+            id: true, type: true, accountName: true, createdAt: true, lastUsedAt: true,
+            _count: { select: { scheduledTasks: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+    });
+
+    return channels.map(c => {
+        const daysSinceRegistered = dayjs().diff(c.createdAt, 'day');
+        const daysSinceLastUse = c.lastUsedAt ? dayjs().diff(c.lastUsedAt, 'day') : null;
+        const isActive = daysSinceLastUse !== null && daysSinceLastUse < 30;
+        return {
+            id: c.id,
+            type: c.type,
+            accountName: c.accountName,
+            registeredDaysAgo: daysSinceRegistered,
+            lastUsedDaysAgo: daysSinceLastUse,
+            taskCount: c._count.scheduledTasks,
+            isActive,
+            // 활용률 = task 수 / 등록 후 경과 일 (일평균 발행)
+            avgTasksPerDay: daysSinceRegistered > 0
+                ? Math.round((c._count.scheduledTasks / daysSinceRegistered) * 10) / 10
+                : 0,
+        };
+    });
+}
