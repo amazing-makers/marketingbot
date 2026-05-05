@@ -184,7 +184,20 @@ function PartnerView({ summary, clients }: { summary: NonNullable<Summary>; clie
                             </Badge>
                         </Group>
                     </Stack>
-                    <TierBadge tierInfo={tierInfo} />
+                    <Group gap="sm">
+                        {clients.length > 0 && (
+                            <Button
+                                component={Link}
+                                href="/dashboard/partner/overview"
+                                variant="light"
+                                color="blue"
+                                leftSection={<IconChartBar size={14} />}
+                            >
+                                고객사 통합 통계
+                            </Button>
+                        )}
+                        <TierBadge tierInfo={tierInfo} />
+                    </Group>
                 </Group>
 
                 {/* === 핵심 지표 6개 === */}

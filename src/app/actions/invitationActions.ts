@@ -84,6 +84,22 @@ export async function inviteToWorkspace(input: {
                 invitedBy: me.id!,
             },
         });
+
+        // 인앱 알림 (Phase 20)
+        try {
+            const { createNotification } = await import('@/lib/notifications/create');
+            await createNotification({
+                userId: existingUser.id,
+                kind: 'WORKSPACE_INVITE',
+                title: `🤝 ${workspace.name} 합류`,
+                body: `${me.name || me.email} 님이 ${workspace.name} 워크스페이스에 ${role === 'ADMIN' ? '관리자' : role === 'VIEWER' ? '뷰어' : '멤버'} 로 추가했어요`,
+                link: `/dashboard/workspace/${workspace.id}`,
+                metadata: { workspaceId: workspace.id, role },
+            });
+        } catch (e) {
+            console.warn('[notification] workspace invite inapp failed', e);
+        }
+
         // 알림 이메일 (실패해도 차단 안 함)
         try {
             const { sendEmail } = await import('@/lib/email/send');

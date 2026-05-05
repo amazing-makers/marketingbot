@@ -129,23 +129,24 @@ export async function GET(req: Request) {
         }
     }
 
-    // ─── Phase 17 — 파트너별 commission 합계 알림 ───
+    // ─── Phase 17 — 파트너별 commission 합계 알림 (이메일 + 인앱) ───
     // resellerId 별로 이번 사이클에 누적된 amount 모아서 1통씩 발송 (스팸 방지).
     try {
         const { sendEmail } = await import('@/lib/email/send');
         const { NewCommissionEmail } = await import('@/lib/email/templates/PartnerNotifications');
+        const { createNotification } = await import('@/lib/notifications/create');
         const baseUrl = process.env.NEXTAUTH_URL || 'https://marketingbot.amakers.co.kr';
 
         const periodCommissions = await prisma.referralCommission.findMany({
             where: { periodYearMonth, status: 'PENDING' },
             include: {
                 reseller: {
-                    select: { name: true, contactEmail: true, user: { select: { email: true } } },
+                    select: { userId: true, name: true, contactEmail: true, user: { select: { email: true } } },
                 },
             },
         });
 
-        const byPartner = new Map<string, { name: string; email: string; total: number; count: number }>();
+        const byPartner = new Map<string, { userId: string; name: string; email: string; total: number; count: number }>();
         for (const c of periodCommissions) {
             const email = c.reseller.contactEmail || c.reseller.user.email;
             if (!email) continue;
@@ -155,6 +156,7 @@ export async function GET(req: Request) {
                 existing.count += 1;
             } else {
                 byPartner.set(c.resellerId, {
+                    userId: c.reseller.userId,
                     name: c.reseller.name,
                     email,
                     total: Number(c.amount),
@@ -164,6 +166,17 @@ export async function GET(req: Request) {
         }
 
         for (const [, p] of byPartner) {
+            // 인앱 알림 (Phase 20)
+            createNotification({
+                userId: p.userId,
+                kind: 'COMMISSION_NEW',
+                title: `💰 ${periodYearMonth} commission ₩${p.total.toLocaleString()}`,
+                body: `${p.count}명의 추천 사용자에게서 발생 — 정산 대기 중`,
+                link: '/dashboard/partner',
+                metadata: { period: periodYearMonth, amount: p.total, count: p.count },
+            }).catch(err => console.warn('[notification] commission inapp failed', err));
+
+            // 이메일 알림
             sendEmail({
                 to: p.email,
                 subject: `💰 ${periodYearMonth} commission 정산 대기 — ₩${p.total.toLocaleString()}`,
@@ -187,6 +200,7 @@ export async function GET(req: Request) {
     try {
         const { sendEmail } = await import('@/lib/email/send');
         const { TierUpgradeEmail } = await import('@/lib/email/templates/PartnerNotifications');
+        const { createNotification } = await import('@/lib/notifications/create');
         const baseUrl = process.env.NEXTAUTH_URL || 'https://marketingbot.amakers.co.kr';
 
         // 이번 사이클에 추가된 reseller 별 amount
@@ -211,12 +225,23 @@ export async function GET(req: Request) {
             const tierAfter = calcPartnerTier(after);
             if (tierBefore.current.tier === tierAfter.current.tier) continue; // 등급 변동 없음
 
-            // 승급 — 메일 발송
+            // 승급 — 메일 + 인앱 알림
             const reseller = await prisma.reseller.findUnique({
                 where: { id: resellerId },
-                select: { name: true, contactEmail: true, user: { select: { email: true } } },
+                select: { userId: true, name: true, contactEmail: true, user: { select: { email: true } } },
             });
             if (!reseller) continue;
+
+            // 인앱 알림 (Phase 20)
+            createNotification({
+                userId: reseller.userId,
+                kind: 'TIER_UPGRADE',
+                title: `🏆 ${tierAfter.current.label} 등급 달성!`,
+                body: `수수료율이 ${(tierBefore.current.commissionRate * 100).toFixed(0)}% → ${(tierAfter.current.commissionRate * 100).toFixed(0)}% 로 인상되었어요`,
+                link: '/dashboard/partner',
+                metadata: { from: tierBefore.current.tier, to: tierAfter.current.tier },
+            }).catch(err => console.warn('[notification] tier upgrade inapp failed', err));
+
             const email = reseller.contactEmail || reseller.user.email;
             if (!email) continue;
 

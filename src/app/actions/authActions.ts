@@ -110,7 +110,7 @@ export async function registerUser(formData: FormData) {
       });
     });
 
-    // Phase 17 — 추천 코드로 가입한 경우 파트너에게 알림
+    // Phase 17 — 추천 코드로 가입한 경우 파트너에게 알림 (이메일 + 인앱)
     if (referredByCodeId) {
       (async () => {
         try {
@@ -118,14 +118,26 @@ export async function registerUser(formData: FormData) {
             where: { id: referredByCodeId! },
             include: {
               reseller: {
-                select: { name: true, contactEmail: true, status: true, user: { select: { email: true } } },
+                select: { id: true, userId: true, name: true, contactEmail: true, status: true, user: { select: { email: true } } },
               },
             },
           });
           if (!code || code.reseller.status !== 'ACTIVE') return;
+
+          // 인앱 알림 (Phase 20)
+          const { createNotification } = await import("@/lib/notifications/create");
+          await createNotification({
+            userId: code.reseller.userId,
+            kind: 'REFERRAL_NEW',
+            title: `새 추천 사용자 가입`,
+            body: `${name} (${email}) 님이 ${code.code} 코드로 가입했어요`,
+            link: '/dashboard/partner',
+            metadata: { resellerId: code.reseller.id, referredEmail: email, code: code.code },
+          });
+
+          // 이메일 알림
           const partnerEmail = code.reseller.contactEmail || code.reseller.user.email;
           if (!partnerEmail) return;
-
           const { sendEmail } = await import("@/lib/email/send");
           const { NewReferralEmail } = await import("@/lib/email/templates/PartnerNotifications");
           await sendEmail({
@@ -140,7 +152,7 @@ export async function registerUser(formData: FormData) {
             }),
           });
         } catch (err) {
-          console.warn('[partner notification] new referral email failed', err);
+          console.warn('[partner notification] new referral failed', err);
         }
       })();
     }
