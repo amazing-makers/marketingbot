@@ -19,23 +19,28 @@ import {
   ThemeIcon,
   Anchor
 } from '@mantine/core';
-import { 
-  IconCopy, 
-  IconCheck, 
-  IconDownload, 
-  IconUserPlus, 
-  IconRocket, 
+import {
+  IconCopy,
+  IconCheck,
+  IconDownload,
+  IconUserPlus,
+  IconRocket,
   IconLayoutDashboard,
   IconBrandInstagram,
   IconBrandFacebook,
   IconQuote,
   IconSpeakerphone,
-  IconArrowRight
+  IconArrowRight,
+  IconBuildingStore,
+  IconSparkles,
 } from '@tabler/icons-react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { notifications } from '@mantine/notifications';
 import dayjs from 'dayjs';
 import { setOnboardingCompleted } from '../actions/userActions';
+import { applyIndustryPreset } from '../actions/onboardingActions';
+import { INDUSTRY_LIST } from '@/lib/onboarding/industry-presets';
 
 interface OnboardingClientProps {
   userName: string;
@@ -47,8 +52,34 @@ export default function OnboardingClient({ userName, license }: OnboardingClient
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  const nextStep = () => setActive((current) => (current < 3 ? current + 1 : current));
+  // Phase 42 — 업종 선택 + 자동 적용 진행 상태
+  const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
+  const [industryApplying, setIndustryApplying] = useState(false);
+  const [industryApplied, setIndustryApplied] = useState(false);
+
+  const nextStep = () => setActive((current) => (current < 4 ? current + 1 : current));
   const prevStep = () => setActive((current) => (current > 0 ? current - 1 : current));
+
+  const handleSelectIndustry = async (id: string) => {
+    if (industryApplying) return;
+    setSelectedIndustry(id);
+    setIndustryApplying(true);
+    try {
+      const r = await applyIndustryPreset(id);
+      setIndustryApplied(true);
+      notifications.show({
+        title: '✅ 업종 적용됨',
+        message: `${r.industry} 업종에 맞는 템플릿 ${r.templatesCreated}개를 자동으로 등록했어요`,
+        color: 'teal',
+        autoClose: 4000,
+      });
+    } catch (e: any) {
+      notifications.show({ title: '오류', message: e?.message || '실패', color: 'red' });
+      setSelectedIndustry(null);
+    } finally {
+      setIndustryApplying(false);
+    }
+  };
 
   const handleFinish = async () => {
     setLoading(true);
@@ -107,10 +138,89 @@ export default function OnboardingClient({ userName, license }: OnboardingClient
           </Stack>
         </Stepper.Step>
 
-        {/* Step 2: 에이전트 설치 */}
-        <Stepper.Step 
-          label="에이전트 설치" 
-          description="라이선스 및 다운로드" 
+        {/* Phase 42 — Step 2: 업종 선택 → 추천 템플릿 자동 등록 */}
+        <Stepper.Step
+          label="업종 선택"
+          description="추천 템플릿 자동 등록"
+          icon={<IconBuildingStore size="1.1rem" />}
+        >
+          <Stack py="xl" gap="lg">
+            <Stack gap={4} align="center">
+              <Title order={3} ta="center">어떤 업종이세요?</Title>
+              <Text c="dimmed" ta="center" maw={520} size="sm">
+                선택하시면 업종에 맞는 <strong>캡션 템플릿 3개</strong>가 자동으로 등록되고
+                <br />추천 SNS 채널·발행 빈도를 안내받을 수 있어요.
+              </Text>
+            </Stack>
+
+            <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="sm">
+              {INDUSTRY_LIST.map(ind => {
+                const isSelected = selectedIndustry === ind.id;
+                return (
+                  <Card
+                    key={ind.id}
+                    withBorder
+                    p="md"
+                    radius="md"
+                    style={{
+                      cursor: industryApplying ? 'wait' : 'pointer',
+                      borderColor: isSelected ? 'var(--mantine-color-violet-6)' : undefined,
+                      borderWidth: isSelected ? 2 : 1,
+                      background: isSelected ? 'var(--mantine-color-violet-0)' : undefined,
+                      opacity: industryApplying && !isSelected ? 0.5 : 1,
+                      transition: 'all 0.15s',
+                    }}
+                    onClick={() => handleSelectIndustry(ind.id)}
+                  >
+                    <Stack gap={4} align="center">
+                      <Text size="32px">{ind.emoji}</Text>
+                      <Text fw={700} size="sm" ta="center">{ind.label}</Text>
+                      <Text size="10px" c="dimmed" ta="center" lineClamp={2}>
+                        {ind.description}
+                      </Text>
+                      {isSelected && industryApplied && (
+                        <ThemeIcon size="sm" radius="xl" color="teal" variant="filled" mt={4}>
+                          <IconCheck size={12} />
+                        </ThemeIcon>
+                      )}
+                    </Stack>
+                  </Card>
+                );
+              })}
+            </SimpleGrid>
+
+            {selectedIndustry && industryApplied && (
+              <Paper withBorder p="md" radius="md" bg="violet.0">
+                <Group gap={6} mb="xs">
+                  <IconSparkles size={16} color="var(--mantine-color-violet-6)" />
+                  <Text fw={700} size="sm">자동 셋업 완료</Text>
+                </Group>
+                {(() => {
+                  const ind = INDUSTRY_LIST.find(i => i.id === selectedIndustry);
+                  if (!ind) return null;
+                  return (
+                    <Stack gap={4}>
+                      <Text size="xs">
+                        ✅ <strong>캡션 템플릿 3개</strong>가 라이브러리에 등록됐어요 (콘텐츠 라이브러리 메뉴에서 확인)
+                      </Text>
+                      <Text size="xs">
+                        💡 <strong>추천 채널:</strong> {ind.recommendedChannels.join(' · ')}
+                      </Text>
+                      <Text size="xs">
+                        ⏰ <strong>추천 발행 빈도:</strong> {ind.recommendedFrequency}
+                      </Text>
+                    </Stack>
+                  );
+                })()}
+              </Paper>
+            )}
+          </Stack>
+        </Stepper.Step>
+
+        {/* Step 3: 에이전트 설치 (기존 Step 2) */}
+        <Stepper.Step
+          label="에이전트 설치"
+          description="라이선스 및 다운로드"
           icon={<IconDownload size="1.1rem" />}
         >
           <Stack py="xl" gap="lg">
@@ -246,8 +356,13 @@ export default function OnboardingClient({ userName, license }: OnboardingClient
         <Button variant="default" onClick={prevStep} disabled={active === 0}>
           이전
         </Button>
-        {active < 3 ? (
-          <Button onClick={nextStep}>다음 단계</Button>
+        {active < 4 ? (
+          <Button
+            onClick={nextStep}
+            disabled={active === 1 && !industryApplied}
+          >
+            {active === 1 && !industryApplied ? '업종을 선택하세요' : '다음 단계'}
+          </Button>
         ) : (
           <Button onClick={handleFinish} color="teal" loading={loading}>시작하기</Button>
         )}

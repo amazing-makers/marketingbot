@@ -19,6 +19,8 @@ import {
 import { Anchor } from '@mantine/core';
 import { createChannel, deleteChannel, verifyChannelConnection, verifyAllMyChannels } from '@/app/actions/channelActions';
 import { ChannelType, MarketingChannel } from '@prisma/client';
+import ChannelGuideModal from '@/components/channels/ChannelGuideModal';
+import { IconBook2 } from '@tabler/icons-react';
 
 const CHANNEL_ICONS: Record<string, any> = {
   // 한국·기존
@@ -329,6 +331,9 @@ export default function ChannelsClient({
 
   // Phase 37 — 일괄 verify 핸들러
   const [bulkVerifying, setBulkVerifying] = useState(false);
+  // Phase 42 — 가이드 모달
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [guideType, setGuideType] = useState<string | null>(null);
   const handleBulkVerify = async () => {
     setBulkVerifying(true);
     try {
@@ -356,9 +361,17 @@ export default function ChannelsClient({
 
   return (
     <Stack>
-      <Group justify="space-between">
+      <Group justify="space-between" wrap="wrap">
         <Title order={2}>마케팅 채널 관리</Title>
         <Group gap="xs">
+          <Button
+            variant="subtle"
+            color="violet"
+            leftSection={<IconBook2 size={14} />}
+            onClick={() => { setGuideType(null); setGuideOpen(true); }}
+          >
+            연결 가이드
+          </Button>
           {channels.length > 0 && (
             <Button
               variant="light"
@@ -375,6 +388,12 @@ export default function ChannelsClient({
           </Button>
         </Group>
       </Group>
+
+      <ChannelGuideModal
+        opened={guideOpen}
+        onClose={() => setGuideOpen(false)}
+        initialType={guideType}
+      />
 
       {channels.length === 0 && (
         <Card withBorder p="xl" radius="md" bg="var(--mantine-color-default-hover)">
