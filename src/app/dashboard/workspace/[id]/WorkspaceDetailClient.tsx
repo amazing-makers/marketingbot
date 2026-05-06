@@ -314,6 +314,7 @@ export default function WorkspaceDetailClient({ data }: { data: Data }) {
                             <IconMail size={18} />
                             <Text fw={700}>대기 중인 초대 ({data.pendingInvitations.length})</Text>
                         </Group>
+                        <Table.ScrollContainer minWidth={620}>
                         <Table>
                             <Table.Thead>
                                 <Table.Tr>
@@ -359,6 +360,7 @@ export default function WorkspaceDetailClient({ data }: { data: Data }) {
                                 })}
                             </Table.Tbody>
                         </Table>
+                        </Table.ScrollContainer>
                     </Card>
                 )}
             </Stack>

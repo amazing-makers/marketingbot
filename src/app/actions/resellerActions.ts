@@ -15,6 +15,25 @@ async function getSessionUser() {
  * 현재 사용자의 권한 플래그 — 사이드바·드롭다운 메뉴 분기용.
  * 비로그인이면 모두 false.
  */
+/**
+ * Phase 39 — 활성 파트너만 접근 가능한 server-side guard.
+ * 파트너 미등록 또는 SUSPENDED 면 throw → caller 가 catch 후 redirect.
+ *
+ * 사용 예 (server component):
+ *   try { await requireActivePartner(); } catch { redirect('/dashboard/partner'); }
+ */
+export async function requireActivePartner(): Promise<{ resellerId: string; userId: string }> {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error('Unauthorized');
+    const reseller = await prisma.reseller.findUnique({
+        where: { userId: session.user.id },
+        select: { id: true, status: true },
+    });
+    if (!reseller) throw new Error('NOT_PARTNER');
+    if (reseller.status !== 'ACTIVE') throw new Error('PARTNER_SUSPENDED');
+    return { resellerId: reseller.id, userId: session.user.id };
+}
+
 export async function getMyAccountFlags(): Promise<{
     isAdmin: boolean;
     isPartner: boolean;

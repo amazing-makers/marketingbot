@@ -232,7 +232,7 @@ export default function ClientDetailClient({
     const status = STATUS_LABEL[data.status];
 
     return (
-        <Container size="lg" py="xl">
+        <Container size="lg" py={{ base: "md", sm: "xl" }}>
             <Stack gap="md">
                 {/* 헤더 */}
                 <Stack gap={2}>

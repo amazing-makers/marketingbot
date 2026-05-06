@@ -1,6 +1,5 @@
 import { Container, Title, Text, Stack, Paper, Code, Anchor, Group, Box, Badge, Table } from '@mantine/core';
 import { IconWebhook, IconExternalLink, IconKey, IconBolt } from '@tabler/icons-react';
-import Link from 'next/link';
 
 export const metadata = { title: 'API 문서 | 마케팅봇' };
 export const dynamic = 'force-dynamic';
@@ -28,7 +27,7 @@ export default function ApiDocsPage() {
                     <Text size="sm" mb="md">
                         대시보드에서 webhook 토큰을 발급받으세요. URL 자체에 토큰이 포함되어 별도 헤더 불필요.
                     </Text>
-                    <Anchor component={Link} href="/dashboard/settings/webhooks" size="sm" fw={600}>
+                    <Anchor href="/dashboard/settings/webhooks" size="sm" fw={600}>
                         🔗 Webhook 토큰 관리 페이지로 이동 →
                     </Anchor>
                     <Box mt="md">
@@ -212,10 +211,10 @@ export default function ApiDocsPage() {
                 {/* 관련 문서 */}
                 <Paper withBorder p="md" radius="md" bg="var(--mantine-color-default-hover)">
                     <Group gap="md" wrap="wrap">
-                        <Anchor component={Link} href="/dashboard/settings/webhooks" size="sm">
+                        <Anchor href="/dashboard/settings/webhooks" size="sm">
                             🔗 Webhook 토큰 관리
                         </Anchor>
-                        <Anchor component={Link} href="/help" size="sm">
+                        <Anchor href="/help" size="sm">
                             📚 도움말 메인
                         </Anchor>
                         <Anchor href="mailto:help@amakers.co.kr" size="sm">

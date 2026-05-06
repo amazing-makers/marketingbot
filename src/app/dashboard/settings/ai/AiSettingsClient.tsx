@@ -209,7 +209,7 @@ export default function AiSettingsClient({ initialConfig, loadError }: AiSetting
     }
 
     return (
-        <Container size="lg" py="xl">
+        <Container size="lg" py={{ base: "md", sm: "xl" }}>
             <Stack gap="lg">
                 <div>
                     <Title order={2}>AI 엔진 설정</Title>

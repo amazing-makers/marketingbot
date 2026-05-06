@@ -12,6 +12,7 @@ export default function AccountsPage() {
       </Group>
 
       <Paper withBorder radius="md">
+        <Table.ScrollContainer minWidth={520}>
         <Table verticalSpacing="md">
           <Table.Thead>
             <Table.Tr>
@@ -30,6 +31,7 @@ export default function AccountsPage() {
             </Table.Tr>
           </Table.Tbody>
         </Table>
+        </Table.ScrollContainer>
       </Paper>
     </Stack>
   );

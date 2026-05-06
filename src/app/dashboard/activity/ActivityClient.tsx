@@ -77,7 +77,7 @@ export default function ActivityClient({ activities }: { activities: ActivityIte
     }, [activities, kindFilter, userFilter, dateFilter]);
 
     return (
-        <Container size="lg" py="xl">
+        <Container size="lg" py={{ base: "md", sm: "xl" }}>
             <Stack gap="md">
                 <Stack gap={2}>
                     <Anchor component={Link} href="/dashboard" size="sm">← 대시보드</Anchor>

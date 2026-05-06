@@ -244,7 +244,117 @@ export default function CalendarClient() {
                 </Group>
             </Paper>
 
-            {/* 캘린더 그리드 */}
+            {/* Phase 40 — 모바일: 다음 14일 리스트 뷰 (그리드 7×6 은 모바일에서 좁아서 못 씀) */}
+            <Box hiddenFrom="sm">
+                <Paper withBorder p={0} radius="md" style={{ position: 'relative', overflow: 'hidden' }}>
+                    {loading && (
+                        <Center style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.7)', zIndex: 10 }}>
+                            <Loader size="sm" />
+                        </Center>
+                    )}
+                    <Stack gap={0}>
+                        {Array.from({ length: 14 }).map((_, i) => {
+                            const d = dayjs().add(i, 'day');
+                            const key = d.format('YYYY-MM-DD');
+                            const entries = filteredByDay[key] || [];
+                            const isToday = i === 0;
+                            const isWeekend = d.day() === 0 || d.day() === 6;
+                            return (
+                                <Box
+                                    key={key}
+                                    style={{
+                                        padding: '10px 12px',
+                                        borderBottom: '1px solid var(--mantine-color-default-border)',
+                                        background: isToday ? 'var(--mantine-color-violet-0)' : undefined,
+                                    }}
+                                >
+                                    <Group justify="space-between" mb={entries.length > 0 ? 6 : 0}>
+                                        <Group gap={6}>
+                                            <Text fw={isToday ? 800 : 700} size="sm" c={d.day() === 0 ? 'red.7' : d.day() === 6 ? 'blue.7' : undefined}>
+                                                {d.format('M월 D일')} ({['일', '월', '화', '수', '목', '금', '토'][d.day()]})
+                                            </Text>
+                                            {isToday && <Badge size="xs" color="violet" variant="filled">오늘</Badge>}
+                                        </Group>
+                                        <Group gap={4}>
+                                            {entries.length > 0 && <Badge size="xs" variant="light">{entries.length}건</Badge>}
+                                            <ActionIcon
+                                                size="xs"
+                                                variant="subtle"
+                                                color="gray"
+                                                component={Link}
+                                                href={`/dashboard/campaigns/new?date=${key}`}
+                                                aria-label="이 날 작성"
+                                            >
+                                                <IconPlus size={11} />
+                                            </ActionIcon>
+                                        </Group>
+                                    </Group>
+                                    {entries.length === 0 ? (
+                                        <Text size="11px" c="dimmed">예약 없음</Text>
+                                    ) : (
+                                        <Stack gap={3}>
+                                            {entries.slice(0, 5).map(e => {
+                                                const color = CHANNEL_COLORS[e.channelType] || 'gray';
+                                                const time = dayjs(e.scheduledAt).format('HH:mm');
+                                                const isSeries = !!e.seriesId;
+                                                return (
+                                                    <Paper
+                                                        key={e.taskId}
+                                                        component={Link}
+                                                        href={isSeries ? `/dashboard/campaigns/series/${e.seriesId}` : `/dashboard/campaigns/${e.campaignId}`}
+                                                        radius={4}
+                                                        p={4}
+                                                        style={{
+                                                            borderLeft: `3px solid var(--mantine-color-${color}-6)`,
+                                                            background: 'var(--mantine-color-default-hover)',
+                                                            textDecoration: 'none',
+                                                        }}
+                                                    >
+                                                        <Group gap={6} wrap="nowrap">
+                                                            <Text size="11px" fw={700} c={`${color}.7`}>{time}</Text>
+                                                            {isSeries && <Text size="11px">🤖</Text>}
+                                                            <Text size="11px" c="dark" style={{ flex: 1 }} truncate>
+                                                                {isSeries ? e.seriesName : e.campaignName}
+                                                            </Text>
+                                                            {e.status !== 'PENDING' && (
+                                                                <Box style={{
+                                                                    width: 6, height: 6, borderRadius: 3,
+                                                                    background: `var(--mantine-color-${STATUS_COLORS[e.status] || 'gray'}-6)`,
+                                                                }} />
+                                                            )}
+                                                        </Group>
+                                                    </Paper>
+                                                );
+                                            })}
+                                            {entries.length > 5 && (
+                                                <Anchor
+                                                    component="button"
+                                                    type="button"
+                                                    onClick={(ev) => { ev.preventDefault(); setDayDetailKey(key); }}
+                                                    size="11px"
+                                                    fw={600}
+                                                    c="violet"
+                                                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                                                >
+                                                    +{entries.length - 5}건 더 →
+                                                </Anchor>
+                                            )}
+                                        </Stack>
+                                    )}
+                                </Box>
+                            );
+                        })}
+                    </Stack>
+                    <Box p="sm" style={{ background: 'var(--mantine-color-default-hover)' }}>
+                        <Text size="xs" c="dimmed" ta="center">
+                            모바일: 오늘부터 14일 리스트 뷰 · 데스크톱은 월간 그리드 뷰
+                        </Text>
+                    </Box>
+                </Paper>
+            </Box>
+
+            {/* 데스크톱: 캘린더 그리드 */}
+            <Box visibleFrom="sm">
             <Paper withBorder p={0} radius="md" style={{ overflow: 'hidden', position: 'relative' }}>
                 {loading && (
                     <Center style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.7)', zIndex: 10 }}>
@@ -430,6 +540,7 @@ export default function CalendarClient() {
                     })}
                 </SimpleGrid>
             </Paper>
+            </Box>
 
             {/* 범례 */}
             <Paper withBorder p="sm" radius="md" bg="gray.0">

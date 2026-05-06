@@ -26,6 +26,8 @@ import InstallPrompt from '@/components/pwa/InstallPrompt';
 import FeedbackButton from '@/components/feedback/FeedbackButton';
 import ChangelogBadge from '@/components/changelog/ChangelogBadge';
 import InteractiveTour from '@/components/onboarding/InteractiveTour';
+import AccountSwitcher from '@/components/auth/AccountSwitcher';
+import SidebarAccountSwitcher from '@/components/auth/SidebarAccountSwitcher';
 import { getMyAccountFlags } from '@/app/actions/resellerActions';
 import { globalSearch, type SearchHit } from '@/app/actions/globalSearchActions';
 
@@ -329,14 +331,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           breakpoint: 'sm',
           collapsed: { mobile: !opened },
         }}
-        padding="md"
+        padding={{ base: 'sm', sm: 'md' }}
       >
         <AppShell.Header>
           <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-            <Group wrap="nowrap" gap="md">
+            <Group wrap="nowrap" gap="xs">
               <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
               <UnstyledButton component={Link} href="/dashboard">
-                <Title order={3} style={{ background: 'linear-gradient(135deg, var(--mantine-color-blue-6), var(--mantine-color-violet-6))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                <Title order={4} style={{
+                  background: 'linear-gradient(135deg, var(--mantine-color-blue-6), var(--mantine-color-violet-6))',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  fontSize: 'clamp(15px, 4vw, 20px)',
+                }}>
                   MarketingBot
                 </Title>
               </UnstyledButton>
@@ -349,99 +356,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Group>
 
             <Group gap="xs" wrap="nowrap">
-              <HeaderLicense />
+              <Box visibleFrom="md">
+                <HeaderLicense />
+              </Box>
               {session?.user && <ChangelogBadge />}
               {session?.user && <NotificationBell />}
-              <DarkModeToggle />
+              <Box visibleFrom="sm">
+                <DarkModeToggle />
+              </Box>
               {session?.user && (
-                <Menu shadow="md" width={220} position="bottom-end">
-                  <Menu.Target>
-                    <UnstyledButton>
-                      <Group gap={6}>
-                        <Avatar radius="xl" size="sm" color="brand">
-                          {(session.user.name || session.user.email || '?').charAt(0).toUpperCase()}
-                        </Avatar>
-                        <Text size="sm" fw={500} visibleFrom="md" c="dimmed">
-                          {session.user.name || session.user.email}
-                        </Text>
-                      </Group>
-                    </UnstyledButton>
-                  </Menu.Target>
-                  <Menu.Dropdown>
-                    <Menu.Label>내 계정</Menu.Label>
-                    <Menu.Item leftSection={<IconUserCircle size={14} />}>{session.user.email}</Menu.Item>
-                    <Menu.Item leftSection={<IconUserCircle size={14} />} component={Link} href="/dashboard/settings/profile">
-                      👤 프로필
-                    </Menu.Item>
-                    <Menu.Item leftSection={<IconSettings size={14} />} component={Link} href="/dashboard/settings">
-                      환경 설정
-                    </Menu.Item>
-                    <Menu.Item
-                      leftSection={<IconBolt size={14} />}
-                      onClick={() => (window as any).__startAmakersTour?.()}
-                    >
-                      🎓 투어 다시 보기
-                    </Menu.Item>
-
-                    {/* 파트너 메뉴 — 등록된 파트너만 표시 */}
-                    {accountFlags.isPartner && (
-                      <>
-                        <Menu.Divider />
-                        <Menu.Label>파트너</Menu.Label>
-                        <Menu.Item
-                          leftSection={<IconBriefcase size={14} />}
-                          component={Link}
-                          href="/dashboard/partner"
-                          color="violet"
-                        >
-                          🤝 파트너 접속
-                        </Menu.Item>
-                      </>
-                    )}
-
-                    {/* 비파트너 — 가입 권유 */}
-                    {!accountFlags.isPartner && (
-                      <>
-                        <Menu.Divider />
-                        <Menu.Item
-                          leftSection={<IconBriefcase size={14} />}
-                          component={Link}
-                          href="/dashboard/partner"
-                          color="violet"
-                        >
-                          🤝 파트너 가입
-                        </Menu.Item>
-                      </>
-                    )}
-
-                    {/* 슈퍼관리자 — admin 화이트리스트만 */}
-                    {accountFlags.isAdmin && (
-                      <>
-                        <Menu.Divider />
-                        <Menu.Label>관리자</Menu.Label>
-                        <Menu.Item
-                          leftSection={<IconShield size={14} />}
-                          component="a"
-                          href={adminUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          color="red"
-                        >
-                          🛠 관리자 페이지 ↗
-                        </Menu.Item>
-                      </>
-                    )}
-
-                    <Menu.Divider />
-                    <Menu.Item
-                      color="red"
-                      leftSection={<IconLogout size={14} />}
-                      onClick={() => signOut({ callbackUrl: '/login' })}
-                    >
-                      로그아웃
-                    </Menu.Item>
-                  </Menu.Dropdown>
-                </Menu>
+                <AccountSwitcher
+                  currentUser={{
+                    email: session.user.email || '',
+                    name: session.user.name || null,
+                  }}
+                  isAdmin={accountFlags.isAdmin}
+                  isPartner={accountFlags.isPartner}
+                  adminUrl={adminUrl}
+                />
               )}
             </Group>
           </Group>
@@ -449,6 +381,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <AppShell.Navbar p="md">
           <Stack gap="xs">
+            {/* 홈 */}
             <NavLink
               component={Link}
               href="/dashboard"
@@ -456,31 +389,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               leftSection={<IconDashboard size={18} stroke={1.5} />}
               active={pathname === '/dashboard'}
             />
-            <NavLink
-              component={Link}
-              href="/dashboard/analytics"
-              label="📊 심층 분석"
-              leftSection={<IconActivity size={18} stroke={1.5} />}
-              active={!!pathname && pathname.startsWith('/dashboard/analytics')}
-            />
-            <NavLink
-              component={Link}
-              href="/dashboard/library"
-              label="📚 콘텐츠 라이브러리"
-              leftSection={<IconBookmark size={18} stroke={1.5} />}
-              active={!!pathname && pathname.startsWith('/dashboard/library')}
-            />
-            <NavLink
-              component={Link}
-              href="/dashboard/activity"
-              label="📜 활동 피드"
-              leftSection={<IconHistory size={18} stroke={1.5} />}
-              active={!!pathname && pathname.startsWith('/dashboard/activity')}
-            />
+
+            {/* === 콘텐츠 발행 (메인 작업 흐름) === */}
             <NavLink
               component={Link}
               href="/dashboard/campaigns"
-              label="캠페인 관리"
+              label="콘텐츠 발행"
               leftSection={<IconCalendarEvent size={18} stroke={1.5} />}
               data-tour="nav-campaigns"
               active={
@@ -509,31 +423,52 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             />
             <NavLink
               component={Link}
+              href="/dashboard/library"
+              label="콘텐츠 라이브러리"
+              leftSection={<IconBookmark size={18} stroke={1.5} />}
+              active={!!pathname && pathname.startsWith('/dashboard/library')}
+            />
+
+            {/* === 채널 (발행 인프라) === */}
+            <NavLink
+              component={Link}
               href="/dashboard/channels"
               label="채널 관리"
               leftSection={<IconWorld size={18} stroke={1.5} />}
               data-tour="nav-channels"
               active={pathname === '/dashboard/channels'}
             />
+
+            {/* === 인사이트 === */}
             <NavLink
               component={Link}
-              href="/dashboard/agent"
-              label="에이전트 관리"
-              leftSection={<IconRobot size={18} stroke={1.5} />}
-              active={pathname === '/dashboard/agent'}
+              href="/dashboard/activity"
+              label="활동 피드"
+              leftSection={<IconHistory size={18} stroke={1.5} />}
+              active={!!pathname && pathname.startsWith('/dashboard/activity')}
             />
+            <NavLink
+              component={Link}
+              href="/dashboard/analytics"
+              label="심층 분석"
+              leftSection={<IconActivity size={18} stroke={1.5} />}
+              active={!!pathname && pathname.startsWith('/dashboard/analytics')}
+            />
+
             <Divider my="sm" />
+
+            {/* === 협업·통합·결제·설정 === */}
             <NavLink
               component={Link}
               href="/dashboard/workspace"
-              label="🏢 워크스페이스"
+              label="워크스페이스"
               leftSection={<IconUsersGroup size={18} stroke={1.5} />}
               active={!!pathname && pathname.startsWith('/dashboard/workspace')}
             />
             <NavLink
               component={Link}
               href="/dashboard/settings/webhooks"
-              label="🔗 API·Webhook"
+              label="API·Webhook"
               leftSection={<IconWebhook size={18} stroke={1.5} />}
               active={!!pathname && pathname.includes('/webhooks')}
             />
@@ -546,22 +481,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             />
             <NavLink
               component={Link}
+              href="/dashboard/agent"
+              label="에이전트 관리"
+              leftSection={<IconRobot size={18} stroke={1.5} />}
+              active={pathname === '/dashboard/agent'}
+            />
+            <NavLink
+              component={Link}
               href="/dashboard/settings"
               label="환경 설정"
               leftSection={<IconSettings size={18} stroke={1.5} />}
-              active={!!pathname && pathname.startsWith('/dashboard/settings') && !pathname.includes('/billing')}
+              active={!!pathname && pathname.startsWith('/dashboard/settings') && !pathname.includes('/billing') && !pathname.includes('/webhooks')}
             />
           </Stack>
 
-          <Box mt="auto" pt="md">
-            <UnstyledButton onClick={() => spotlight.open()} style={{ width: '100%' }}>
-              <Group gap={8} p="xs" style={{ borderRadius: 8, background: 'var(--mantine-color-default-hover)' }}>
-                <IconSearch size={14} />
-                <Text size="xs" c="dimmed" style={{ flex: 1 }}>빠른 검색...</Text>
-                <Kbd size="xs">⌘K</Kbd>
-              </Group>
-            </UnstyledButton>
-          </Box>
+          {/* Phase 39 — 사이드바 하단 다중 계정 관리 */}
+          {session?.user && (
+            <Box mt="auto" pt="md">
+              <SidebarAccountSwitcher
+                currentUser={{
+                  email: session.user.email || '',
+                  name: session.user.name || null,
+                }}
+              />
+            </Box>
+          )}
         </AppShell.Navbar>
 
         <AppShell.Main>{children}</AppShell.Main>

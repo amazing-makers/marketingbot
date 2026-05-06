@@ -231,7 +231,7 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
 
             {campaigns.length === 0 ? (
                 <Card withBorder p="xl" radius="md" bg="var(--mantine-color-default-hover)">
-                    <Stack gap="md" align="center" py="xl">
+                    <Stack gap="md" align="center" py={{ base: "md", sm: "xl" }}>
                         <div style={{ fontSize: 48 }}>📝</div>
                         <div style={{ textAlign: 'center' }}>
                             <Text fw={800} size="lg">아직 만든 게시물이 없어요</Text>

@@ -1044,7 +1044,7 @@ function NewCampaignPageInner() {
         size="lg"
       >
         {aiBusy && (
-          <Stack align="center" py="xl">
+          <Stack align="center" py={{ base: "md", sm: "xl" }}>
             <Loader />
             <Text size="sm" c="dimmed">AI 가 채널별 캡션 작성 중... (Gemini/Groq → Ollama → Claude 폴백)</Text>
           </Stack>

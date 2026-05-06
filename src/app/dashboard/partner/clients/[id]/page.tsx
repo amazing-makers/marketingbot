@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation';
 import { listMyPartnerClients } from '@/app/actions/partnerActions';
 import { listClientReports } from '@/app/actions/partnerReportActions';
 import { listClientInvoices } from '@/app/actions/invoiceActions';
+import { requireActivePartner } from '@/app/actions/resellerActions';
 import ClientDetailClient from './ClientDetailClient';
 
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,14 @@ interface PageProps {
 export default async function ClientDetailPage({ params }: PageProps) {
     const session = await auth();
     if (!session?.user) redirect('/login');
+
+    // Phase 39 — 활성 파트너만 접근 가능
+    try {
+        await requireActivePartner();
+    } catch (e: any) {
+        const reason = e?.message === 'PARTNER_SUSPENDED' ? 'suspended' : 'not-partner';
+        redirect(`/dashboard/partner?error=${reason}`);
+    }
 
     const { id } = await params;
     const all = await listMyPartnerClients().catch(() => []);

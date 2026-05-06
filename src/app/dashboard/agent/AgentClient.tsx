@@ -122,7 +122,7 @@ export default function AgentClient({
             <Paper withBorder p="md" radius="md">
                 <Title order={4} mb="md">연결된 에이전트 목록</Title>
                 {agents.length === 0 ? (
-                    <Stack align="center" py="xl">
+                    <Stack align="center" py={{ base: "md", sm: "xl" }}>
                         <IconDeviceDesktop size={48} color="var(--mantine-color-gray-4)" />
                         <Text c="dimmed">등록된 에이전트가 없습니다. 설치 후 라이선스를 활성화해주세요.</Text>
                     </Stack>

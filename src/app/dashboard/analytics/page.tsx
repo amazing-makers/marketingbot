@@ -2,10 +2,9 @@ import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 import { getCampaignFunnel, getSeriesCohort, getChannelRetention } from '@/app/actions/statsActions';
 import {
-    Container, Title, Text, Stack, Group, Paper, SimpleGrid, Badge, Box, Anchor, ThemeIcon, Table,
+    Title, Text, Stack, Group, Paper, SimpleGrid, Badge, Box, Table,
 } from '@mantine/core';
 import { IconChartBar, IconTrendingUp, IconUsersGroup, IconActivity } from '@tabler/icons-react';
-import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,13 +21,11 @@ export default async function AnalyticsPage() {
     ]);
 
     return (
-        <Container size="xl" py="xl">
-            <Stack gap="md">
-                <Stack gap={2}>
-                    <Anchor component={Link} href="/dashboard" size="sm">← 대시보드</Anchor>
-                    <Group gap={6}><IconChartBar size={24} /><Title order={2}>📊 심층 분석</Title></Group>
-                    <Text size="sm" c="dimmed">최근 30일 펀넬 · 시리즈 코호트 · 채널 활용도</Text>
-                </Stack>
+        <Stack gap="md">
+            <Stack gap={2}>
+                <Group gap={6}><IconChartBar size={24} /><Title order={2}>📊 심층 분석</Title></Group>
+                <Text size="sm" c="dimmed">최근 30일 펀넬 · 시리즈 코호트 · 채널 활용도</Text>
+            </Stack>
 
                 {/* 펀넬 */}
                 <Paper withBorder p="lg" radius="md">
@@ -89,6 +86,7 @@ export default async function AnalyticsPage() {
                     {retention.length === 0 ? (
                         <Text size="sm" c="dimmed" ta="center">등록된 채널이 없어요</Text>
                     ) : (
+                        <Table.ScrollContainer minWidth={680}>
                         <Table striped>
                             <Table.Thead>
                                 <Table.Tr>
@@ -126,15 +124,15 @@ export default async function AnalyticsPage() {
                                 ))}
                             </Table.Tbody>
                         </Table>
+                        </Table.ScrollContainer>
                     )}
                 </Paper>
 
-                <Paper withBorder p="md" radius="md" bg="blue.0">
-                    <Text size="xs" c="blue.9">
-                        💡 펀넬 전환율이 낮으면 캠페인 작성 흐름 점검 / 코호트 완성률이 낮으면 시리즈 설정 (channelId·schedule) 점검 / 채널 활용도가 낮으면 자동 발행 시리즈 설정 권장.
-                    </Text>
-                </Paper>
-            </Stack>
-        </Container>
+            <Paper withBorder p="md" radius="md" bg="blue.0">
+                <Text size="xs" c="blue.9">
+                    💡 펀넬 전환율이 낮으면 캠페인 작성 흐름 점검 / 코호트 완성률이 낮으면 시리즈 설정 (channelId·schedule) 점검 / 채널 활용도가 낮으면 자동 발행 시리즈 설정 권장.
+                </Text>
+            </Paper>
+        </Stack>
     );
 }

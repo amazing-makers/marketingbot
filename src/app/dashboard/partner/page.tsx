@@ -6,10 +6,15 @@ import PartnerDashboardClient from './PartnerDashboardClient';
 
 export const dynamic = 'force-dynamic';
 
-export default async function PartnerPage() {
+interface PageProps {
+    searchParams: Promise<{ error?: string }>;
+}
+
+export default async function PartnerPage({ searchParams }: PageProps) {
     const session = await auth();
     if (!session?.user) redirect('/login');
 
+    const sp = await searchParams;
     const summary = await getMyResellerSummary();
     const clients = summary
         ? await listMyPartnerClients().catch(() => [])
@@ -23,6 +28,7 @@ export default async function PartnerPage() {
                 startedAt: c.startedAt.toISOString(),
                 endedAt: c.endedAt?.toISOString() || null,
             }))}
+            accessError={sp.error || null}
         />
     );
 }

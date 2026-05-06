@@ -36,16 +36,24 @@ interface ClientItem {
     workspace: { id: string; name: string; slug: string; brandColor: string | null; memberCount: number };
 }
 
-export default function PartnerDashboardClient({ summary, clients }: { summary: Summary; clients: ClientItem[] }) {
-    if (!summary) return <PartnerSignupView />;
-    return <PartnerView summary={summary} clients={clients} />;
+export default function PartnerDashboardClient({
+    summary,
+    clients,
+    accessError,
+}: {
+    summary: Summary;
+    clients: ClientItem[];
+    accessError?: string | null;
+}) {
+    if (!summary) return <PartnerSignupView accessError={accessError} />;
+    return <PartnerView summary={summary} clients={clients} accessError={accessError} />;
 }
 
 // ════════════════════════════════════════════════════════════
 //  미가입 — 가입 폼
 // ════════════════════════════════════════════════════════════
 
-function PartnerSignupView() {
+function PartnerSignupView({ accessError }: { accessError?: string | null }) {
     const [submitting, setSubmitting] = useState(false);
     const form = useForm({
         initialValues: {
@@ -80,7 +88,7 @@ function PartnerSignupView() {
     };
 
     return (
-        <Container size="md" py="xl">
+        <Container size="md" py={{ base: "md", sm: "xl" }}>
             <Stack gap="lg">
                 <Box>
                     <Title order={2}>🤝 파트너 프로그램</Title>
@@ -89,6 +97,18 @@ function PartnerSignupView() {
                         고객사 대행 운영, 추천 수수료, 전용 리소스를 제공합니다.
                     </Text>
                 </Box>
+
+                {accessError === 'not-partner' && (
+                    <Alert color="orange" icon={<IconUsers size={16} />} title="파트너 권한 필요">
+                        고객사·에이전트 관리는 <strong>승인된 파트너</strong>만 사용할 수 있어요.
+                        아래 양식으로 파트너 등록 후 다시 시도해주세요.
+                    </Alert>
+                )}
+                {accessError === 'suspended' && (
+                    <Alert color="red" icon={<IconUsers size={16} />} title="계정 정지됨">
+                        파트너 계정이 일시 정지되었습니다. 관리자(help@amakers.co.kr)에게 문의해주세요.
+                    </Alert>
+                )}
 
                 <Paper withBorder p="lg" radius="md">
                     <Title order={4} mb="sm">💼 누가 가입하면 좋나요?</Title>
@@ -162,7 +182,7 @@ function PersonaCard({ icon: Icon, title, desc }: { icon: any; title: string; de
 //  가입 완료 — 메인 대시보드
 // ════════════════════════════════════════════════════════════
 
-function PartnerView({ summary, clients }: { summary: NonNullable<Summary>; clients: ClientItem[] }) {
+function PartnerView({ summary, clients }: { summary: NonNullable<Summary>; clients: ClientItem[]; accessError?: string | null }) {
     const { tierInfo } = summary;
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://marketingbot.amakers.co.kr';
 
@@ -171,7 +191,7 @@ function PartnerView({ summary, clients }: { summary: NonNullable<Summary>; clie
     const activeClients = clients.filter(c => c.status === 'ACTIVE').length;
 
     return (
-        <Container size="xl" py="xl">
+        <Container size="xl" py={{ base: "md", sm: "xl" }}>
             <Stack gap="md">
                 {/* === 헤더 + 티어 배지 === */}
                 <Group justify="space-between" wrap="wrap">
@@ -390,7 +410,7 @@ function ReferralPanel({ summary, baseUrl }: { summary: NonNullable<Summary>; ba
             <Paper withBorder p="md" radius="md">
                 <Title order={4} mb="sm">👥 추천한 사용자 ({summary.recentReferrals.length})</Title>
                 {summary.recentReferrals.length === 0 ? (
-                    <Stack gap="md" align="center" py="xl">
+                    <Stack gap="md" align="center" py={{ base: "md", sm: "xl" }}>
                         <div style={{ fontSize: 48 }}>🔗</div>
                         <Stack gap={4} align="center">
                             <Text fw={700}>아직 추천한 사용자가 없습니다</Text>
@@ -401,6 +421,7 @@ function ReferralPanel({ summary, baseUrl }: { summary: NonNullable<Summary>; ba
                         </Stack>
                     </Stack>
                 ) : (
+                    <Table.ScrollContainer minWidth={520}>
                     <Table striped>
                         <Table.Thead>
                             <Table.Tr>
@@ -425,6 +446,7 @@ function ReferralPanel({ summary, baseUrl }: { summary: NonNullable<Summary>; ba
                             })}
                         </Table.Tbody>
                     </Table>
+                    </Table.ScrollContainer>
                 )}
             </Paper>
 
@@ -471,7 +493,7 @@ function ClientsPanel({ clients }: { clients: ClientItem[] }) {
 function ClientList({ clients }: { clients: ClientItem[] }) {
     if (clients.length === 0) {
         return (
-            <Stack gap="md" align="center" py="xl">
+            <Stack gap="md" align="center" py={{ base: "md", sm: "xl" }}>
                 <div style={{ fontSize: 48 }}>🏢</div>
                 <Stack gap={4} align="center">
                     <Text fw={700}>아직 등록된 고객사가 없습니다</Text>

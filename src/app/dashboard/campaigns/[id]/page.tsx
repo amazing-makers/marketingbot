@@ -70,6 +70,7 @@ export default async function CampaignDetailPage({ params }: { params: { id: str
       </SimpleGrid>
 
       <Card withBorder radius="md" p={0}>
+        <Table.ScrollContainer minWidth={680}>
         <Table verticalSpacing="md" highlightOnHover>
           <Table.Thead>
             <Table.Tr>
@@ -133,6 +134,7 @@ export default async function CampaignDetailPage({ params }: { params: { id: str
             ))}
           </Table.Tbody>
         </Table>
+        </Table.ScrollContainer>
       </Card>
     </Stack>
   );

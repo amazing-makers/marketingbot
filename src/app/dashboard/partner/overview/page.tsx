@@ -1,17 +1,25 @@
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 import { getPartnerOverview } from '@/app/actions/partnerOverviewActions';
+import { requireActivePartner } from '@/app/actions/resellerActions';
 import {
     Container, Title, Text, Stack, Group, Paper, Badge, SimpleGrid, ThemeIcon, Card, Anchor, Box, Button,
 } from '@mantine/core';
 import { IconChartBar, IconBuildingStore, IconSpeakerphone, IconWorld, IconBolt, IconTrendingUp, IconTrendingDown, IconArrowRight } from '@tabler/icons-react';
-import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PartnerOverviewPage() {
     const session = await auth();
     if (!session?.user) redirect('/login');
+
+    // Phase 39 — 활성 파트너만 접근 가능
+    try {
+        await requireActivePartner();
+    } catch (e: any) {
+        const reason = e?.message === 'PARTNER_SUSPENDED' ? 'suspended' : 'not-partner';
+        redirect(`/dashboard/partner?error=${reason}`);
+    }
 
     const overview = await getPartnerOverview();
     if (!overview) redirect('/dashboard/partner');
@@ -25,12 +33,12 @@ export default async function PartnerOverviewPage() {
         : Math.round(((overview.totals.thisMonthPublished - overview.totals.lastMonthPublished) / overview.totals.lastMonthPublished) * 100);
 
     return (
-        <Container size="xl" py="xl">
+        <Container size="xl" py={{ base: "md", sm: "xl" }}>
             <Stack gap="md">
                 {/* 헤더 */}
                 <Group justify="space-between">
                     <Stack gap={2}>
-                        <Anchor component={Link} href="/dashboard/partner" size="sm">← 파트너 대시보드</Anchor>
+                        <Anchor href="/dashboard/partner" size="sm">← 파트너 대시보드</Anchor>
                         <Group gap={6}>
                             <IconChartBar size={24} />
                             <Title order={2}>모든 고객사 한눈에</Title>
@@ -76,7 +84,7 @@ export default async function PartnerOverviewPage() {
                     <Group justify="space-between">
                         <Title order={4}>🏪 고객사별 상세</Title>
                         <Button
-                            component={Link}
+                            component="a"
                             href="/dashboard/partner/clients/new"
                             size="compact-sm"
                             variant="light"
@@ -89,7 +97,7 @@ export default async function PartnerOverviewPage() {
                         <Paper withBorder p="xl" radius="md">
                             <Stack gap="sm" align="center">
                                 <Text size="sm" c="dimmed">아직 등록된 고객사가 없습니다</Text>
-                                <Button component={Link} href="/dashboard/partner/clients/new" color="violet">
+                                <Button component="a" href="/dashboard/partner/clients/new" color="violet">
                                     첫 고객사 등록하기
                                 </Button>
                             </Stack>
@@ -146,7 +154,7 @@ export default async function PartnerOverviewPage() {
                                     </SimpleGrid>
 
                                     <Group gap="xs" mt="md">
-                                        <Anchor component={Link} href={`/dashboard/partner/clients/${c.id}`} size="xs" style={{ flex: 1 }}>
+                                        <Anchor href={`/dashboard/partner/clients/${c.id}`} size="xs" style={{ flex: 1 }}>
                                             상세 보기 <IconArrowRight size={11} style={{ display: 'inline' }} />
                                         </Anchor>
                                     </Group>

@@ -295,7 +295,7 @@ export default function SeriesDetailClient(initial: Props) {
                     <Text size="xs" c="dimmed">총 {data.campaignCount}개 캠페인 · 최근 {data.recentTasks.length}건 task 표시</Text>
                 </Group>
                 {data.recentTasks.length === 0 ? (
-                    <Center py="xl">
+                    <Center py={{ base: "md", sm: "xl" }}>
                         <Text size="sm" c="dimmed">아직 발행 이력이 없습니다. cron 이 5분마다 처리합니다.</Text>
                     </Center>
                 ) : (

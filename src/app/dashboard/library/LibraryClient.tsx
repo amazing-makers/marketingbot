@@ -91,7 +91,7 @@ export default function LibraryClient({ initialTemplates }: { initialTemplates: 
     const fullText = (t: Template) => t.body + (t.hashtags ? '\n\n' + t.hashtags : '');
 
     return (
-        <Container size="lg" py="xl">
+        <Container size="lg" py={{ base: "md", sm: "xl" }}>
             <Stack gap="md">
                 <Group justify="space-between">
                     <Stack gap={2}>
@@ -105,7 +105,7 @@ export default function LibraryClient({ initialTemplates }: { initialTemplates: 
 
                 {templates.length === 0 ? (
                     <Paper withBorder p="xl" radius="md" bg="var(--mantine-color-default-hover)">
-                        <Stack gap="md" align="center" py="xl">
+                        <Stack gap="md" align="center" py={{ base: "md", sm: "xl" }}>
                             <div style={{ fontSize: 56 }}>📚</div>
                             <Stack gap={4} align="center">
                                 <Text fw={800} size="lg">아직 저장된 템플릿이 없어요</Text>

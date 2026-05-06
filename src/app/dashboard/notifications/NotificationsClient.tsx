@@ -135,7 +135,7 @@ export default function NotificationsClient({ initial, initialFilter }: Props) {
     const sortedKinds = Object.entries(initial.kindCounts).sort((a, b) => b[1] - a[1]);
 
     return (
-        <Container size="md" py="xl">
+        <Container size="md" py={{ base: "md", sm: "xl" }}>
             <Stack gap="md">
                 <Group justify="space-between" wrap="wrap">
                     <Stack gap={2}>

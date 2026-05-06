@@ -72,7 +72,7 @@ export default function ChannelPreview({ channels, content, media, translations,
     if (channels.length === 0) {
         return (
             <Paper withBorder p="lg" radius="md" bg="var(--mantine-color-default-hover)">
-                <Stack gap={4} align="center" py="xl">
+                <Stack gap={4} align="center" py={{ base: "md", sm: "xl" }}>
                     <div style={{ fontSize: 36, opacity: 0.5 }}>👀</div>
                     <Text size="sm" fw={600} c="dimmed">채널을 선택하면</Text>
                     <Text size="xs" c="dimmed">실시간 미리보기가 여기에 표시됩니다</Text>
