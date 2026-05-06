@@ -60,8 +60,26 @@ export default function RootLayout({
           <PostHogProvider>
             <PostHogIdentify />
             <MantineProvider defaultColorScheme="auto">
-              <Notifications />
+              <Notifications position="top-right" />
               {children}
+              {/* Phase 41 — 모바일에서 토스트를 하단 탭바 위로 이동 */}
+              <style>{`
+                @media (max-width: 47.999em) {
+                  .mantine-Notifications-root {
+                    top: auto !important;
+                    bottom: calc(72px + env(safe-area-inset-bottom, 0)) !important;
+                    right: 8px !important;
+                    left: 8px !important;
+                    width: auto !important;
+                    max-width: none !important;
+                  }
+                  .mantine-Notifications-notification {
+                    margin-left: auto;
+                    margin-right: auto;
+                    max-width: 100%;
+                  }
+                }
+              `}</style>
             </MantineProvider>
           </PostHogProvider>
         </SessionProvider>

@@ -1,20 +1,20 @@
 "use client";
 
 import {
-  AppShell, Burger, Group, NavLink, Title, UnstyledButton, Text, Menu, Avatar,
+  AppShell, Burger, Group, NavLink, Title, UnstyledButton, Text,
   ActionIcon, Stack, Divider, Tooltip, useMantineColorScheme, Kbd, Box
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { Spotlight, spotlight } from '@mantine/spotlight';
 import '@mantine/spotlight/styles.css';
 import {
-  IconDashboard, IconPlus, IconUserCircle, IconSettings,
-  IconLogout, IconWorld, IconCalendarEvent,
+  IconDashboard, IconPlus, IconSettings,
+  IconWorld, IconCalendarEvent,
   IconSun, IconMoon, IconSearch, IconCalendarMonth, IconRobot,
   IconChartBar, IconKey, IconWebhook, IconBolt, IconUsers, IconCreditCard,
-  IconUsersGroup, IconShield, IconBriefcase, IconActivity, IconBookmark, IconHistory
+  IconUsersGroup, IconBriefcase, IconActivity, IconBookmark, IconHistory
 } from '@tabler/icons-react';
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
@@ -28,6 +28,7 @@ import ChangelogBadge from '@/components/changelog/ChangelogBadge';
 import InteractiveTour from '@/components/onboarding/InteractiveTour';
 import AccountSwitcher from '@/components/auth/AccountSwitcher';
 import SidebarAccountSwitcher from '@/components/auth/SidebarAccountSwitcher';
+import MobileBottomTabs from '@/components/nav/MobileBottomTabs';
 import { getMyAccountFlags } from '@/app/actions/resellerActions';
 import { globalSearch, type SearchHit } from '@/app/actions/globalSearchActions';
 
@@ -508,8 +509,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
         </AppShell.Navbar>
 
-        <AppShell.Main>{children}</AppShell.Main>
+        <AppShell.Main>
+          <Box style={{ paddingBottom: 'var(--mb-bottom-tabs, 0)' }} className="amakers-main-content">
+            {children}
+          </Box>
+        </AppShell.Main>
       </AppShell>
+      {/* Phase 41 — 모바일 하단 Tab Bar (sm 미만) */}
+      {session?.user && <MobileBottomTabs />}
       {/* AI 코파일럿 — 우하단 floating 버튼 + 우측 Drawer (Cursor 스타일) */}
       <CopilotSidebar />
       {/* PWA 설치 프롬프트 — 우하단 토스트 (모바일 우선) */}
@@ -518,6 +525,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {session?.user && <FeedbackButton />}
       {/* Phase 39 — 인터랙티브 온보딩 투어 (첫 방문 자동 시작) */}
       {session?.user && <InteractiveTour />}
+      <style jsx global>{`
+        @media (max-width: 47.999em) {
+          .amakers-main-content {
+            padding-bottom: calc(56px + env(safe-area-inset-bottom, 0)) !important;
+          }
+        }
+      `}</style>
     </>
   );
 }

@@ -553,11 +553,11 @@ function NewCampaignPageInner() {
   };
 
   return (
-    <Container size="xl">
-      <Group justify="space-between" align="flex-end" mb="xl">
-        <Stack gap={0}>
+    <Container size="xl" px={{ base: 0, sm: 'md' }}>
+      <Group justify="space-between" align="flex-end" mb="xl" wrap="wrap">
+        <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
           <Title order={2}>✨ 새 캠페인 작성</Title>
-          <Text c="dimmed">채널 → 콘텐츠 → 미디어 → 시간 순서로 작성하면 우측에 실시간 미리보기가 나타납니다.</Text>
+          <Text c="dimmed" size="sm">채널 → 콘텐츠 → 미디어 → 시간 순서로 작성하면 우측에 실시간 미리보기가 나타납니다.</Text>
         </Stack>
         {!template && (
           <Button
@@ -1448,7 +1448,7 @@ function NewCampaignPageInner() {
             </Text>
           </Box>
 
-          <Group grow>
+          <Group grow wrap="wrap">
             <Button
               onClick={handleGenerateImage}
               loading={imgBusy}

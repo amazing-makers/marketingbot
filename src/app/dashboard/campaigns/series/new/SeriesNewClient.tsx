@@ -245,7 +245,7 @@ export default function SeriesNewClient() {
     const selectedMode = MODE_OPTIONS.find(o => o.value === form.values.mode)!;
 
     return (
-        <Container size="lg">
+        <Container size="lg" px={{ base: 0, sm: 'md' }}>
             <Stack gap="md" mb="lg">
                 <Group gap={6}>
                     <Anchor component={Link} href="/dashboard/campaigns/series" size="sm">← 시리즈 목록</Anchor>
