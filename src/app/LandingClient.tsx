@@ -95,7 +95,50 @@ export default function LandingClient({ isLoggedIn }: LandingClientProps) {
                 </Button>
               )}
             </Group>
+            {/* Phase 45 — Hero CTA 아래 신뢰 시그널 */}
+            <Group gap="lg" mt="xs" wrap="wrap" justify="center">
+              <Group gap={4}>
+                <IconCheck size={14} color="var(--mantine-color-teal-6)" />
+                <Text size="sm" c="dimmed">신용카드 등록 불필요</Text>
+              </Group>
+              <Group gap={4}>
+                <IconCheck size={14} color="var(--mantine-color-teal-6)" />
+                <Text size="sm" c="dimmed">14일 모든 기능 무료</Text>
+              </Group>
+              <Group gap={4}>
+                <IconCheck size={14} color="var(--mantine-color-teal-6)" />
+                <Text size="sm" c="dimmed">5분 안에 첫 발행</Text>
+              </Group>
+              <Group gap={4}>
+                <IconCheck size={14} color="var(--mantine-color-teal-6)" />
+                <Text size="sm" c="dimmed">언제든 취소 가능</Text>
+              </Group>
+            </Group>
           </Stack>
+        </Container>
+      </Box>
+
+      {/* Phase 45 — 사회적 증명 + 핵심 통계 (스트립) */}
+      <Box py={40} bg="white" style={{ borderBottom: '1px solid var(--mantine-color-gray-2)' }}>
+        <Container size="lg">
+          <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xl">
+            <Stack gap={2} align="center">
+              <Title order={2} c="blue.6">8개</Title>
+              <Text size="xs" c="dimmed" ta="center">지원 SNS 채널</Text>
+            </Stack>
+            <Stack gap={2} align="center">
+              <Title order={2} c="violet.6">14개</Title>
+              <Text size="xs" c="dimmed" ta="center">자동 번역 언어</Text>
+            </Stack>
+            <Stack gap={2} align="center">
+              <Title order={2} c="teal.6">24/7</Title>
+              <Text size="xs" c="dimmed" ta="center">에이전트 자동 실행</Text>
+            </Stack>
+            <Stack gap={2} align="center">
+              <Title order={2} c="orange.6">5분</Title>
+              <Text size="xs" c="dimmed" ta="center">첫 발행까지 평균 시간</Text>
+            </Stack>
+          </SimpleGrid>
         </Container>
       </Box>
 

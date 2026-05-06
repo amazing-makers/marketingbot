@@ -34,6 +34,7 @@ const KIND_EMOJI: Record<string, string> = {
     TRIAL_RECOVERY: '🎁',
     LOGIN_NEW_DEVICE: '🔐',
     CHANNEL_ERROR: '🚨',
+    BUDGET_WARNING: '💰',
     SYSTEM: '📣',
 };
 
@@ -47,6 +48,7 @@ const KIND_LABEL: Record<string, string> = {
     TRIAL_RECOVERY: '재가입 안내',
     LOGIN_NEW_DEVICE: '새 디바이스 로그인',
     CHANNEL_ERROR: '채널 오류',
+    BUDGET_WARNING: 'AI 예산 알림',
     SYSTEM: '공지·기타',
 };
 

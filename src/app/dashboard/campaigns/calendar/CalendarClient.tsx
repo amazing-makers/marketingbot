@@ -248,7 +248,7 @@ export default function CalendarClient() {
             <Box hiddenFrom="sm">
                 <Paper withBorder p={0} radius="md" style={{ position: 'relative', overflow: 'hidden' }}>
                     {loading && (
-                        <Center style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.7)', zIndex: 10 }}>
+                        <Center style={{ position: 'absolute', inset: 0, background: 'var(--mantine-color-body)', opacity: 0.7, zIndex: 10 }}>
                             <Loader size="sm" />
                         </Center>
                     )}
@@ -357,17 +357,17 @@ export default function CalendarClient() {
             <Box visibleFrom="sm">
             <Paper withBorder p={0} radius="md" style={{ overflow: 'hidden', position: 'relative' }}>
                 {loading && (
-                    <Center style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.7)', zIndex: 10 }}>
+                    <Center style={{ position: 'absolute', inset: 0, background: 'var(--mantine-color-body)', opacity: 0.7, zIndex: 10 }}>
                         <Loader size="sm" />
                     </Center>
                 )}
                 {/* 요일 헤더 */}
-                <SimpleGrid cols={7} spacing={0} style={{ borderBottom: '1px solid #eee' }}>
+                <SimpleGrid cols={7} spacing={0} style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
                     {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
                         <Box key={d} p="xs" ta="center" style={{
                             fontSize: 12, fontWeight: 700,
                             color: i === 0 ? 'var(--mantine-color-red-7)' : i === 6 ? 'var(--mantine-color-blue-7)' : '#666',
-                            background: '#fafafa',
+                            background: 'var(--mantine-color-default-hover)',
                         }}>{d}</Box>
                     ))}
                 </SimpleGrid>
@@ -405,13 +405,13 @@ export default function CalendarClient() {
                                 style={{
                                     minHeight: 110,
                                     padding: 6,
-                                    borderRight: '1px solid #f1f3f5',
-                                    borderBottom: '1px solid #f1f3f5',
+                                    borderRight: '1px solid var(--mantine-color-default-border)',
+                                    borderBottom: '1px solid var(--mantine-color-default-border)',
                                     background: isDropTarget
                                         ? 'var(--mantine-color-violet-1)'
                                         : isToday
-                                            ? 'var(--mantine-color-brand-light, #fff7e6)'
-                                            : (isCurrentMonth ? 'white' : '#fafafa'),
+                                            ? 'var(--mantine-color-violet-0)'
+                                            : (isCurrentMonth ? 'var(--mantine-color-body)' : 'var(--mantine-color-default-hover)'),
                                     opacity: isCurrentMonth ? 1 : 0.5,
                                     position: 'relative',
                                     transition: 'background 0.15s',

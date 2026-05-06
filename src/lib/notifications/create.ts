@@ -17,6 +17,7 @@ export type NotificationKind =
     | 'TRIAL_RECOVERY'
     | 'LOGIN_NEW_DEVICE'
     | 'CHANNEL_ERROR'
+    | 'BUDGET_WARNING'
     | 'SYSTEM';
 
 export interface CreateNotificationInput {
