@@ -29,6 +29,7 @@ import InteractiveTour from '@/components/onboarding/InteractiveTour';
 import AccountSwitcher from '@/components/auth/AccountSwitcher';
 import SidebarAccountSwitcher from '@/components/auth/SidebarAccountSwitcher';
 import MobileBottomTabs from '@/components/nav/MobileBottomTabs';
+import FirstPublishCelebration from '@/components/milestones/FirstPublishCelebration';
 import { getMyAccountFlags } from '@/app/actions/resellerActions';
 import { globalSearch, type SearchHit } from '@/app/actions/globalSearchActions';
 
@@ -162,6 +163,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       onClick: () => router.push('/dashboard/campaigns/new'),
       leftSection: <IconPlus size={18} />,
       keywords: ['create', 'compose', '작성', '게시'],
+    },
+    {
+      id: 'quick-publish',
+      label: '⚡ 5분 빠른 발행',
+      description: '주제만 입력 → AI 캡션 자동 → 모든 채널 즉시 발행',
+      onClick: () => router.push('/dashboard/quick-publish'),
+      leftSection: <IconBolt size={18} />,
+      keywords: ['quick', 'fast', '빠른', '간편', '즉시', 'instant'],
     },
     {
       id: 'channels',
@@ -525,6 +534,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {session?.user && <FeedbackButton />}
       {/* Phase 39 — 인터랙티브 온보딩 투어 (첫 방문 자동 시작) */}
       {session?.user && <InteractiveTour />}
+      {/* Phase 43 — 첫 발행 SUCCESS 자동 감지 + 축하 모달 (영구 1회) */}
+      {session?.user && <FirstPublishCelebration />}
       <style jsx global>{`
         @media (max-width: 47.999em) {
           .amakers-main-content {
