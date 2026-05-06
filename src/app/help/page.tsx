@@ -1,14 +1,17 @@
-import { Container, Title, Text, Stack, Paper, Group, Badge, ThemeIcon, Anchor, Box, Divider } from '@mantine/core';
+import { Container, Title, Text, Stack, Paper, Group, Badge, ThemeIcon, Anchor, Box, Divider, SimpleGrid } from '@mantine/core';
 import {
     IconRocket, IconKey, IconDownload, IconPlugConnected,
     IconSparkles, IconAlertTriangle, IconLifebuoy, IconChecklist,
-    IconBrandInstagram, IconArticle, IconBrandFacebook, IconBrandThreads, IconUsersGroup
+    IconBrandInstagram, IconArticle, IconBrandFacebook, IconBrandThreads, IconUsersGroup,
+    IconWebhook, IconBolt, IconCalendarMonth, IconCreditCard, IconShield, IconMessage,
 } from '@tabler/icons-react';
+import Link from 'next/link';
 
 export const metadata = {
     title: '사용 안내 - 마케팅봇',
     description: '가입부터 첫 캠페인 발행까지 — 단계별 사용 가이드',
 };
+export const dynamic = 'force-dynamic';
 
 interface SectionProps {
     icon: React.ReactNode;
@@ -62,15 +65,98 @@ export default function HelpPage() {
                         </Text>
                     </Stack>
 
+                    {/* Phase 39 — 빠른 시작 카드 그리드 */}
+                    <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
+                        <QuickCard
+                            href="/dashboard"
+                            icon={<IconRocket size={20} />}
+                            color="violet"
+                            title="첫 캠페인 만들기"
+                            desc="대시보드 → 캠페인 작성. 한 번 쓰면 모든 채널에 자동 발행"
+                        />
+                        <QuickCard
+                            href="/dashboard/campaigns/series"
+                            icon={<IconBolt size={20} />}
+                            color="orange"
+                            title="자동 발행 시리즈"
+                            desc="한 번 설정 → 며칠·몇주 동안 자동으로 게시물 만들어 올림"
+                        />
+                        <QuickCard
+                            href="/dashboard/channels"
+                            icon={<IconPlugConnected size={20} />}
+                            color="blue"
+                            title="채널 연결"
+                            desc="인스타·페이스북·블로그·디스코드 등 5개+ 동시 등록"
+                        />
+                        <QuickCard
+                            href="/dashboard/ai-compare"
+                            icon={<IconSparkles size={20} />}
+                            color="grape"
+                            title="AI 모델 비교"
+                            desc="같은 프롬프트로 4개 AI 동시 호출 → 가장 좋은 결과 선택"
+                        />
+                        <QuickCard
+                            href="/help/api"
+                            icon={<IconWebhook size={20} />}
+                            color="teal"
+                            title="API · Webhook"
+                            desc="Zapier/Make/n8n 통합 — 외부 자동화에서 호출"
+                        />
+                        <QuickCard
+                            href="/dashboard/settings/billing"
+                            icon={<IconCreditCard size={20} />}
+                            color="green"
+                            title="플랜 업그레이드"
+                            desc="STARTER 9,900원부터. 14일 무료 체험"
+                        />
+                    </SimpleGrid>
+
+                    {/* FAQ 빠른 답변 */}
+                    <Paper withBorder p="lg" radius="md" bg="white">
+                        <Group gap={6} mb="md">
+                            <IconMessage size={18} />
+                            <Title order={4}>자주 묻는 질문 (요약)</Title>
+                        </Group>
+                        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                            <Box>
+                                <Text fw={700} size="sm" mb={4}>Q. 인스타그램이 막히지 않나요?</Text>
+                                <Text size="xs" c="dimmed">
+                                    데스크톱 에이전트가 사람처럼 행동합니다 (속도 제한, 랜덤 지연). 한 계정에 평소 사용량 이상으로 발행하지 마세요.
+                                </Text>
+                            </Box>
+                            <Box>
+                                <Text fw={700} size="sm" mb={4}>Q. AI 키 없이도 쓸 수 있나요?</Text>
+                                <Text size="xs" c="dimmed">
+                                    예. 무료 엔진 (Pollinations, Gemini Flash 무료tier, Groq, Ollama) 자동 폴백. 본인 키 등록 시 우선 사용.
+                                </Text>
+                            </Box>
+                            <Box>
+                                <Text fw={700} size="sm" mb={4}>Q. 14일 후 데이터는 어떻게 되나요?</Text>
+                                <Text size="xs" c="dimmed">
+                                    유지됩니다. FREE 플랜으로 강등되어 일부 기능만 제한 (채널 2개, 일일 task 5개). 결제 시 즉시 복구.
+                                </Text>
+                            </Box>
+                            <Box>
+                                <Text fw={700} size="sm" mb={4}>Q. 데이터를 모두 다운로드할 수 있나요?</Text>
+                                <Text size="xs" c="dimmed">
+                                    예. 프로필 페이지에서 "내 데이터 전체 다운로드" 버튼으로 JSON 익스포트 (GDPR Article 20).
+                                </Text>
+                            </Box>
+                        </SimpleGrid>
+                    </Paper>
+
                     {/* TOC */}
                     <Paper withBorder p="md" radius="md" bg="white">
-                        <Text fw={700} mb="xs" size="sm">목차</Text>
+                        <Text fw={700} mb="xs" size="sm">상세 가이드</Text>
                         <Group gap="md">
                             {TOC.map(t => (
                                 <Anchor key={t.id} href={`#${t.id}`} size="sm" c="dimmed">
                                     {t.icon} {t.label}
                                 </Anchor>
                             ))}
+                            <Anchor component={Link} href="/help/api" size="sm" c="violet" fw={600}>
+                                🔗 API 문서 →
+                            </Anchor>
                         </Group>
                     </Paper>
 
@@ -308,5 +394,39 @@ export default function HelpPage() {
                 </Stack>
             </Container>
         </Box>
+    );
+}
+
+function QuickCard({ href, icon, color, title, desc }: {
+    href: string;
+    icon: React.ReactNode;
+    color: string;
+    title: string;
+    desc: string;
+}) {
+    return (
+        <Paper
+            component={Link}
+            href={href}
+            withBorder
+            p="md"
+            radius="md"
+            bg="white"
+            style={{
+                textDecoration: 'none',
+                color: 'inherit',
+                transition: 'border-color 0.15s, transform 0.15s',
+                cursor: 'pointer',
+                display: 'block',
+            }}
+        >
+            <Group gap="sm" mb={6}>
+                <ThemeIcon size={36} radius="md" variant="light" color={color}>
+                    {icon}
+                </ThemeIcon>
+                <Text fw={700} size="sm">{title}</Text>
+            </Group>
+            <Text size="xs" c="dimmed">{desc}</Text>
+        </Paper>
     );
 }

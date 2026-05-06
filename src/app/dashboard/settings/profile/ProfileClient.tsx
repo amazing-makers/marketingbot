@@ -1,7 +1,7 @@
 'use client';
 
 import { Paper, Stack, Group, TextInput, PasswordInput, Button, Text, Avatar, Badge, Box } from '@mantine/core';
-import { IconUser, IconLock, IconMail, IconCalendar } from '@tabler/icons-react';
+import { IconUser, IconLock, IconMail, IconCalendar, IconDownload, IconShield } from '@tabler/icons-react';
 import { useState, useTransition } from 'react';
 import { notifications } from '@mantine/notifications';
 import { updateMyName, changeMyPassword } from '@/app/actions/userActions';
@@ -147,6 +147,31 @@ export default function ProfileClient({ profile }: { profile: Profile }) {
                             loading={isPending}
                         >
                             비밀번호 변경
+                        </Button>
+                    </Group>
+                </Stack>
+            </Paper>
+
+            {/* Phase 39 — 데이터 익스포트 (GDPR) */}
+            <Paper withBorder p="md" radius="md">
+                <Stack gap="md">
+                    <Group gap={6}>
+                        <IconShield size={18} />
+                        <Text fw={700}>데이터 권리 (GDPR)</Text>
+                    </Group>
+                    <Text size="sm" c="dimmed">
+                        본인이 마케팅봇에 저장한 모든 데이터를 JSON 파일로 다운로드할 수 있어요.
+                        캠페인·시리즈·채널·구독·알림·피드백·워크스페이스 멤버십이 포함됩니다.
+                        (자격증명·webhook 토큰 값은 보안상 제외)
+                    </Text>
+                    <Group justify="flex-end">
+                        <Button
+                            component="a"
+                            href="/api/me/export"
+                            variant="light"
+                            leftSection={<IconDownload size={14} />}
+                        >
+                            내 데이터 전체 다운로드 (JSON)
                         </Button>
                     </Group>
                 </Stack>

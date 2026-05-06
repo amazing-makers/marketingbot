@@ -25,6 +25,7 @@ import NotificationBell from '@/components/notifications/NotificationBell';
 import InstallPrompt from '@/components/pwa/InstallPrompt';
 import FeedbackButton from '@/components/feedback/FeedbackButton';
 import ChangelogBadge from '@/components/changelog/ChangelogBadge';
+import InteractiveTour from '@/components/onboarding/InteractiveTour';
 import { getMyAccountFlags } from '@/app/actions/resellerActions';
 import { globalSearch, type SearchHit } from '@/app/actions/globalSearchActions';
 
@@ -375,6 +376,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <Menu.Item leftSection={<IconSettings size={14} />} component={Link} href="/dashboard/settings">
                       환경 설정
                     </Menu.Item>
+                    <Menu.Item
+                      leftSection={<IconBolt size={14} />}
+                      onClick={() => (window as any).__startAmakersTour?.()}
+                    >
+                      🎓 투어 다시 보기
+                    </Menu.Item>
 
                     {/* 파트너 메뉴 — 등록된 파트너만 표시 */}
                     {accountFlags.isPartner && (
@@ -475,6 +482,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               href="/dashboard/campaigns"
               label="캠페인 관리"
               leftSection={<IconCalendarEvent size={18} stroke={1.5} />}
+              data-tour="nav-campaigns"
               active={
                 !!pathname &&
                 pathname.startsWith('/dashboard/campaigns') &&
@@ -496,6 +504,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               href="/dashboard/campaigns/series"
               label="예약 자동 발행"
               leftSection={<IconBolt size={18} stroke={1.5} />}
+              data-tour="nav-series"
               active={!!pathname && pathname.includes('/series')}
             />
             <NavLink
@@ -503,6 +512,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               href="/dashboard/channels"
               label="채널 관리"
               leftSection={<IconWorld size={18} stroke={1.5} />}
+              data-tour="nav-channels"
               active={pathname === '/dashboard/channels'}
             />
             <NavLink
@@ -562,6 +572,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <InstallPrompt />
       {/* Phase 25 — 피드백 버튼 (우하단, 코파일럿 위) */}
       {session?.user && <FeedbackButton />}
+      {/* Phase 39 — 인터랙티브 온보딩 투어 (첫 방문 자동 시작) */}
+      {session?.user && <InteractiveTour />}
     </>
   );
 }
