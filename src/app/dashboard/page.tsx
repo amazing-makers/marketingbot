@@ -7,7 +7,9 @@ import { DashboardStatsClient } from './DashboardStatsClient';
 import WorkspaceContextBanner from '@/components/workspace/WorkspaceContextBanner';
 import SetupChecklist from '@/components/onboarding/SetupChecklist';
 import TrialExpiringBanner from '@/components/billing/TrialExpiringBanner';
+import TrialExpiredBanner from '@/components/billing/TrialExpiredBanner';
 import PlanUsageWidget from '@/components/billing/PlanUsageWidget';
+import SampleDataCard from '@/components/onboarding/SampleDataCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,25 +91,46 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         campaignCount: recentCampaigns.length,
     };
 
-    // 트라이얼 만료 배너 — 유료 구독자가 아니고 FREE_TRIAL 라이센스가 7일 이내 만료일 때만
+    // 트라이얼 배너 — 유료 구독자가 아닐 때만
     const isPaidActive = activeSub && activeSub.status === 'active' && activeSub.plan && activeSub.plan !== 'FREE';
-    const showTrialBanner = !isPaidActive && trialLicense?.validUntil &&
-        dayjs(trialLicense.validUntil).diff(dayjs(), 'day') <= 7 &&
+    const trialDaysDiff = trialLicense?.validUntil
+        ? dayjs(trialLicense.validUntil).diff(dayjs(), 'day')
+        : null;
+    // 만료 전 7일 이내 → Expiring 배너
+    const showTrialExpiringBanner = !isPaidActive && trialLicense?.validUntil &&
+        trialDaysDiff !== null && trialDaysDiff <= 7 &&
         dayjs(trialLicense.validUntil).isAfter(dayjs());
+    // 만료 후 90일 이내 → Expired (grace period) 배너
+    const showTrialExpiredBanner = !isPaidActive && trialLicense?.validUntil &&
+        trialDaysDiff !== null && trialDaysDiff < 0 && trialDaysDiff >= -90;
     const daysRemaining = trialLicense?.validUntil
         ? Math.max(0, dayjs(trialLicense.validUntil).diff(dayjs(), 'day'))
+        : 0;
+    const daysSinceExpired = trialLicense?.validUntil
+        ? Math.max(0, -dayjs(trialLicense.validUntil).diff(dayjs(), 'day'))
         : 0;
 
     return (
         <>
             <WorkspaceContextBanner />
-            {showTrialBanner && trialLicense?.validUntil && (
+            {showTrialExpiringBanner && trialLicense?.validUntil && (
                 <TrialExpiringBanner
                     daysRemaining={daysRemaining}
                     expiresAt={trialLicense.validUntil.toISOString()}
                 />
             )}
+            {showTrialExpiredBanner && trialLicense?.validUntil && (
+                <TrialExpiredBanner
+                    daysSinceExpired={daysSinceExpired}
+                    expiredAt={trialLicense.validUntil.toISOString()}
+                />
+            )}
             <PlanUsageWidget userId={userId} />
+            <SampleDataCard
+                channelCount={channelCount}
+                campaignCount={recentCampaigns.length}
+                seriesCount={recentCampaigns.filter(c => c.seriesId).length}
+            />
             <SetupChecklist />
             <DashboardStatsClient
                 summary={summaryStats}
