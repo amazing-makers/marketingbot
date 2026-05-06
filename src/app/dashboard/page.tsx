@@ -10,6 +10,7 @@ import TrialExpiringBanner from '@/components/billing/TrialExpiringBanner';
 import TrialExpiredBanner from '@/components/billing/TrialExpiredBanner';
 import PlanUsageWidget from '@/components/billing/PlanUsageWidget';
 import SampleDataCard from '@/components/onboarding/SampleDataCard';
+import MyMetricsWidget from '@/components/dashboard/MyMetricsWidget';
 
 export const dynamic = 'force-dynamic';
 
@@ -126,6 +127,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 />
             )}
             <PlanUsageWidget userId={userId} />
+            <MyMetricsWidget userId={userId} />
             <SampleDataCard
                 channelCount={channelCount}
                 campaignCount={recentCampaigns.length}

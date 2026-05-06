@@ -1,13 +1,23 @@
 'use client';
 
 import {
-    Stack, Text, Group, Box, Paper, Avatar, Image, Badge, ScrollArea, Divider
+    Stack, Text, Group, Box, Paper, Avatar, Image, Badge, ScrollArea, Divider, SegmentedControl,
 } from '@mantine/core';
 import {
     IconBrandInstagram, IconBrandFacebook, IconBrandX, IconBrandTiktok,
     IconBrandYoutube, IconBrandThreads, IconBrandLinkedin, IconBrandTelegram,
-    IconBrandWordpress, IconBrandDiscord, IconHeart, IconMessageCircle, IconShare3
+    IconBrandWordpress, IconBrandDiscord, IconHeart, IconMessageCircle, IconShare3,
+    IconDeviceMobile, IconDeviceTablet, IconDeviceDesktop,
 } from '@tabler/icons-react';
+import { useState } from 'react';
+
+type PreviewDevice = 'mobile' | 'tablet' | 'desktop';
+
+const DEVICE_WIDTH: Record<PreviewDevice, number> = {
+    mobile: 360,
+    tablet: 480,
+    desktop: 600,
+};
 
 // 채널 한도 (caption.ts PLATFORM_FORMATS 와 1:1 동기)
 const CHANNEL_LIMITS: Record<string, { maxChars: number; recommendedHashtags: number; brand: string }> = {
@@ -69,6 +79,9 @@ interface Props {
 }
 
 export default function ChannelPreview({ channels, content, media, translations, translating }: Props) {
+    // Phase 47 — 디바이스 토글 (mobile/tablet/desktop)
+    const [device, setDevice] = useState<PreviewDevice>('mobile');
+
     if (channels.length === 0) {
         return (
             <Paper withBorder p="lg" radius="md" bg="var(--mantine-color-default-hover)">
@@ -81,12 +94,34 @@ export default function ChannelPreview({ channels, content, media, translations,
         );
     }
 
+    const containerWidth = DEVICE_WIDTH[device];
+
     return (
         <Stack gap="md">
-            <Group gap={6}>
-                <Text size="sm" fw={700}>📱 실시간 미리보기</Text>
-                <Badge size="xs" color="brand" variant="light">{channels.length}개 채널</Badge>
+            <Group justify="space-between" wrap="wrap">
+                <Group gap={6}>
+                    <Text size="sm" fw={700}>📱 실시간 미리보기</Text>
+                    <Badge size="xs" color="brand" variant="light">{channels.length}개 채널</Badge>
+                </Group>
+                <SegmentedControl
+                    size="xs"
+                    value={device}
+                    onChange={(v) => setDevice(v as PreviewDevice)}
+                    data={[
+                        { value: 'mobile', label: <Group gap={3} wrap="nowrap"><IconDeviceMobile size={11} /><Text size="10px">모바일</Text></Group> },
+                        { value: 'tablet', label: <Group gap={3} wrap="nowrap"><IconDeviceTablet size={11} /><Text size="10px">태블릿</Text></Group> },
+                        { value: 'desktop', label: <Group gap={3} wrap="nowrap"><IconDeviceDesktop size={11} /><Text size="10px">PC</Text></Group> },
+                    ]}
+                />
             </Group>
+
+            <Box style={{
+                maxWidth: containerWidth,
+                margin: '0 auto',
+                width: '100%',
+                transition: 'max-width 0.2s',
+            }}>
+            <Stack gap="md">
 
             {channels.map(channel => {
                 const limit = CHANNEL_LIMITS[channel.type] || { maxChars: 5000, recommendedHashtags: 5, brand: 'gray' };
@@ -153,6 +188,8 @@ export default function ChannelPreview({ channels, content, media, translations,
                     </Paper>
                 );
             })}
+            </Stack>
+            </Box>
         </Stack>
     );
 }
