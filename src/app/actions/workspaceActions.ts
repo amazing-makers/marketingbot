@@ -236,6 +236,16 @@ export async function listWorkspaceMembers(workspaceId: string) {
     const ws7 = Object.fromEntries(weekSeries.map(g => [g.userId, g._count._all]));
     const ws30 = Object.fromEntries(monthSeries.map(g => [g.userId, g._count._all]));
 
+    // Phase 46 — 워크스페이스 최근 활동 (멤버 활동 통합 타임라인 30건)
+    const recentActivity = await prisma.activityLog.findMany({
+        where: { workspaceId },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+        include: {
+            user: { select: { email: true, name: true } },
+        },
+    });
+
     return {
         workspace: { ...ws, isOwner: ws.ownerId === userId },
         myRole: me.role,
@@ -251,6 +261,16 @@ export async function listWorkspaceMembers(workspaceId: string) {
             monthCampaigns: mc[m.userId] || 0,
             weekSeries: ws7[m.userId] || 0,
             monthSeries: ws30[m.userId] || 0,
+        })),
+        recentActivity: recentActivity.map(a => ({
+            id: a.id,
+            kind: a.kind,
+            title: a.title,
+            body: a.body,
+            link: a.link,
+            createdAt: a.createdAt.toISOString(),
+            actorEmail: a.user.email,
+            actorName: a.user.name,
         })),
     };
 }

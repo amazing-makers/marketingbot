@@ -40,6 +40,7 @@ export default async function WorkspaceDetailPage({ params }: PageProps) {
                     expiresAt: i.expiresAt.toISOString(),
                     createdAt: i.createdAt.toISOString(),
                 })),
+                recentActivity: data.recentActivity || [],
             }}
         />
     );

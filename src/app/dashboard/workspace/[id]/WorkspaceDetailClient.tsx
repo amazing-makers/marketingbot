@@ -8,9 +8,13 @@ import { useDisclosure } from '@mantine/hooks';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import { useState } from 'react';
-import { IconUsersGroup, IconUserPlus, IconCrown, IconTrash, IconEdit, IconMail, IconClock, IconBan, IconFileImport } from '@tabler/icons-react';
+import { IconUsersGroup, IconUserPlus, IconCrown, IconTrash, IconEdit, IconMail, IconClock, IconBan, IconFileImport, IconActivity } from '@tabler/icons-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import 'dayjs/locale/ko';
+dayjs.extend(relativeTime);
+dayjs.locale('ko');
 import { removeWorkspaceMember, updateMemberRole } from '@/app/actions/workspaceActions';
 import { inviteToWorkspace, revokeInvitation } from '@/app/actions/invitationActions';
 
@@ -36,6 +40,17 @@ interface PendingInvite {
     createdAt: string;
 }
 
+interface ActivityItem {
+    id: string;
+    kind: string;
+    title: string;
+    body: string | null;
+    link: string | null;
+    createdAt: string;
+    actorEmail: string;
+    actorName: string | null;
+}
+
 interface Data {
     workspace: {
         id: string;
@@ -51,6 +66,7 @@ interface Data {
     myRole: string;
     members: Member[];
     pendingInvitations: PendingInvite[];
+    recentActivity?: ActivityItem[];
 }
 
 const ROLE_LABELS: Record<string, { label: string; color: string }> = {
@@ -306,6 +322,59 @@ export default function WorkspaceDetailClient({ data }: { data: Data }) {
                     </Table>
                     </Table.ScrollContainer>
                 </Card>
+
+                {/* Phase 46 — 워크스페이스 최근 활동 타임라인 */}
+                {data.recentActivity && data.recentActivity.length > 0 && (
+                    <Card withBorder p="md" radius="md">
+                        <Group gap={6} mb="sm">
+                            <IconActivity size={18} />
+                            <Text fw={700}>최근 활동 ({data.recentActivity.length})</Text>
+                            <Anchor component={Link} href="/dashboard/activity" size="xs" c="violet" ml="auto">
+                                전체 활동 보기 →
+                            </Anchor>
+                        </Group>
+                        <Stack gap={6}>
+                            {data.recentActivity.slice(0, 15).map(a => (
+                                <Box
+                                    key={a.id}
+                                    style={{
+                                        padding: 8,
+                                        borderLeft: '3px solid var(--mantine-color-violet-4)',
+                                        background: 'var(--mantine-color-default-hover)',
+                                        borderRadius: 4,
+                                    }}
+                                >
+                                    <Group justify="space-between" wrap="nowrap" gap="xs">
+                                        <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
+                                            <Group gap={4} wrap="nowrap">
+                                                <Badge size="xs" variant="light" color="gray">{a.kind}</Badge>
+                                                <Text size="xs" fw={600} truncate style={{ flex: 1 }}>
+                                                    {a.title}
+                                                </Text>
+                                            </Group>
+                                            {a.body && (
+                                                <Text size="11px" c="dimmed" lineClamp={1}>{a.body}</Text>
+                                            )}
+                                            <Text size="10px" c="dimmed">
+                                                {a.actorName || a.actorEmail.split('@')[0]} · {dayjs(a.createdAt).fromNow()}
+                                            </Text>
+                                        </Stack>
+                                        {a.link && (
+                                            <Anchor
+                                                component={Link}
+                                                href={a.link}
+                                                size="11px"
+                                                style={{ flexShrink: 0 }}
+                                            >
+                                                →
+                                            </Anchor>
+                                        )}
+                                    </Group>
+                                </Box>
+                            ))}
+                        </Stack>
+                    </Card>
+                )}
 
                 {/* === 대기 중인 초대 === */}
                 {data.pendingInvitations.length > 0 && (

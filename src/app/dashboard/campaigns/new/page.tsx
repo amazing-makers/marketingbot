@@ -1012,9 +1012,17 @@ function NewCampaignPageInner() {
       </Paper>
         </Grid.Col>
 
-        {/* 우측 — 채널별 실시간 미리보기 (sticky) */}
+        {/* 우측 — 채널별 실시간 미리보기 (sticky, lg+ 데스크톱만 효과) */}
         <Grid.Col span={{ base: 12, lg: 4 }}>
-          <Box style={{ position: 'sticky', top: 76 }}>
+          <Box
+            style={{
+              position: 'sticky',
+              top: 76,
+              maxHeight: 'calc(100vh - 96px)',
+              overflowY: 'auto',
+              paddingRight: 4,
+            }}
+          >
             <ChannelPreview
               channels={selectedChannels.map(c => ({
                 id: c.id,
