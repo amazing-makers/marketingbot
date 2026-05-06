@@ -19,6 +19,8 @@ export async function registerUser(formData: FormData) {
   const name = formData.get("name") as string;
   // Phase 13 — 리셀러 추천 코드 (선택, 가입 폼 hidden input 또는 ?ref= 쿼리에서 전달)
   const referralCode = (formData.get("referralCode") as string | null)?.trim() || null;
+  // Phase 48 — 사용자 친구 초대 코드 (?refby=)
+  const refByCode = (formData.get("refByCode") as string | null)?.trim() || null;
 
   // 유효성 검사
   const validatedFields = registerSchema.safeParse({ email, password, name });
@@ -124,6 +126,13 @@ export async function registerUser(formData: FormData) {
           dashboardUrl: `${process.env.NEXTAUTH_URL || 'https://marketingbot.kr'}/dashboard`,
         }),
       }).catch(err => console.error("Welcome email failed:", err));
+    }
+
+    // Phase 48 — 친구 초대 코드 적용 (?refby=)
+    if (refByCode) {
+      import("@/app/actions/referActions").then(({ applyReferralCode }) => {
+        applyReferralCode(result.user.id, refByCode).catch(() => { /* ignore */ });
+      });
     }
 
     // PostHog 이벤트 (비동기, 실패해도 가입 영향 X)

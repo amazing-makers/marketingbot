@@ -173,6 +173,11 @@ export default function AccountSwitcher({ currentUser, isAdmin, isPartner, admin
                     🎓 투어 다시 보기
                 </Menu.Item>
 
+                <Menu.Divider />
+                <Menu.Item leftSection={<IconUserPlus size={14} />} component={Link} href="/dashboard/refer">
+                    🎁 친구 초대 (트라이얼 7일 보너스)
+                </Menu.Item>
+
                 {isPartner && (
                     <>
                         <Menu.Divider />

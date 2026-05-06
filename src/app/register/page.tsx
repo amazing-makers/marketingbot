@@ -12,9 +12,11 @@ function RegisterPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const refFromUrl = (searchParams.get('ref') || '').trim().toUpperCase();
+  const refByFromUrl = (searchParams.get('refby') || '').trim().toUpperCase();
   const [referralCode, setReferralCode] = useState(refFromUrl);
+  const [refByCode, setRefByCode] = useState(refByFromUrl);
 
-  // localStorage 백업 — ?ref= 가 있으면 30일 보관 (SNS 거쳐 오는 사용자 대비)
+  // localStorage 백업 — ?ref= 또는 ?refby= 가 있으면 30일 보관
   useEffect(() => {
     if (refFromUrl) {
       try {
@@ -31,7 +33,23 @@ function RegisterPageInner() {
         }
       } catch { /* ignore */ }
     }
-  }, [refFromUrl]);
+    // refby 도 동일 30일 보관
+    if (refByFromUrl) {
+      try {
+        localStorage.setItem('amakers_refby', refByFromUrl);
+        localStorage.setItem('amakers_refby_at', String(Date.now()));
+      } catch { /* ignore */ }
+    } else {
+      try {
+        const stored = localStorage.getItem('amakers_refby');
+        const storedAt = Number(localStorage.getItem('amakers_refby_at') || 0);
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+        if (stored && Date.now() - storedAt < thirtyDaysMs) {
+          setRefByCode(stored);
+        }
+      } catch { /* ignore */ }
+    }
+  }, [refFromUrl, refByFromUrl]);
 
   const form = useForm({
     initialValues: {
@@ -52,6 +70,7 @@ function RegisterPageInner() {
     formData.append('email', values.email);
     formData.append('password', values.password);
     if (referralCode) formData.append('referralCode', referralCode);
+    if (refByCode) formData.append('refByCode', refByCode);
 
     const result = await registerUser(formData);
 
@@ -63,7 +82,12 @@ function RegisterPageInner() {
       });
     } else {
       // 가입 성공 시 referral 토큰 정리
-      try { localStorage.removeItem('amakers_ref'); localStorage.removeItem('amakers_ref_at'); } catch { /* ignore */ }
+      try {
+        localStorage.removeItem('amakers_ref');
+        localStorage.removeItem('amakers_ref_at');
+        localStorage.removeItem('amakers_refby');
+        localStorage.removeItem('amakers_refby_at');
+      } catch { /* ignore */ }
       notifications.show({
         title: '회원가입 성공',
         message: '로그인 페이지로 이동합니다.',
@@ -86,7 +110,14 @@ function RegisterPageInner() {
       {referralCode && (
         <Group justify="center" mt="md">
           <Badge color="violet" variant="light" size="lg">
-            🎁 추천 코드 적용됨: {referralCode}
+            🎁 파트너 추천 코드 적용됨: {referralCode}
+          </Badge>
+        </Group>
+      )}
+      {refByCode && (
+        <Group justify="center" mt="md">
+          <Badge color="pink" variant="light" size="lg">
+            👥 친구 초대 코드 적용됨: {refByCode}
           </Badge>
         </Group>
       )}

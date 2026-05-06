@@ -284,6 +284,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       keywords: ['partner', '파트너', '리셀러', 'reseller', '추천'],
     },
     {
+      id: 'refer',
+      label: '🎁 친구 초대',
+      description: '친구가 가입·결제하면 트라이얼 7일 보너스',
+      onClick: () => router.push('/dashboard/refer'),
+      leftSection: <IconUsers size={18} />,
+      keywords: ['refer', '추천', '친구', 'invite', 'referral', 'gift'],
+    },
+    {
       id: 'partner-overview',
       label: '🏪 파트너 통합 통계',
       description: '모든 고객사 KPI 한눈에',
