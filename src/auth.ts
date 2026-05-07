@@ -6,6 +6,7 @@ import { z } from "zod";
 import "@/lib/env"; // 환경변수 검증 강제
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   providers: [
     Credentials({
       async authorize(credentials) {

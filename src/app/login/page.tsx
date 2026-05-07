@@ -4,14 +4,13 @@ import { TextInput, PasswordInput, Button, Paper, Title, Container, Stack, Ancho
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import { signIn, getSession } from 'next-auth/react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Suspense, useEffect } from 'react';
 import { IconUserPlus } from '@tabler/icons-react';
 import { recordLoginEvent } from '@/app/actions/authActions';
 
 function LoginInner() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const prefillEmail = searchParams.get('email') || '';
   const isAddMode = searchParams.get('add') === '1';
@@ -61,8 +60,8 @@ function LoginInner() {
           recordLoginEvent(userId).catch(() => {});
         }
       } catch { /* ignore */ }
-      router.push('/dashboard');
-      router.refresh();
+      // hard navigation — signIn 직후 router.push 는 신규 세션 쿠키가 server component 까지 전파되기 전에 navigate 되어 /dashboard 의 auth() 가 미인증으로 판단, /login 으로 튕기는 race condition 발생. window.location 으로 전체 reload 해 쿠키 반영 보장.
+      window.location.href = '/dashboard';
     }
   };
 
