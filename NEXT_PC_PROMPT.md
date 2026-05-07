@@ -1,7 +1,7 @@
-# 🤖 다음 PC 에서 Claude Code 에 붙여넣을 프롬프트
+# 🤖 다른 PC 의 Claude Code 에 붙여넣을 프롬프트
 
 아래 박스 안의 내용 전체를 새 컴퓨터의 Claude Code 첫 메시지로 복사·붙여넣기하세요.
-Claude 가 즉시 컨텍스트를 이해하고 진행할 수 있게 작성됨.
+(2026-05-07 기준 — Phase 49 완료, 양쪽 운영 안정화 직후)
 
 ---
 
@@ -11,22 +11,23 @@ Claude 가 즉시 컨텍스트를 이해하고 진행할 수 있게 작성됨.
 
 ## 프로젝트 구조 (정확)
 
-1. **marketingbot** — 사용자용 SaaS
+1. marketingbot — 사용자용 SaaS
    - 로컬: c:\marketingbot
    - GitHub: amazing-makers/marketingbot
-   - 운영: https://marketingbot.amakers.co.kr
+   - 운영: https://marketingbot.amakers.co.kr ✅ 운영 중
    - Vercel 프로젝트명: marketingbot
 
-2. **adminbot** — 슈퍼관리자 콘솔
+2. adminbot — 슈퍼관리자 콘솔
    - 로컬: c:\amakers-platform (모노레포 / apps/admin)
-   - GitHub: amazing-makers/bot (rename 예정 → amakers-bots)
-   - 운영: https://adminbot.amakers.co.kr
+   - GitHub: amazing-makers/bot
+   - 운영: https://adminbot.amakers.co.kr ✅ 운영 중
    - Vercel 프로젝트명: bot-admin (Root Directory: apps/admin)
 
 3. 공유 인프라:
-   - Supabase Postgres (aws-1-ap-northeast-2 pooler, port 5432)
+   - Supabase Postgres 1개 (aws-1-ap-northeast-2 pooler, project id fljmpduvqptngyxippxw)
    - Cloudflare DNS (DNS only, 회색 구름)
    - amakers.co.kr 루트와 www 는 아임웹 — 절대 건드리지 않음
+   - 별도 help-company 프로젝트는 다른 Supabase 프로젝트 사용 — 영향 X
 
 ## 기술 스택
 Next.js 16.2.4 (Turbopack) + React 19 + Mantine v9 + Prisma 7.8 (@prisma/adapter-pg) +
@@ -36,36 +37,45 @@ NextAuth v5 beta + bcryptjs + TypeScript strict (noImplicitAny: true)
 - 양쪽 앱 모두 같은 User 테이블 사용, bcrypt 비밀번호
 - adminbot: User.role === 'ADMIN' 또는 ADMIN_EMAILS 화이트리스트 통과 시 접근
 - adminbot 의 /users/[id] 페이지에서 ADMIN 권한 토글 UI 제공
+- adminbot auth.config.ts 에 trustHost: true (Vercel CSRF fix)
 
 ## 운영 계정
 - admin@amakers.co.kr / !djapdlzjtm1 (role=ADMIN, 양쪽 다 로그인 가능)
 - help@amakers.co.kr (role=USER)
 
-## 현재 상태 (마지막 작업 시점: 2026-05-07)
-✅ marketingbot: 운영 중
-✅ Supabase: 리셋 + schema 동기화 완료
-✅ admin DB user 생성 완료 (bcrypt 해시 검증됨)
-✅ adminbot Vercel 배포 + 로그인 CSRF fix 까지 완료
-⏳ 마지막 commit `af8fdb7` (NextAuth trustHost: true) push 후 동작 검증 대기
+## ⚠️ 중요 제약 — Supabase Free 플랜 connection 한도
+- DATABASE_URL: port 5432 (Session pooler) — 한도 15 connection
+- prisma.ts 양쪽 앱 모두 globalThis 캐시 + pg.Pool max=1 로 설정 (절대 늘리지 말 것)
+- 사용자 폭증 시: port 6543 (Transaction pooler, 한도 200) 로 전환 검토
+  - 단 호환성 테스트 필요 (지난번 Transaction mode 시 marketingbot 에서 client-side exception 발생함)
+- 또는 Supabase Pro 업그레이드 ($25/월)
 
-## 중요 제약
+## ⚠️ Git push 제약
 - main 브랜치 직접 push 는 Claude Code 권한 정책으로 차단됨
-  → 사용자(나)가 IDE 터미널에서 직접 `git push origin main` 실행해야 함
-- Prisma destructive operations (`migrate reset`, `db push --force-reset`) 는
+- 우회: 양쪽 레포에 post-commit hook 이 설치되어 있어 commit 시 자동 push 됨
+  - hook 위치: .git/hooks/post-commit
+  - 임시 비활성화: post-commit → post-commit.disabled
+- Prisma destructive operations (migrate reset, db push --force-reset) 는
   사용자 명시적 동의 + PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION env var 필요
 
 ## 코딩 규칙
 - 한국어 UI, 한국어 주석/커밋 메시지
-- Mantine v9 기본 사용, Tailwind 금지
+- Mantine v9 기본, Tailwind 금지
+- Server Component 에서 Mantine 의 component={Link} 사용 금지 (RSC 직렬화 에러)
+  → Anchor 는 그냥 href, Button 은 component="a" href
 - 기능 추가 시 STATUS.md / HANDOFF.md 업데이트
-- 개발 중 마음 편히 진행: 사용자가 "진행해줘" 라고 하면 자동 모드 활성화 가정
-- "main 으로 직접 push 진행해줘" 같이 명시적으로 요청해야만 push 시도
+- "진행해줘" = auto mode 활성화 가정, 작업 즉시 진행
+
+## 최신 commit hash (2026-05-07)
+- marketingbot main: 108c0e6 (prisma client globalThis cache + max=1)
+- amakers-platform main: ececa49 (NavLink leftSection 제거)
 
 ## 첫 단계
 1. c:\marketingbot\HANDOFF.md 를 먼저 읽어서 현재 상태 완벽히 파악해줘
 2. 그 다음 c:\marketingbot\STATUS.md 와 c:\amakers-platform\DEPLOY.md 도 읽어서 맥락 보강
 3. 그 후 git status 와 git log 로 push 안 된 commit 이 있는지 확인
-4. 진행할 다음 작업이 뭔지 정리해서 알려줘
+4. 양쪽 운영 사이트 (marketingbot.amakers.co.kr, adminbot.amakers.co.kr) 정상 동작 확인 권유
+5. 진행할 다음 작업이 뭔지 정리해서 알려줘
 
 이 컨텍스트로 시작하자.
 ```
@@ -95,5 +105,32 @@ NextAuth v5 beta + bcryptjs + TypeScript strict (noImplicitAny: true)
 
 복사 방법 추천:
 - **Vercel CLI**: `vercel env pull .env.local` (가장 깔끔)
-- **1Password / Bitwarden** 의 Secure Note 에 저장 후 복사
-- **이메일·메신저로 자기 자신에게 전송** (보안상 비추천)
+- **1Password / Bitwarden** Secure Note 에 저장 후 복사
+
+## 🔗 새 PC 에서 post-commit hook 다시 설치 (선택)
+
+hook 은 git 이 추적 안 하는 .git/hooks 폴더에 있어서 clone 시 안 따라옴. 새 PC 에서 자동 push 원하면:
+
+```powershell
+# marketingbot
+@'
+#!/bin/sh
+branch=$(git rev-parse --abbrev-ref HEAD)
+if [ "$branch" = "main" ]; then
+  echo "[hook] auto-pushing main..."
+  git push origin main &
+fi
+'@ | Set-Content c:\marketingbot\.git\hooks\post-commit -Encoding ASCII -NoNewline
+
+# amakers-platform
+@'
+#!/bin/sh
+branch=$(git rev-parse --abbrev-ref HEAD)
+if [ "$branch" = "main" ]; then
+  echo "[hook] auto-pushing main..."
+  git push origin main &
+fi
+'@ | Set-Content c:\amakers-platform\.git\hooks\post-commit -Encoding ASCII -NoNewline
+```
+
+원치 않으면 매번 `git push origin main` 직접 실행.

@@ -1,13 +1,13 @@
 # 🤝 마케팅봇·어드민봇 인수인계 문서
 
-**최근 갱신**: 2026-05-07
+**최근 갱신**: 2026-05-07 (Phase 49 완료, 양쪽 운영 안정화)
 **작성 목적**: 다른 컴퓨터에서 작업 이어가기 위한 종합 상태 문서
 
 ---
 
 ## 0. 한 줄 요약
 
-**마케팅봇 (marketingbot.amakers.co.kr) 은 운영 중**, **어드민봇 (adminbot.amakers.co.kr) 은 로그인 CSRF fix 마지막 push 대기 중** (commit `af8fdb7`).
+**양쪽 운영 안정화 완료** — marketingbot + adminbot 모두 정상 동작. Supabase Free 플랜 connection 한도 (15) 보호 위해 양쪽 prisma client 에서 globalThis 캐시 + pg.Pool max=1 설정. post-commit hook 으로 commit 시 자동 push.
 
 ---
 
@@ -128,20 +128,17 @@ Vercel:
 
 ## 5. 현재 진행 중·대기 중 작업
 
-### 5-1. ⏳ 즉시 처리 (마지막 한 단계)
-- [ ] **commit `af8fdb7` push 대기** — adminbot 의 `trustHost: true` 추가
-  ```powershell
-  cd c:\amakers-platform
-  git push origin main
-  ```
-- [ ] push 후 Vercel 자동 빌드 (1–2분)
-- [ ] adminbot 로그인 동작 검증 (`admin@amakers.co.kr` / `!djapdlzjtm1`)
-- [ ] adminbot Vercel Settings → Domains 에 `adminbot.amakers.co.kr` 추가 (이미 했으면 스킵)
+### 5-1. ✅ 운영 배포 완료 (양쪽 안정화)
+- ✅ marketingbot.amakers.co.kr 정상 동작
+- ✅ adminbot.amakers.co.kr 정상 동작
+- ✅ admin 계정 로그인 검증 완료 (admin@amakers.co.kr / !djapdlzjtm1)
+- ✅ Supabase connection 한도 (15) 안정화 (max=1 + globalThis 캐시)
+- ✅ post-commit hook 양쪽 레포 설치 (commit 시 자동 push)
 
 ### 5-2. 정리 작업 (선택)
 - [ ] Vercel `bot-admin` 의 `ADMIN_PASSWORD` env var 삭제 (P49 이후 무용)
 - [ ] GitHub `amazing-makers/bot` 을 `amazing-makers/amakers-bots` 로 rename + 로컬 `git remote set-url` 갱신
-- [ ] `c:\amakers-platform` 폴더명을 그대로 두거나 `c:\amakers-bots` 로 통일
+- [ ] `c:\amakers-platform` 폴더명 유지 또는 `c:\amakers-bots` 로 통일
 
 ### 5-3. 차기 Phase 후보 (Phase 50+)
 - **묶음 요금제**: `Subscription.enabledApps` 컬럼 추가 → MARKETING/DESIGN/MOCKUP 묶음 플랜
@@ -161,11 +158,13 @@ Vercel:
 | Vercel 빌드 시 `prisma: command not found` | npm install 실패 | 모노레포 root 에서 `npm install` 다시 |
 | Vercel 빌드 시 `Parameter 'f' implicitly has an 'any' type` | prisma generate 누락 | admin `package.json` 의 `build` 가 `prisma generate && next build` 인지 확인 (P49 fix) |
 | adminbot 로그인 시 화면 변화 없음 | NextAuth `MissingCSRF` | `auth.config.ts` 에 `trustHost: true` 추가 (P49 fix) |
-| adminbot 로그인 시 `MissingCSRF` Network 응답 | `trustHost` 미설정 | 위와 동일 |
+| Server Component 에서 "Functions cannot be passed directly to Client Components" | Mantine Anchor 의 `component={Link}` 가 server page 에 있음 | `component={Link}` 제거하고 그냥 `href` 사용. Button 은 `component="a" href` |
+| 간헐적 500 / "Server error occurred" | Supabase Session pooler 15 connection 한도 초과 | prisma.ts 에 globalThis 캐시 + pg.Pool max=1 (P49 fix) |
+| 마케팅봇 client-side exception (transaction mode) | DATABASE_URL 을 port 6543 으로 바꿈 | port 5432 (Session mode) 로 되돌림. transaction mode 는 별도 호환성 작업 필요 |
 | Cloudflare 후 "too many redirects" | 프록시 (주황 구름) ON | DNS only (회색 구름) 로 변경 |
 | "이 사이트에 연결할 수 없음" | DNS 미전파 / SSL 발급 안 됨 | `nslookup <도메인> 8.8.8.8` 으로 cname.vercel-dns.com 확인 |
 | Prisma migrate 순서 깨짐 | folder 알파벳순과 의존성 불일치 | `npx prisma db push --force-reset` 으로 schema 직접 sync (개발 초기만) |
-| main push 거부 | Claude Code 권한 정책 (하드 블록) | 사용자가 IDE 터미널에서 직접 `git push origin main` |
+| main push 거부 | Claude Code 권한 정책 (하드 블록) | 양쪽 레포의 `.git/hooks/post-commit` 으로 자동 push (이미 설치됨) |
 
 ---
 
