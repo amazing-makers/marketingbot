@@ -1,6 +1,17 @@
 # MarketingBot Project Status
 
-**최근 갱신**: 2026-05-04 (Phase 6 라운드 — R2 + Sharp + 오버레이 + LinkedIn/X/YouTube + Workspace + 분할발행)
+**최근 갱신**: 2026-05-07 (Phase 49 — adminbot 운영 배포 + bcrypt 인증)
+
+> 📘 **신규 PC 인수인계**: [`HANDOFF.md`](./HANDOFF.md) + [`NEXT_PC_PROMPT.md`](./NEXT_PC_PROMPT.md) 참조
+
+## 🌐 운영 상태 (Phase 49 시점)
+
+| 사이트 | 상태 |
+|---|---|
+| https://marketingbot.amakers.co.kr | ✅ Production 운영 중 |
+| https://adminbot.amakers.co.kr | 🟡 commit `af8fdb7` (NextAuth trustHost) push 후 검증 대기 |
+
+---
 
 ## 🚀 진행 현황
 
@@ -93,7 +104,62 @@
 - 운영 기능 (다중브랜드·사용량UI·자동청소·드래프트): **~75%** (Workspace 골격 추가)
 - **미디어 호스팅 (R2/CDN)**: **~80%** 신규
 
-## 📌 다음 단계 (Phase 7 후보)
+## 📦 Phase 7–49 개요 (2026-05-04 ~ 2026-05-07)
+
+### Phase 7–24 — 기능 확장
+- Phase 9: Series mode v2 (4→3개)
+- Phase 12: Stripe Subscription
+- Phase 13: Reseller / ReferralCode / ReferralCommission
+- Phase 14: PartnerClient (파트너 대행 고객사)
+- Phase 17: WorkspaceInvitation
+- Phase 18: Workspace data isolation
+- Phase 19: PartnerClientReport (월간 PDF)
+- Phase 20: Notification (인앱 알림 센터)
+- Phase 21: ClientInvoice
+- Phase 22: Web Push subscription
+- Phase 24: CaptionTemplate + ActivityLog + UserNotificationChannel
+
+### Phase 25–37 — 관리/운영
+- Phase 25: UserFeedback (5점 + 코멘트)
+- Phase 26: Campaign·CampaignSeries 에 tags TEXT[]
+- Phase 31: AdminActionsPanel + 감사 로그
+- Phase 32: Trial 만료 배너 + 브로드캐스트 이메일
+- Phase 34: 새 디바이스 로그인 감지
+- Phase 36: 사용자 활동 히트맵 (24×7)
+- Phase 37: Stripe 결제 모니터링 페이지
+
+### Phase 38–47 — 온보딩 & UX
+- Phase 38–42: Stepper 온보딩, Interactive Tour
+- Phase 43: 첫 발행 축하 모달 + 5분 Quick Publish
+- Phase 44: 샘플 데이터 모드 + grace period + PWA 강화
+- Phase 45: AI 비용 예산 알림 + 랜딩 신뢰 시그널 + 다크 캘린더
+- Phase 46: 워크스페이스 활동 로그 + sticky 미리보기 + 일괄 트라이얼 연장
+- Phase 47: 채널 미리보기 디바이스 토글 + 본인 활동 메트릭 위젯 + 이메일 템플릿 카탈로그
+
+### Phase 48 — Refer + Pricing + Engagement
+- 친구 추천 링크 (`/dashboard/refer`) — 추천 통계, 7일 트라이얼 보너스
+- `/pricing` 폴리싱 — 신뢰 시그널 + 비교표 + FAQ Accordion
+- Admin Engagement Score — cold/warm/hot/champion 라벨 + 4팩터 가중평균
+
+### Phase 49 — adminbot 운영 배포
+- Vercel `bot-admin` 프로젝트 등록 (Root Directory: apps/admin)
+- TS 빌드 fix: build 전에 `prisma generate` 선행
+- bcrypt + DB role 기반 admin 인증 (env var `ADMIN_PASSWORD` 의존 제거)
+- `isAdminEmail(email, role)` — `User.role === 'ADMIN'` 즉시 통과
+- 17개 페이지 가드 일괄 업데이트
+- `/users/[id]` 에 ADMIN 권한 토글 UI (자기·마지막 ADMIN 강등 차단)
+- 로그인 페이지: raw fetch → `signIn()` 헬퍼 (CSRF 자동 처리)
+- `auth.config.ts` 에 `trustHost: true` (MissingCSRF 해결)
+
+## 📌 다음 단계 (Phase 50+ 후보)
+- 묶음 요금제 (`Subscription.enabledApps`) — MARKETING/DESIGN/MOCKUP suite
+- SSO 통합 쿠키 (`.amakers.co.kr` domain) — marketingbot ↔ adminbot 단일 로그인
+- 메인 허브 페이지 (`hub.amakers.co.kr` 또는 별도 amakers-platform 레포)
+- designbot / mockupbot 추가 (모노레포 확장)
+- Web Push 토큰 자동 갱신
+- 다국어 i18n (한·영·일)
+
+## 📌 이전 다음 단계 (Phase 7 후보)
 1. **YouTube 동영상 자동 업로드**: 에이전트(Tauri) 가 사용자 PC 영상 직접 업로드 — Vercel 50MB 우회
 2. **이미지/영상 미디어 라이브러리 UI**: R2 업로드 객체 목록 + 재사용 + 삭제
 3. **LinkedIn / X / YouTube OAuth flow**: 사용자가 토큰 직접 입력 대신 "연결" 버튼으로 OAuth flow
