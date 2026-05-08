@@ -247,15 +247,43 @@ model MarketingChannel {
   region               String        @default("korea")
   language             String        @default("ko")
   lastUsedAt           DateTime?
+  // Phase 50 — 채널별 즉시 인증 (verify task) 메타.
+  // lastVerifiedAt: 최근 성공한 verify task 의 finishedAt (UI "마지막 인증" 표시용).
+  // verifyError:    최근 실패한 verify task 의 errorLog (status=ERROR 일 때 사유 노출).
+  lastVerifiedAt       DateTime?
+  verifyError          String?       @db.Text
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
   scheduledTasks ScheduledTask[]
+  verifyTasks    ChannelVerifyTask[]
 
   @@index([userId])
   @@index([userId, workspaceId])
   @@index([type])
   @@index([region])
+}
+
+// Phase 50 — 채널 즉시 인증 task (발행과 별도).
+// 채널 추가/자격증명 수정/사용자 "재인증" 클릭 시 PENDING 으로 enqueue.
+// 에이전트가 polling 시 ScheduledTask 와 함께 받음 → IG 등 브라우저 자동화 채널은
+// 브라우저 띄워 사용자 직접 로그인 → 결과를 /api/agent/result 에 보고.
+// 결과 따라 MarketingChannel.status (ACTIVE/ERROR), lastVerifiedAt, verifyError 갱신.
+// ScheduledTask 와 별도 모델인 이유: ScheduledTask 는 campaignId/content 필수.
+model ChannelVerifyTask {
+  id         String           @id @default(cuid())
+  channelId  String
+  channel    MarketingChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  status     TaskStatus       @default(PENDING)
+  errorLog   String?          @db.Text
+  agentId    String?
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@index([channelId])
+  @@index([status, createdAt])
 }
 
 model Campaign {

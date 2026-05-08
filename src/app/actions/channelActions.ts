@@ -109,6 +109,9 @@ export async function updateChannel(id: string, data: {
   if (data.credentials) {
     // AES-256-GCM 재암호화 적용
     updateData.encryptedCredentials = encryptJSON(data.credentials);
+    // Phase 50 — 자격증명이 바뀌면 status 를 PENDING_AUTH 로 되돌리고 verify 재트리거.
+    updateData.status = 'PENDING_AUTH';
+    updateData.verifyError = null;
   }
 
   const channel = await prisma.marketingChannel.update({
@@ -116,8 +119,47 @@ export async function updateChannel(id: string, data: {
     data: updateData,
   });
 
+  // 자격증명 변경 시 자동 재인증 — 클라우드 채널은 즉시 API verify, 에이전트 채널은 task enqueue.
+  if (data.credentials) {
+    await reverifyChannel(id).catch(() => { /* 호출자에게 throw 해서 UX 막지 않음 */ });
+  }
+
   revalidatePath("/dashboard/channels");
   return channel;
+}
+
+/**
+ * Phase 50 — 채널 verify task 를 큐잉 (에이전트 채널 전용).
+ *
+ * 이미 PENDING / RUNNING 인 verify task 가 있으면 새로 만들지 않음 (중복 방지).
+ * polling 한 에이전트가 5분 안에 결과 보고 안 하면 좀비 복구 로직이 FAILED 로 정리.
+ */
+export async function enqueueChannelVerify(channelId: string): Promise<{ taskId: string; reused: boolean }> {
+  // 진행 중인 task 우선 재사용
+  const existing = await prisma.channelVerifyTask.findFirst({
+    where: { channelId, status: { in: ['PENDING', 'RUNNING'] } },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (existing) return { taskId: existing.id, reused: true };
+
+  const created = await prisma.channelVerifyTask.create({
+    data: { channelId, status: 'PENDING' },
+  });
+  return { taskId: created.id, reused: false };
+}
+
+/**
+ * Phase 50 — 사용자 "재인증" 버튼 핸들러.
+ *
+ * 클라우드 채널 (Telegram/Discord/LinkedIn/X/YouTube/WordPress) 은 verifyChannelConnection 으로
+ * 즉시 API 검증.
+ * 에이전트 채널 (Instagram/Facebook/Threads/Naver 등) 은 verify task 를 enqueue 하고 status 를
+ * PENDING_AUTH 로 되돌림 — 에이전트가 받아 처리 후 result endpoint 로 결과 보고.
+ *
+ * 반환 형식은 verifyChannelConnection 과 호환 (UI 가 그대로 처리할 수 있음).
+ */
+export async function reverifyChannel(channelId: string) {
+  return verifyChannelConnection(channelId);
 }
 
 export async function deleteChannel(id: string) {
@@ -238,15 +280,17 @@ export async function verifyChannelConnection(channelId: string): Promise<{
       break;
     }
     default: {
-      // 에이전트 채널 (Instagram/Facebook/Threads/Naver/카카오 등)
-      // 브라우저 자동화라 즉시 검증 불가 — 첫 발행 시 에이전트가 검증
+      // 에이전트 채널 (Instagram/Facebook/Threads/Naver/카카오 등) — Phase 50.
+      // 즉시 verify task 를 큐잉. 에이전트가 polling 시 받아서 브라우저 띄워 사용자 직접 로그인.
+      // 이미 PENDING/RUNNING 인 verify task 가 있으면 중복 큐잉 안 함 (idempotent).
+      await enqueueChannelVerify(channelId);
       await prisma.marketingChannel.update({
         where: { id: channelId },
-        data: { status: 'PENDING_AUTH' },
+        data: { status: 'PENDING_AUTH', verifyError: null },
       });
       return {
         ok: true,
-        detail: '에이전트가 첫 발행 시 로그인 검증합니다. 데스크톱 에이전트가 설치·실행 중인지 확인해주세요.',
+        detail: '데스크톱 에이전트에 인증 요청을 보냈습니다. 에이전트 창에서 로그인을 완료해주세요.',
         newStatus: 'PENDING_AUTH',
         channelType: channel.type,
       };

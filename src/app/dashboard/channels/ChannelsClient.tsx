@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from 'react';
-import { 
-  SimpleGrid, Card, Text, Group, Badge, Button, Modal, 
-  Select, TextInput, Stack, ActionIcon, Menu, Title 
+import {
+  SimpleGrid, Card, Text, Group, Badge, Button, Modal,
+  Select, TextInput, Stack, ActionIcon, Menu, Title, Alert
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
@@ -17,7 +17,7 @@ import {
   IconCheck, IconAlertCircle, IconRefresh, IconLoader, IconClock
 } from '@tabler/icons-react';
 import { Anchor } from '@mantine/core';
-import { createChannel, deleteChannel, verifyChannelConnection, verifyAllMyChannels } from '@/app/actions/channelActions';
+import { createChannel, deleteChannel, verifyChannelConnection, verifyAllMyChannels, updateChannel } from '@/app/actions/channelActions';
 import { ChannelType, MarketingChannel } from '@prisma/client';
 import ChannelGuideModal from '@/components/channels/ChannelGuideModal';
 import { IconBook2 } from '@tabler/icons-react';
@@ -131,6 +131,26 @@ export default function ChannelsClient({
   const [loading, setLoading] = useState(false);
   // 채널별 검증 진행 상태 (UI loading spinner)
   const [verifying, setVerifying] = useState<Record<string, boolean>>({});
+  // Phase 50 — 편집 모달 상태
+  const [editChannel, setEditChannel] = useState<MarketingChannel | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const editForm = useForm({
+    initialValues: {
+      accountName: '',
+      region: 'korea',
+      language: 'ko',
+      // 자격증명 (옵션) — 비어 있으면 갱신 안 함, 채워지면 재암호화 + 재인증.
+      username: '',
+      password: '',
+      botToken: '',
+      chatId: '',
+      siteUrl: '',
+      appPassword: '',
+      webhookUrl: '',
+      linkedinAccessToken: '',
+      xAccessToken: '',
+    },
+  });
 
   const form = useForm({
     initialValues: {
@@ -318,6 +338,84 @@ export default function ChannelsClient({
     }
   };
 
+  // Phase 50 — 편집 모달 열기
+  const openEdit = (ch: MarketingChannel) => {
+    editForm.setValues({
+      accountName: ch.accountName || '',
+      region: (ch as any).region || 'korea',
+      language: (ch as any).language || 'ko',
+      username: '', password: '',
+      botToken: '', chatId: '',
+      siteUrl: '', appPassword: '',
+      webhookUrl: '',
+      linkedinAccessToken: '',
+      xAccessToken: '',
+    });
+    setEditChannel(ch);
+  };
+
+  const handleEditSubmit = async (values: typeof editForm.values) => {
+    if (!editChannel) return;
+    setEditLoading(true);
+    try {
+      // 자격증명: 비어있는 필드는 무시, 채워진 필드만 모아서 채널 type 별로 업데이트.
+      let credentials: any | undefined;
+      const hasAnyCred =
+        values.username || values.password || values.botToken || values.chatId ||
+        values.siteUrl || values.appPassword || values.webhookUrl ||
+        values.linkedinAccessToken || values.xAccessToken;
+      if (hasAnyCred) {
+        credentials = {};
+        if (editChannel.type === 'TELEGRAM') {
+          if (values.botToken) credentials.botToken = values.botToken;
+          if (values.chatId) credentials.chatId = values.chatId;
+        } else if (editChannel.type === 'WORDPRESS') {
+          if (values.siteUrl) credentials.siteUrl = values.siteUrl;
+          if (values.username) credentials.username = values.username;
+          if (values.appPassword) credentials.appPassword = values.appPassword;
+        } else if (editChannel.type === 'DISCORD') {
+          if (values.webhookUrl) credentials.webhookUrl = values.webhookUrl;
+        } else if (editChannel.type === 'LINKEDIN') {
+          if (values.linkedinAccessToken) credentials.accessToken = values.linkedinAccessToken;
+        } else if (editChannel.type === 'X') {
+          if (values.xAccessToken) credentials.accessToken = values.xAccessToken;
+        } else {
+          // INSTAGRAM/FACEBOOK/THREADS/NAVER_* 등 에이전트 채널 — username/password
+          if (values.username) credentials.username = values.username;
+          if (values.password) credentials.password = values.password;
+        }
+        if (Object.keys(credentials).length === 0) credentials = undefined;
+      }
+
+      const updated = await updateChannel(editChannel.id, {
+        accountName: values.accountName || undefined,
+        region: values.region || undefined,
+        language: values.language || undefined,
+        credentials,
+      });
+      setChannels(prev => prev.map(c => c.id === updated.id ? updated : c));
+      setEditChannel(null);
+      notifications.show({
+        title: '✅ 채널 수정 완료',
+        message: credentials
+          ? '자격증명이 변경되어 자동으로 재인증을 시작합니다.'
+          : '변경 사항이 저장되었습니다.',
+        color: 'teal',
+        autoClose: 4000,
+      });
+      // 자격증명 변경 시: 서버에서 자동 reverify 호출됨 → UI 도 verify 흐름 트리거.
+      if (credentials) runVerify(updated.id);
+    } catch (e: any) {
+      notifications.show({
+        title: '오류',
+        message: e?.message || '수정 실패',
+        color: 'red',
+      });
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm('정말 삭제하시겠습니까?')) return;
     try {
@@ -489,9 +587,14 @@ export default function ChannelsClient({
                       onClick={() => runVerify(channel.id)}
                       disabled={isVerifying}
                     >
-                      {isVerifying ? '검증 중...' : '연동 다시 확인'}
+                      {isVerifying ? '검증 중...' : '재인증'}
                     </Menu.Item>
-                    <Menu.Item leftSection={<IconEdit size={14} />}>편집</Menu.Item>
+                    <Menu.Item
+                      leftSection={<IconEdit size={14} />}
+                      onClick={() => openEdit(channel)}
+                    >
+                      편집
+                    </Menu.Item>
                     <Menu.Divider />
                     <Menu.Item
                       leftSection={<IconTrash size={14} />}
@@ -520,6 +623,19 @@ export default function ChannelsClient({
                   </Badge>
                 )}
               </Group>
+
+              {/* Phase 50 — verify 실패 사유 노출 */}
+              {channel.status === 'ERROR' && (channel as any).verifyError && (
+                <Alert color="red" variant="light" mt="xs" p="xs">
+                  <Text size="xs">{(channel as any).verifyError}</Text>
+                </Alert>
+              )}
+              {/* Phase 50 — 마지막 인증 성공 시각 */}
+              {channel.status === 'ACTIVE' && (channel as any).lastVerifiedAt && (
+                <Text size="11px" c="dimmed" mt={4}>
+                  마지막 인증: {new Date((channel as any).lastVerifiedAt).toLocaleString('ko-KR')}
+                </Text>
+              )}
 
               {/* Phase 36 — 황금 시간대 (실제 발행 이력 분석, 60일 SUCCESS 10건+) */}
               {bestHours[channel.id] && bestHours[channel.id].topHours.length > 0 && (
@@ -672,6 +788,15 @@ export default function ChannelsClient({
               </>
             ) : (
               <>
+                {form.values.type === 'INSTAGRAM' && (
+                  <Alert color="violet" variant="light" p="xs">
+                    <Text size="xs">
+                      추가 직후 데스크톱 에이전트가 인스타그램 로그인 창을 자동으로 띄웁니다.
+                      그 창에서 직접 로그인 (2FA 포함) 하시면 인증이 완료됩니다.
+                      여기 입력하는 아이디/비번은 자동 입력 힌트로만 사용됩니다 (선택).
+                    </Text>
+                  </Alert>
+                )}
                 <TextInput label="아이디 / 이메일" placeholder="username" {...form.getInputProps('username')} />
                 <TextInput label="비밀번호" type="password" placeholder="password" {...form.getInputProps('password')} />
                 {form.values.type === 'NAVER_CAFE' && (
@@ -694,6 +819,77 @@ export default function ChannelsClient({
             <Button type="submit" loading={loading} fullWidth mt="md">추가하기</Button>
           </Stack>
         </form>
+      </Modal>
+
+      {/* Phase 50 — 채널 편집 모달 */}
+      <Modal
+        opened={!!editChannel}
+        onClose={() => setEditChannel(null)}
+        title={editChannel ? `${CHANNEL_LABELS[editChannel.type] || editChannel.type} 채널 편집` : ''}
+        size="md"
+      >
+        {editChannel && (
+          <form onSubmit={editForm.onSubmit(handleEditSubmit)}>
+            <Stack>
+              <TextInput
+                label="계정 별명"
+                {...editForm.getInputProps('accountName')}
+              />
+              <Group grow>
+                <Select
+                  label="지역"
+                  data={REGION_OPTIONS}
+                  searchable
+                  value={editForm.values.region}
+                  onChange={(v) => v && editForm.setFieldValue('region', v)}
+                />
+                <Select
+                  label="언어"
+                  data={LANGUAGE_OPTIONS}
+                  searchable
+                  {...editForm.getInputProps('language')}
+                />
+              </Group>
+
+              <Alert color="gray" variant="light" p="xs">
+                <Text size="xs" fw={600} mb={2}>자격증명 변경 (선택)</Text>
+                <Text size="11px" c="dimmed">
+                  비워두면 기존 자격증명이 유지됩니다. 채워서 저장하면 자동으로 재인증이 시작됩니다.
+                  {editChannel.type === 'INSTAGRAM' && ' 인스타그램은 에이전트 브라우저에서 다시 로그인하시는 방식입니다.'}
+                </Text>
+              </Alert>
+
+              {editChannel.type === 'TELEGRAM' ? (
+                <>
+                  <TextInput label="새 Bot Token" type="password" {...editForm.getInputProps('botToken')} />
+                  <TextInput label="새 Channel/Chat ID" {...editForm.getInputProps('chatId')} />
+                </>
+              ) : editChannel.type === 'WORDPRESS' ? (
+                <>
+                  <TextInput label="새 사이트 URL" {...editForm.getInputProps('siteUrl')} />
+                  <TextInput label="새 사용자 이름" {...editForm.getInputProps('username')} />
+                  <TextInput label="새 Application Password" type="password" {...editForm.getInputProps('appPassword')} />
+                </>
+              ) : editChannel.type === 'DISCORD' ? (
+                <TextInput label="새 Webhook URL" type="password" {...editForm.getInputProps('webhookUrl')} />
+              ) : editChannel.type === 'LINKEDIN' ? (
+                <TextInput label="새 Access Token" type="password" {...editForm.getInputProps('linkedinAccessToken')} />
+              ) : editChannel.type === 'X' ? (
+                <TextInput label="새 Access Token" type="password" {...editForm.getInputProps('xAccessToken')} />
+              ) : (
+                <>
+                  <TextInput label="새 아이디 / 이메일" placeholder="username" {...editForm.getInputProps('username')} />
+                  <TextInput label="새 비밀번호" type="password" placeholder="password" {...editForm.getInputProps('password')} />
+                </>
+              )}
+
+              <Group justify="flex-end" mt="md">
+                <Button variant="subtle" onClick={() => setEditChannel(null)}>취소</Button>
+                <Button type="submit" loading={editLoading}>저장</Button>
+              </Group>
+            </Stack>
+          </form>
+        )}
       </Modal>
     </Stack>
   );

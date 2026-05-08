@@ -122,9 +122,58 @@ export async function POST(req: Request) {
       return picked;
     });
 
-    if (reservedTasks.length === 0) {
-      return NextResponse.json({ agentId: agent.id, tasks: [] });
-    }
+    // Phase 50 — verify task 도 함께 dispatch (별도 transaction, 발행 task 와 cooldown 무관).
+    // 채널당 1개만 RUNNING 보장: PENDING 중 가장 오래된 것을 채널별로 1개씩 reserve.
+    const VERIFY_ZOMBIE_TIMEOUT_MS = 5 * 60 * 1000; // 5분 (사용자 수동 로그인 5분 대기 + buffer)
+    const verifyZombieThreshold = new Date(now.getTime() - VERIFY_ZOMBIE_TIMEOUT_MS);
+
+    const reservedVerifyTasks = await prisma.$transaction(async (tx) => {
+      // 좀비 verify task 복구
+      await tx.channelVerifyTask.updateMany({
+        where: {
+          channel: { userId: license.userId },
+          status: 'RUNNING',
+          updatedAt: { lt: verifyZombieThreshold },
+        },
+        data: { status: 'FAILED', errorLog: 'Timeout — 에이전트 응답 없음' },
+      });
+
+      // 진행 중 verify task 가 있는 채널은 제외 (채널당 1개만 동시 실행)
+      const runningVerifies = await tx.channelVerifyTask.findMany({
+        where: { channel: { userId: license.userId }, status: 'RUNNING' },
+        select: { channelId: true },
+      });
+      const busyVerifyChannelIds = Array.from(new Set(runningVerifies.map((t) => t.channelId)));
+
+      const verifyCandidates = await tx.channelVerifyTask.findMany({
+        where: {
+          channel: { userId: license.userId },
+          status: 'PENDING',
+          ...(busyVerifyChannelIds.length > 0
+            ? { channelId: { notIn: busyVerifyChannelIds } }
+            : {}),
+        },
+        orderBy: { createdAt: 'asc' },
+        take: 20,
+        include: { channel: true },
+      });
+
+      const seen = new Set<string>();
+      const picked = verifyCandidates.filter((t) => {
+        if (seen.has(t.channelId)) return false;
+        seen.add(t.channelId);
+        return true;
+      });
+
+      if (picked.length === 0) return [];
+
+      await tx.channelVerifyTask.updateMany({
+        where: { id: { in: picked.map((t) => t.id) } },
+        data: { status: 'RUNNING', agentId: agent.id, startedAt: new Date() },
+      });
+
+      return picked;
+    });
 
     const taskData = reservedTasks.map((t) => ({
       taskId: t.id,
@@ -136,7 +185,16 @@ export async function POST(req: Request) {
       mediaUrls: t.mediaUrls,
     }));
 
-    return NextResponse.json({ agentId: agent.id, tasks: taskData });
+    // verify task 페이로드 — credentials 는 hint 로만 전달 (IG 어댑터는 사용자가 직접 로그인).
+    const verifyTaskData = reservedVerifyTasks.map((t) => ({
+      taskId: t.id,
+      channelId: t.channelId,
+      channelType: t.channel.type,
+      accountName: t.channel.accountName,
+      credentials: decryptJSON(t.channel.encryptedCredentials),
+    }));
+
+    return NextResponse.json({ agentId: agent.id, tasks: taskData, verifyTasks: verifyTaskData });
   } catch (error) {
     console.error("Agent poll error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

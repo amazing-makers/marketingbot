@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     const licenseKey = authHeader.replace("Bearer ", "");
     const body = await req.json();
     console.log("[RESULT] Request:", sanitize(body));
-    const { taskId, status, executedAt, errorLog } = body;
+    const { taskId, status, executedAt, errorLog, kind } = body;
 
     // 1. 라이선스 및 유저 확인
     const license = await prisma.license.findUnique({
@@ -23,9 +23,38 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid license" }, { status: 401 });
     }
 
+    // Phase 50 — kind: 'VERIFY' 면 ChannelVerifyTask 처리. default 'PUBLISH' 호환.
+    if (kind === 'VERIFY') {
+      const verifyTask = await prisma.channelVerifyTask.findFirst({
+        where: { id: taskId, channel: { userId: license.userId } },
+      });
+      if (!verifyTask) {
+        return NextResponse.json({ error: "Verify task not found" }, { status: 404 });
+      }
+
+      const finishedAt = executedAt ? new Date(executedAt) : new Date();
+      await prisma.channelVerifyTask.update({
+        where: { id: taskId },
+        data: { status, errorLog, finishedAt },
+      });
+
+      // 채널 status / lastVerifiedAt / verifyError 업데이트
+      const newChannelStatus = status === 'SUCCESS' ? 'ACTIVE' : 'ERROR';
+      await prisma.marketingChannel.update({
+        where: { id: verifyTask.channelId },
+        data: {
+          status: newChannelStatus,
+          lastVerifiedAt: status === 'SUCCESS' ? finishedAt : undefined,
+          verifyError: status === 'SUCCESS' ? null : (errorLog ?? '인증 실패'),
+        },
+      });
+
+      return NextResponse.json({ success: true });
+    }
+
     // 2. 태스크 소유권 및 존재 확인
     const task = await prisma.scheduledTask.findFirst({
-      where: { 
+      where: {
         id: taskId,
         campaign: { userId: license.userId }
       }
@@ -38,10 +67,10 @@ export async function POST(req: Request) {
     // 3. 태스크 상태 업데이트
     await prisma.scheduledTask.update({
       where: { id: taskId },
-      data: { 
-        status, 
+      data: {
+        status,
         executedAt: executedAt ? new Date(executedAt) : new Date(),
-        errorLog 
+        errorLog
       },
     });
 
