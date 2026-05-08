@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, Suspense } from 'react';
 import {
   TextInput, Textarea, Button, Paper, Title, Container,
   Stack, MultiSelect, Group, Text, Badge, ActionIcon, Tooltip, Box, Divider, SimpleGrid,
-  Modal, Card, Loader, Anchor, Grid, ThemeIcon, Accordion, Select, TagsInput
+  Modal, Card, Loader, Anchor, Grid, ThemeIcon, Accordion, Select, TagsInput, Switch
 } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
 import { useForm } from '@mantine/form';
@@ -156,6 +156,8 @@ function NewCampaignPageInner() {
       sourceLanguage: 'ko',
       autoTranslate: true,
       scheduledAt: initialScheduledAt,
+      // Phase 50 — '지금 바로 발행' 토글. ON 이면 scheduledAt 무시하고 server 가 new Date() 사용.
+      publishNow: false,
       // Phase 27 — 태그
       tags: [] as string[],
       // 분할 발행 모드 (Phase 6)
@@ -516,6 +518,8 @@ function NewCampaignPageInner() {
           autoClose: 7000,
         });
       } else {
+        // Phase 50 — 즉시 발행 모드면 scheduledAt 를 지금 시각으로 (서버의 cron · 에이전트 polling 이 즉시 dispatch 가능)
+        const finalScheduledAt = values.publishNow ? new Date() : values.scheduledAt;
         await createCampaign({
           name: values.name,
           description: values.description,
@@ -523,16 +527,18 @@ function NewCampaignPageInner() {
           content: values.content,
           sourceLanguage: values.sourceLanguage,
           autoTranslate: values.autoTranslate,
-          scheduledAt: values.scheduledAt,
+          scheduledAt: finalScheduledAt,
           mediaUrls,
           tags: values.tags,
         });
         await clearCampaignDraft().catch(() => {});
         notifications.show({
-          title: '✅ 캠페인 예약 완료',
-          message: mediaUrls.length
-            ? `${values.channelIds.length}개 채널 · 미디어 ${mediaUrls.length}개 첨부`
-            : `${values.channelIds.length}개 채널 발행 예약`,
+          title: values.publishNow ? '⚡ 즉시 발행 시작' : '✅ 캠페인 예약 완료',
+          message: values.publishNow
+            ? `${values.channelIds.length}개 채널 — 클라우드 ~5분, 에이전트 ~1분 안에 발행됩니다.`
+            : (mediaUrls.length
+              ? `${values.channelIds.length}개 채널 · 미디어 ${mediaUrls.length}개 첨부`
+              : `${values.channelIds.length}개 채널 발행 예약`),
           color: 'green',
         });
       }
@@ -925,40 +931,66 @@ function NewCampaignPageInner() {
 
             {!form.values.splitMode && (
               <Stack gap={4}>
-                <Group justify="space-between" align="flex-end">
-                  <Text size="sm" fw={500}>예약 발행 시각 <Text span c="red">*</Text></Text>
-                  <Tooltip label="선택한 채널의 region 별 황금 시간대 (다음 출근/점심/저녁 피크)에 자동 예약" withArrow>
-                    <Button
-                      size="compact-xs"
-                      variant="light"
-                      color="violet"
-                      leftSection={<IconBulb size={12} />}
-                      disabled={form.values.channelIds.length === 0}
-                      onClick={async () => {
-                        try {
-                          const res = await suggestPrimeTimeForChannels(form.values.channelIds);
-                          form.setFieldValue('scheduledAt', new Date(res.suggested));
-                          notifications.show({
-                            title: '🎯 황금시간대 적용',
-                            message: `${res.region} → ${res.suggestedLocal} (${res.hourLabels.join(' · ')} 중)`,
-                            color: 'violet',
-                            autoClose: 5000,
-                          });
-                        } catch (e: any) {
-                          notifications.show({ title: '오류', message: e?.message || '추천 실패', color: 'red' });
-                        }
+                <Group justify="space-between" align="flex-end" wrap="nowrap">
+                  <Text size="sm" fw={500}>발행 시각 <Text span c="red">*</Text></Text>
+                  <Group gap="xs">
+                    {/* Phase 50 — 지금 바로 발행 토글 */}
+                    <Switch
+                      size="sm"
+                      label={<Text size="xs" fw={600}>⚡ 지금 바로 발행</Text>}
+                      checked={form.values.publishNow}
+                      onChange={(e) => {
+                        const on = e.currentTarget.checked;
+                        form.setFieldValue('publishNow', on);
+                        if (on) form.setFieldValue('scheduledAt', new Date());
                       }}
-                    >
-                      🎯 최적 시간 자동
-                    </Button>
-                  </Tooltip>
+                    />
+                    {!form.values.publishNow && (
+                      <Tooltip label="선택한 채널의 region 별 황금 시간대 (다음 출근/점심/저녁 피크)에 자동 예약" withArrow>
+                        <Button
+                          size="compact-xs"
+                          variant="light"
+                          color="violet"
+                          leftSection={<IconBulb size={12} />}
+                          disabled={form.values.channelIds.length === 0}
+                          onClick={async () => {
+                            try {
+                              const res = await suggestPrimeTimeForChannels(form.values.channelIds);
+                              form.setFieldValue('scheduledAt', new Date(res.suggested));
+                              notifications.show({
+                                title: '🎯 황금시간대 적용',
+                                message: `${res.region} → ${res.suggestedLocal} (${res.hourLabels.join(' · ')} 중)`,
+                                color: 'violet',
+                                autoClose: 5000,
+                              });
+                            } catch (e: any) {
+                              notifications.show({ title: '오류', message: e?.message || '추천 실패', color: 'red' });
+                            }
+                          }}
+                        >
+                          🎯 최적 시간 자동
+                        </Button>
+                      </Tooltip>
+                    )}
+                  </Group>
                 </Group>
-                <DateTimePicker
-                  placeholder="날짜와 시간을 선택하세요"
-                  required
-                  minDate={new Date()}
-                  {...form.getInputProps('scheduledAt')}
-                />
+                {form.values.publishNow ? (
+                  <Paper withBorder p="sm" radius="md" bg="var(--mantine-color-violet-0)">
+                    <Group gap="xs">
+                      <Text size="sm" fw={600} c="violet.7">⚡ 즉시 발행 모드</Text>
+                      <Text size="xs" c="dimmed">
+                        클라우드 채널 (Telegram/WordPress/Discord 등) 은 ~5분 안에, 에이전트 채널 (Instagram/Facebook 등) 은 에이전트 polling (~1분) 직후 발행됩니다.
+                      </Text>
+                    </Group>
+                  </Paper>
+                ) : (
+                  <DateTimePicker
+                    placeholder="날짜와 시간을 선택하세요"
+                    required
+                    minDate={new Date()}
+                    {...form.getInputProps('scheduledAt')}
+                  />
+                )}
               </Stack>
             )}
 
@@ -1172,11 +1204,18 @@ function NewCampaignPageInner() {
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
               <Box><Text size="xs" c="dimmed">캠페인 이름</Text><Text fw={600} size="sm">{form.values.name}</Text></Box>
               <Box><Text size="xs" c="dimmed">발행 채널</Text><Text fw={600} size="sm">{form.values.channelIds.length}개</Text></Box>
-              <Box><Text size="xs" c="dimmed">예약 시간</Text><Text fw={600} size="sm">{dayjs(form.values.scheduledAt).format('YYYY-MM-DD HH:mm')}</Text></Box>
+              <Box>
+                <Text size="xs" c="dimmed">발행 시각</Text>
+                <Text fw={600} size="sm" c={form.values.publishNow ? 'violet.7' : undefined}>
+                  {form.values.publishNow ? '⚡ 지금 즉시' : dayjs(form.values.scheduledAt).format('YYYY-MM-DD HH:mm')}
+                </Text>
+              </Box>
               <Box>
                 <Text size="xs" c="dimmed">발행 방식</Text>
                 <Text fw={600} size="sm">
-                  {form.values.splitMode ? `🎯 분할 발행 (${form.values.splitCount}회 황금시간대)` : '⏱ 단일 예약'}
+                  {form.values.publishNow
+                    ? '⚡ 즉시 발행'
+                    : form.values.splitMode ? `🎯 분할 발행 (${form.values.splitCount}회 황금시간대)` : '⏱ 단일 예약'}
                 </Text>
               </Box>
             </SimpleGrid>
