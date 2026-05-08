@@ -17,7 +17,7 @@ import {
   IconCheck, IconAlertCircle, IconRefresh, IconLoader, IconClock
 } from '@tabler/icons-react';
 import { Anchor } from '@mantine/core';
-import { createChannel, deleteChannel, verifyChannelConnection, verifyAllMyChannels, updateChannel } from '@/app/actions/channelActions';
+import { createChannel, deleteChannel, verifyChannelConnection, verifyAllMyChannels, updateChannel, getChannelExternalUrl } from '@/app/actions/channelActions';
 import { ChannelType, MarketingChannel } from '@prisma/client';
 import ChannelGuideModal from '@/components/channels/ChannelGuideModal';
 import { IconBook2 } from '@tabler/icons-react';
@@ -560,7 +560,24 @@ export default function ChannelsClient({
               style={{ borderLeft: `4px solid var(--mantine-color-${brandColor}-${brandColor === 'dark' ? '7' : '6'})` }}
             >
               <Group justify="space-between" mb="xs" wrap="nowrap">
-                <Group gap="sm" wrap="nowrap">
+                <Group
+                  gap="sm"
+                  wrap="nowrap"
+                  style={{ cursor: 'pointer', flex: 1, minWidth: 0 }}
+                  onClick={async () => {
+                    const r = await getChannelExternalUrl(channel.id);
+                    if (r.url) {
+                      window.open(r.url, '_blank', 'noopener,noreferrer');
+                    } else {
+                      notifications.show({
+                        title: '바로가기 미지원',
+                        message: r.error || `${label} 은 외부 페이지가 없어 바로가기를 지원하지 않습니다.`,
+                        color: 'gray',
+                      });
+                    }
+                  }}
+                  title={`${label} 사이트 새 탭으로 열기`}
+                >
                   {/* 컬러 박스 안에 흰색 아이콘 */}
                   <div style={{
                     width: 44, height: 44, borderRadius: 10,
@@ -572,7 +589,10 @@ export default function ChannelsClient({
                   </div>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <Text size="xs" c="dimmed" fw={600} truncate>{label}</Text>
-                    <Text fw={700} size="md" truncate>{channel.accountName}</Text>
+                    <Group gap={4} wrap="nowrap">
+                      <Text fw={700} size="md" truncate>{channel.accountName}</Text>
+                      <IconExternalLink size={12} color="var(--mantine-color-dimmed)" style={{ flexShrink: 0 }} />
+                    </Group>
                   </div>
                 </Group>
                 <Menu position="bottom-end" shadow="md" withinPortal>
@@ -582,6 +602,23 @@ export default function ChannelsClient({
                     </ActionIcon>
                   </Menu.Target>
                   <Menu.Dropdown>
+                    <Menu.Item
+                      leftSection={<IconExternalLink size={14} />}
+                      onClick={async () => {
+                        const r = await getChannelExternalUrl(channel.id);
+                        if (r.url) {
+                          window.open(r.url, '_blank', 'noopener,noreferrer');
+                        } else {
+                          notifications.show({
+                            title: '바로가기 미지원',
+                            message: r.error || `${CHANNEL_LABELS[channel.type] || channel.type} 은 외부 페이지가 없어 바로가기를 지원하지 않습니다.`,
+                            color: 'gray',
+                          });
+                        }
+                      }}
+                    >
+                      사이트 바로가기 ↗
+                    </Menu.Item>
                     <Menu.Item
                       leftSection={isVerifying ? <IconLoader size={14} /> : <IconRefresh size={14} />}
                       onClick={() => runVerify(channel.id)}

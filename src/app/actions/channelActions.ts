@@ -149,6 +149,67 @@ export async function enqueueChannelVerify(channelId: string): Promise<{ taskId:
 }
 
 /**
+ * Phase 50 — 채널 카드 "사이트 바로가기" 버튼 핸들러.
+ *
+ * 채널의 자격증명에서 username/pageId/cafeId 등을 추출해 해당 SNS 의 사용자 페이지 URL 을 만듦.
+ * 클라이언트는 받은 URL 을 새 탭으로 open — 사용자가 그 SNS 에 이미 로그인돼 있으면
+ * 자동으로 본인 계정으로 보이고, 미로그인 상태면 SNS 의 로그인 페이지로 보임.
+ *
+ * 비밀번호 등 민감정보는 절대 반환 X. URL 만 반환.
+ */
+export async function getChannelExternalUrl(channelId: string): Promise<{
+  url: string | null;
+  error?: string;
+}> {
+  const user = await getSessionUser();
+  const channel = await prisma.marketingChannel.findFirst({
+    where: { id: channelId, userId: user.id! },
+  });
+  if (!channel) return { url: null, error: '채널을 찾을 수 없습니다.' };
+
+  const { decryptJSON } = await import("@/lib/crypto/aes");
+  let creds: any = {};
+  try { creds = decryptJSON(channel.encryptedCredentials); } catch { /* 자격증명 손상돼도 일반 SNS 홈으로 보냄 */ }
+
+  const username: string = String(creds.username || creds.user || '').trim();
+  const pageId: string = String(creds.pageId || '').trim();
+  const cafeId: string = String(creds.cafeId || '').trim();
+  const siteUrl: string = String(creds.siteUrl || '').trim();
+  const chatId: string = String(creds.chatId || '').trim();
+
+  const ensureHttps = (s: string) => /^https?:\/\//.test(s) ? s : `https://${s}`;
+
+  let url: string | null = null;
+  switch (channel.type) {
+    case 'INSTAGRAM':   url = username ? `https://www.instagram.com/${username}/` : 'https://www.instagram.com/'; break;
+    case 'FACEBOOK':    url = pageId ? `https://www.facebook.com/${pageId}` : 'https://www.facebook.com/'; break;
+    case 'X':           url = username ? `https://x.com/${username.replace(/^@/, '')}` : 'https://x.com/home'; break;
+    case 'THREADS':     url = username ? `https://www.threads.net/@${username.replace(/^@/, '')}` : 'https://www.threads.net/'; break;
+    case 'LINKEDIN':    url = 'https://www.linkedin.com/feed/'; break;
+    case 'YOUTUBE':     url = 'https://studio.youtube.com/'; break;
+    case 'TIKTOK':      url = username ? `https://www.tiktok.com/@${username.replace(/^@/, '')}` : 'https://www.tiktok.com/'; break;
+    case 'NAVER_BLOG':  url = username ? `https://blog.naver.com/${username}` : 'https://blog.naver.com/'; break;
+    case 'NAVER_CAFE':  url = cafeId ? `https://cafe.naver.com/ca-fe/cafes/${cafeId}` : 'https://cafe.naver.com/'; break;
+    case 'TELEGRAM':    url = chatId.startsWith('@') ? `https://t.me/${chatId.substring(1)}` : 'https://web.telegram.org/'; break;
+    case 'DISCORD':     url = 'https://discord.com/channels/@me'; break;
+    case 'WORDPRESS':   url = siteUrl ? `${ensureHttps(siteUrl).replace(/\/$/, '')}/wp-admin/` : null; break;
+    case 'KAKAO':       url = 'https://accounts.kakao.com/login'; break;
+    case 'WHATSAPP':    url = 'https://web.whatsapp.com/'; break;
+    case 'PINTEREST':   url = username ? `https://www.pinterest.com/${username}/` : 'https://www.pinterest.com/'; break;
+    case 'WEIBO':       url = 'https://weibo.com/'; break;
+    case 'VK':          url = username ? `https://vk.com/${username}` : 'https://vk.com/'; break;
+    case 'LINE':        url = 'https://timeline.line.me/'; break;
+    case 'TISTORY':     url = username ? `https://${username}.tistory.com/` : 'https://www.tistory.com/'; break;
+    case 'XIAOHONGSHU': url = 'https://www.xiaohongshu.com/'; break;
+    case 'DOUYIN':      url = 'https://www.douyin.com/'; break;
+    case 'EMAIL':       url = null; break;
+    case 'SMS':         url = null; break;
+    default:            url = null; break;
+  }
+  return { url };
+}
+
+/**
  * Phase 50 — 사용자 "재인증" 버튼 핸들러.
  *
  * 클라우드 채널 (Telegram/Discord/LinkedIn/X/YouTube/WordPress) 은 verifyChannelConnection 으로
