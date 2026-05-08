@@ -110,7 +110,9 @@ export default function AgentClient({
                             size="lg"
                             leftSection={<IconDownload size="1.2rem" />}
                             component="a"
-                            href="https://github.com/amazing-makers/marketingbot-agent/releases/latest/download/Marketingbot-Agent-Setup.exe"
+                            href="https://github.com/amazing-makers/marketingbot-agent/releases/latest"
+                            target="_blank"
+                            rel="noopener noreferrer"
                         >
                             Windows용 다운로드
                         </Button>

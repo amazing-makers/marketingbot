@@ -249,7 +249,9 @@ export default function OnboardingClient({ userName, license }: OnboardingClient
               <Text fw={700}>2. Windows 에이전트 다운로드</Text>
               <Button
                 component="a"
-                href="https://github.com/amazing-makers/marketingbot-agent/releases/latest/download/Marketingbot-Agent-Setup.exe"
+                href="https://github.com/amazing-makers/marketingbot-agent/releases/latest"
+                target="_blank"
+                rel="noopener noreferrer"
                 size="xl"
                 fullWidth
                 leftSection={<IconDownload size={24} />}
@@ -267,7 +269,7 @@ export default function OnboardingClient({ userName, license }: OnboardingClient
                 <Accordion.Control>에이전트 설치 및 실행 가이드</Accordion.Control>
                 <Accordion.Panel>
                   <Stack gap="xs">
-                    <Text size="sm">1. 다운로드한 <b>Marketingbot-Agent-Setup.exe</b> 파일을 실행하여 설치를 완료합니다.</Text>
+                    <Text size="sm">1. 위 버튼을 누르면 GitHub Releases 페이지가 열립니다. 가장 최신 버전의 <b>Marketingbot-Agent_x.x.x.exe</b> 파일을 클릭해 다운로드 후 실행하여 설치합니다.</Text>
                     <Text size="sm">2. 바탕화면의 마케팅봇 에이전트 아이콘을 더블 클릭하여 실행합니다.</Text>
                     <Text size="sm">3. 첫 화면에 위에서 복사한 <b>라이선스 키</b>를 붙여넣고 '활성화' 버튼을 누릅니다.</Text>
                     <Text size="sm">4. '활성화됨' 메시지가 나오면 에이전트가 백그라운드에서 작업을 처리할 준비가 끝납니다.</Text>
