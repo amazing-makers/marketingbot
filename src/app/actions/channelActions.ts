@@ -135,17 +135,58 @@ export async function updateChannel(id: string, data: {
  * polling 한 에이전트가 5분 안에 결과 보고 안 하면 좀비 복구 로직이 FAILED 로 정리.
  */
 export async function enqueueChannelVerify(channelId: string): Promise<{ taskId: string; reused: boolean }> {
-  // 진행 중인 task 우선 재사용
+  // 진행 중인 task 우선 재사용 (kind=VERIFY 만)
   const existing = await prisma.channelVerifyTask.findFirst({
-    where: { channelId, status: { in: ['PENDING', 'RUNNING'] } },
+    where: { channelId, kind: 'VERIFY', status: { in: ['PENDING', 'RUNNING'] } },
     orderBy: { createdAt: 'desc' },
   });
   if (existing) return { taskId: existing.id, reused: true };
 
   const created = await prisma.channelVerifyTask.create({
-    data: { channelId, status: 'PENDING' },
+    data: { channelId, kind: 'VERIFY', status: 'PENDING' },
   });
   return { taskId: created.id, reused: false };
+}
+
+/**
+ * Phase 50 — 채널 카드 "에이전트 브라우저로 열기" 요청.
+ *
+ * 에이전트가 polling 시 받아 저장된 storage state 로 브라우저 띄우고 SNS 본인 페이지로 이동.
+ * 사용자 일반 브라우저에 SNS 로그인 안 돼 있어도 본인 계정으로 자동 보임 (에이전트가 verify 시 저장한 세션 사용).
+ *
+ * 이미 PENDING / RUNNING 인 OPEN_BROWSER task 가 있으면 재사용 (중복 방지).
+ * 30분 안에 에이전트가 응답 안 하면 좀비 복구 로직이 FAILED 처리.
+ */
+export async function requestOpenInAgentBrowser(channelId: string): Promise<{
+  ok: boolean;
+  taskId?: string;
+  reused?: boolean;
+  error?: string;
+}> {
+  const user = await getSessionUser();
+  const channel = await prisma.marketingChannel.findFirst({
+    where: { id: channelId, userId: user.id! },
+  });
+  if (!channel) return { ok: false, error: '채널을 찾을 수 없습니다.' };
+
+  // 인증된 채널만 (PENDING_AUTH/ERROR 면 세션이 없어 자동 로그인 불가)
+  if (channel.status !== 'ACTIVE') {
+    return {
+      ok: false,
+      error: '먼저 인증을 완료해주세요. (채널 상태가 ACTIVE 여야 저장된 세션으로 자동 로그인 가능)',
+    };
+  }
+
+  const existing = await prisma.channelVerifyTask.findFirst({
+    where: { channelId, kind: 'OPEN_BROWSER', status: { in: ['PENDING', 'RUNNING'] } },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (existing) return { ok: true, taskId: existing.id, reused: true };
+
+  const created = await prisma.channelVerifyTask.create({
+    data: { channelId, kind: 'OPEN_BROWSER', status: 'PENDING' },
+  });
+  return { ok: true, taskId: created.id, reused: false };
 }
 
 /**

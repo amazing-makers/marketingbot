@@ -122,20 +122,32 @@ export async function POST(req: Request) {
       return picked;
     });
 
-    // Phase 50 — verify task 도 함께 dispatch (별도 transaction, 발행 task 와 cooldown 무관).
-    // 채널당 1개만 RUNNING 보장: PENDING 중 가장 오래된 것을 채널별로 1개씩 reserve.
-    const VERIFY_ZOMBIE_TIMEOUT_MS = 5 * 60 * 1000; // 5분 (사용자 수동 로그인 5분 대기 + buffer)
+    // Phase 50 — verify / open_browser task 도 함께 dispatch.
+    // kind 별 timeout 다름: VERIFY 는 5분, OPEN_BROWSER 는 30분 (사용자가 천천히 보고 닫음).
+    const VERIFY_ZOMBIE_TIMEOUT_MS = 5 * 60 * 1000;
+    const OPEN_BROWSER_ZOMBIE_TIMEOUT_MS = 30 * 60 * 1000;
     const verifyZombieThreshold = new Date(now.getTime() - VERIFY_ZOMBIE_TIMEOUT_MS);
+    const openBrowserZombieThreshold = new Date(now.getTime() - OPEN_BROWSER_ZOMBIE_TIMEOUT_MS);
 
     const reservedVerifyTasks = await prisma.$transaction(async (tx) => {
-      // 좀비 verify task 복구
+      // 좀비 task 복구 — kind 별 다른 threshold
       await tx.channelVerifyTask.updateMany({
         where: {
           channel: { userId: license.userId },
+          kind: 'VERIFY',
           status: 'RUNNING',
           updatedAt: { lt: verifyZombieThreshold },
         },
-        data: { status: 'FAILED', errorLog: 'Timeout — 에이전트 응답 없음' },
+        data: { status: 'FAILED', errorLog: 'Timeout — 에이전트 응답 없음 (5분)' },
+      });
+      await tx.channelVerifyTask.updateMany({
+        where: {
+          channel: { userId: license.userId },
+          kind: 'OPEN_BROWSER',
+          status: 'RUNNING',
+          updatedAt: { lt: openBrowserZombieThreshold },
+        },
+        data: { status: 'FAILED', errorLog: 'Timeout — 브라우저 자동 닫힘 (30분)' },
       });
 
       // 진행 중 verify task 가 있는 채널은 제외 (채널당 1개만 동시 실행)
@@ -185,13 +197,14 @@ export async function POST(req: Request) {
       mediaUrls: t.mediaUrls,
     }));
 
-    // verify task 페이로드 — credentials 는 hint 로만 전달 (IG 어댑터는 사용자가 직접 로그인).
+    // verify task 페이로드 — kind 도 함께 전달 (VERIFY | OPEN_BROWSER).
     const verifyTaskData = reservedVerifyTasks.map((t) => ({
       taskId: t.id,
       channelId: t.channelId,
       channelType: t.channel.type,
       accountName: t.channel.accountName,
       credentials: decryptJSON(t.channel.encryptedCredentials),
+      kind: t.kind,
     }));
 
     return NextResponse.json({ agentId: agent.id, tasks: taskData, verifyTasks: verifyTaskData });

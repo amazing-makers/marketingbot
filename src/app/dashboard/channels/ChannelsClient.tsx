@@ -17,7 +17,7 @@ import {
   IconCheck, IconAlertCircle, IconRefresh, IconLoader, IconClock
 } from '@tabler/icons-react';
 import { Anchor } from '@mantine/core';
-import { createChannel, deleteChannel, verifyChannelConnection, verifyAllMyChannels, updateChannel, getChannelExternalUrl } from '@/app/actions/channelActions';
+import { createChannel, deleteChannel, verifyChannelConnection, verifyAllMyChannels, updateChannel, getChannelExternalUrl, requestOpenInAgentBrowser } from '@/app/actions/channelActions';
 import { ChannelType, MarketingChannel } from '@prisma/client';
 import ChannelGuideModal from '@/components/channels/ChannelGuideModal';
 import { IconBook2 } from '@tabler/icons-react';
@@ -565,18 +565,37 @@ export default function ChannelsClient({
                   wrap="nowrap"
                   style={{ cursor: 'pointer', flex: 1, minWidth: 0 }}
                   onClick={async () => {
-                    const r = await getChannelExternalUrl(channel.id);
-                    if (r.url) {
-                      window.open(r.url, '_blank', 'noopener,noreferrer');
-                    } else {
+                    // 우선: 에이전트 브라우저로 (저장된 세션 → 자동 로그인된 본인 계정)
+                    const r = await requestOpenInAgentBrowser(channel.id);
+                    if (r.ok) {
                       notifications.show({
-                        title: '바로가기 미지원',
-                        message: r.error || `${label} 은 외부 페이지가 없어 바로가기를 지원하지 않습니다.`,
-                        color: 'gray',
+                        title: '🖥 에이전트가 브라우저를 띄웁니다',
+                        message: r.reused
+                          ? '이미 진행 중인 요청이 있어요 — 잠시 기다려주세요.'
+                          : '데스크톱 에이전트가 ~1분 안에 본인 계정 페이지를 띄웁니다.',
+                        color: 'blue',
+                        autoClose: 6000,
                       });
+                    } else {
+                      // 에이전트 사용 불가 (인증 안 됨 등) → 일반 브라우저 fallback
+                      const ext = await getChannelExternalUrl(channel.id);
+                      if (ext.url) {
+                        window.open(ext.url, '_blank', 'noopener,noreferrer');
+                        notifications.show({
+                          title: '일반 브라우저로 열었어요',
+                          message: r.error || '에이전트 브라우저 사용이 어려워 일반 브라우저로 보냈습니다.',
+                          color: 'gray',
+                        });
+                      } else {
+                        notifications.show({
+                          title: '바로가기 실패',
+                          message: r.error || '열 수 있는 페이지가 없습니다.',
+                          color: 'orange',
+                        });
+                      }
                     }
                   }}
-                  title={`${label} 사이트 새 탭으로 열기`}
+                  title={`${label} — 에이전트 브라우저로 자동 로그인된 본인 계정 보기`}
                 >
                   {/* 컬러 박스 안에 흰색 아이콘 */}
                   <div style={{
@@ -605,6 +624,31 @@ export default function ChannelsClient({
                     <Menu.Item
                       leftSection={<IconExternalLink size={14} />}
                       onClick={async () => {
+                        // 에이전트 브라우저로 열기 — 저장된 세션 사용 (자동 로그인된 본인 계정 표시)
+                        const r = await requestOpenInAgentBrowser(channel.id);
+                        if (r.ok) {
+                          notifications.show({
+                            title: '🖥 에이전트가 브라우저를 띄웁니다',
+                            message: r.reused
+                              ? '이미 진행 중인 요청이 있어요 — 잠시 기다려주세요.'
+                              : '데스크톱 에이전트가 ~1분 안에 본인 계정 페이지를 띄웁니다. 다 보면 그 창을 닫으세요.',
+                            color: 'blue',
+                            autoClose: 6000,
+                          });
+                        } else {
+                          notifications.show({
+                            title: '에이전트 브라우저 열기 실패',
+                            message: r.error || '알 수 없는 오류',
+                            color: 'orange',
+                          });
+                        }
+                      }}
+                    >
+                      🖥 에이전트 브라우저로 열기 (자동 로그인)
+                    </Menu.Item>
+                    <Menu.Item
+                      leftSection={<IconExternalLink size={14} />}
+                      onClick={async () => {
                         const r = await getChannelExternalUrl(channel.id);
                         if (r.url) {
                           window.open(r.url, '_blank', 'noopener,noreferrer');
@@ -617,7 +661,7 @@ export default function ChannelsClient({
                         }
                       }}
                     >
-                      사이트 바로가기 ↗
+                      🌐 일반 브라우저에서 열기
                     </Menu.Item>
                     <Menu.Item
                       leftSection={isVerifying ? <IconLoader size={14} /> : <IconRefresh size={14} />}

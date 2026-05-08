@@ -23,8 +23,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid license" }, { status: 401 });
     }
 
-    // Phase 50 — kind: 'VERIFY' 면 ChannelVerifyTask 처리. default 'PUBLISH' 호환.
-    if (kind === 'VERIFY') {
+    // Phase 50 — kind: 'VERIFY' / 'OPEN_BROWSER' 둘 다 ChannelVerifyTask 처리.
+    // 'PUBLISH' (또는 미지정) 면 ScheduledTask 흐름으로.
+    if (kind === 'VERIFY' || kind === 'OPEN_BROWSER') {
       const verifyTask = await prisma.channelVerifyTask.findFirst({
         where: { id: taskId, channel: { userId: license.userId } },
       });
@@ -38,16 +39,19 @@ export async function POST(req: Request) {
         data: { status, errorLog, finishedAt },
       });
 
-      // 채널 status / lastVerifiedAt / verifyError 업데이트
-      const newChannelStatus = status === 'SUCCESS' ? 'ACTIVE' : 'ERROR';
-      await prisma.marketingChannel.update({
-        where: { id: verifyTask.channelId },
-        data: {
-          status: newChannelStatus,
-          lastVerifiedAt: status === 'SUCCESS' ? finishedAt : undefined,
-          verifyError: status === 'SUCCESS' ? null : (errorLog ?? '인증 실패'),
-        },
-      });
+      // OPEN_BROWSER 는 단순 노출이라 채널 status 안 건드림 — 사용자 닫음/timeout 둘 다 정상.
+      // VERIFY 만 채널 status / lastVerifiedAt / verifyError 갱신.
+      if (verifyTask.kind === 'VERIFY') {
+        const newChannelStatus = status === 'SUCCESS' ? 'ACTIVE' : 'ERROR';
+        await prisma.marketingChannel.update({
+          where: { id: verifyTask.channelId },
+          data: {
+            status: newChannelStatus,
+            lastVerifiedAt: status === 'SUCCESS' ? finishedAt : undefined,
+            verifyError: status === 'SUCCESS' ? null : (errorLog ?? '인증 실패'),
+          },
+        });
+      }
 
       return NextResponse.json({ success: true });
     }
