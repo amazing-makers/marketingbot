@@ -55,20 +55,63 @@ export default async function CampaignDetailPage({ params }: { params: { id: str
 
       <Divider my="md" />
 
-      <SimpleGrid cols={{ base: 1, md: 3 }} mb="xl">
-        <Card withBorder radius="md">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">예약 시각</Text>
-          <Text fw={500}>{dayjs(campaign.scheduledAt).format('YYYY-MM-DD HH:mm')}</Text>
-        </Card>
-        <Card withBorder radius="md">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">생성일</Text>
-          <Text fw={500}>{dayjs(campaign.createdAt).format('YYYY-MM-DD')}</Text>
-        </Card>
-        <Card withBorder radius="md">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">채널 수</Text>
-          <Text fw={500}>{campaign.tasks.length}개</Text>
-        </Card>
-      </SimpleGrid>
+      {/* Phase 50 — 발행 결과 한눈에 보기 (성공/실패/실행중/대기) */}
+      {(() => {
+        const counts = campaign.tasks.reduce((acc, t) => {
+          acc[t.status] = (acc[t.status] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        const total = campaign.tasks.length;
+        const success = counts.SUCCESS || 0;
+        const failed = counts.FAILED || 0;
+        const running = counts.RUNNING || 0;
+        const pending = counts.PENDING || 0;
+        return (
+          <SimpleGrid cols={{ base: 2, md: 4 }} mb="xl">
+            <Card withBorder radius="md" style={{ borderColor: success > 0 ? 'var(--mantine-color-teal-4)' : undefined }}>
+              <Text size="xs" c="dimmed" fw={700} tt="uppercase">✅ 성공</Text>
+              <Group align="baseline" gap={4}>
+                <Text fw={700} size="xl" c="teal">{success}</Text>
+                <Text size="sm" c="dimmed">/ {total}</Text>
+              </Group>
+            </Card>
+            <Card withBorder radius="md" style={{ borderColor: failed > 0 ? 'var(--mantine-color-red-4)' : undefined }}>
+              <Text size="xs" c="dimmed" fw={700} tt="uppercase">❌ 실패</Text>
+              <Group align="baseline" gap={4}>
+                <Text fw={700} size="xl" c={failed > 0 ? 'red' : 'dimmed'}>{failed}</Text>
+                <Text size="sm" c="dimmed">/ {total}</Text>
+              </Group>
+              {failed > 0 && (
+                <Text size="11px" c="dimmed" mt={4}>아래 표에서 사유 확인</Text>
+              )}
+            </Card>
+            <Card withBorder radius="md" style={{ borderColor: running > 0 ? 'var(--mantine-color-blue-4)' : undefined }}>
+              <Text size="xs" c="dimmed" fw={700} tt="uppercase">⏳ 실행중</Text>
+              <Text fw={700} size="xl" c={running > 0 ? 'blue' : 'dimmed'}>{running}</Text>
+            </Card>
+            <Card withBorder radius="md">
+              <Text size="xs" c="dimmed" fw={700} tt="uppercase">📅 대기</Text>
+              <Text fw={700} size="xl" c={pending > 0 ? 'gray' : 'dimmed'}>{pending}</Text>
+              <Text size="11px" c="dimmed" mt={4}>
+                예약: {dayjs(campaign.scheduledAt).format('MM-DD HH:mm')}
+              </Text>
+            </Card>
+          </SimpleGrid>
+        );
+      })()}
+
+      {/* 발행 실패가 1개 이상이면 페이지 상단에 큰 알람 노출 */}
+      {(() => {
+        const failedTasks = campaign.tasks.filter(t => t.status === 'FAILED');
+        if (failedTasks.length === 0) return null;
+        return (
+          <Alert color="red" icon={<IconAlertCircle size={18} />} radius="md" mb="md">
+            <Text fw={700} size="sm">
+              {failedTasks.length}개 채널 발행에 실패했어요 — 아래 표에서 사유와 해결 방법을 확인해주세요.
+            </Text>
+          </Alert>
+        );
+      })()}
 
       <Card withBorder radius="md" p={0}>
         <Table.ScrollContainer minWidth={680}>
