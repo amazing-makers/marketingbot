@@ -4,12 +4,12 @@ import { TextInput, PasswordInput, Button, Paper, Title, Container, Stack, Ancho
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import { registerUser } from '@/app/actions/authActions';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { signIn, signOut } from 'next-auth/react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState, Suspense } from 'react';
 
 function RegisterPageInner() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const refFromUrl = (searchParams.get('ref') || '').trim().toUpperCase();
   const refByFromUrl = (searchParams.get('refby') || '').trim().toUpperCase();
@@ -80,21 +80,46 @@ function RegisterPageInner() {
         message: '이미 존재하는 이메일이거나 입력값이 올바르지 않습니다.',
         color: 'red',
       });
-    } else {
-      // 가입 성공 시 referral 토큰 정리
-      try {
-        localStorage.removeItem('amakers_ref');
-        localStorage.removeItem('amakers_ref_at');
-        localStorage.removeItem('amakers_refby');
-        localStorage.removeItem('amakers_refby_at');
-      } catch { /* ignore */ }
-      notifications.show({
-        title: '회원가입 성공',
-        message: '로그인 페이지로 이동합니다.',
-        color: 'green',
-      });
-      router.push('/login');
+      return;
     }
+
+    // 가입 성공 시 referral 토큰 정리
+    try {
+      localStorage.removeItem('amakers_ref');
+      localStorage.removeItem('amakers_ref_at');
+      localStorage.removeItem('amakers_refby');
+      localStorage.removeItem('amakers_refby_at');
+    } catch { /* ignore */ }
+
+    // 세션 누수 방지: 가입 직전에 다른 계정 (예: admin) 으로 로그인되어 있었을 수 있으므로
+    // 명시적으로 signOut 후 새 계정 자격증명으로 즉시 signIn — 세션 토큰을 완전히 덮어쓴다.
+    try {
+      await signOut({ redirect: false });
+    } catch { /* 세션 없을 때도 안전 */ }
+
+    const signInResult = await signIn('credentials', {
+      email: values.email,
+      password: values.password,
+      redirect: false,
+    });
+
+    if (signInResult?.error) {
+      notifications.show({
+        title: '회원가입 성공 — 로그인 필요',
+        message: '자동 로그인에 실패했습니다. 로그인 페이지에서 새 계정으로 다시 로그인해주세요.',
+        color: 'orange',
+      });
+      window.location.href = `/login?email=${encodeURIComponent(values.email)}`;
+      return;
+    }
+
+    notifications.show({
+      title: '🎉 회원가입 완료',
+      message: '대시보드로 이동합니다.',
+      color: 'green',
+    });
+    // hard navigation — 새 세션 쿠키가 server component 에 반영되도록 전체 reload.
+    window.location.href = '/dashboard';
   };
 
   return (
