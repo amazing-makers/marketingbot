@@ -1,11 +1,12 @@
 import { getCampaign, retryTask, executeTaskNow } from "@/app/actions/campaignActions";
 import { CLOUD_PUBLISHED_CHANNELS } from '@/lib/publishers';
+import { toFriendlyError } from '@/lib/publish-error-messages';
 import {
   Title, Text, Card, Group, Stack, Badge, Table, Button,
-  ActionIcon, Tooltip, Divider, Breadcrumbs, Anchor, SimpleGrid
+  ActionIcon, Tooltip, Divider, Breadcrumbs, Anchor, SimpleGrid, Alert
 } from '@mantine/core';
 import {
-  IconRefresh, IconBolt
+  IconRefresh, IconBolt, IconAlertCircle
 } from '@tabler/icons-react';
 import { revalidatePath } from 'next/cache';
 import dayjs from 'dayjs';
@@ -99,12 +100,27 @@ export default async function CampaignDetailPage({ params }: { params: { id: str
                   <Text size="sm">{task.executedAt ? dayjs(task.executedAt).format('HH:mm:ss') : '-'}</Text>
                 </Table.Td>
                 <Table.Td>
-                  {task.errorLog ? (
-                    <Tooltip label={task.errorLog}>
-                      <Text size="xs" c="red" truncate="end" maw={200} style={{ cursor: 'help' }}>
-                        {task.errorLog}
-                      </Text>
-                    </Tooltip>
+                  {task.errorLog && task.status === 'FAILED' ? (() => {
+                    const f = toFriendlyError(task.errorLog);
+                    return (
+                      <Stack gap={2} maw={320}>
+                        <Group gap={4} wrap="nowrap">
+                          <IconAlertCircle size={12} color="var(--mantine-color-red-6)" style={{ flexShrink: 0 }} />
+                          <Text size="xs" fw={600} c="red.7">{f.title}</Text>
+                        </Group>
+                        <Text size="11px" c="dimmed" lineClamp={2}>{f.detail}</Text>
+                        {task.errorLog !== f.title && task.errorLog !== f.detail && (
+                          <Tooltip label={task.errorLog} multiline w={400} withArrow>
+                            <Text size="10px" c="dimmed" style={{ cursor: 'help', textDecoration: 'underline dotted' }}>
+                              자세한 로그 보기
+                            </Text>
+                          </Tooltip>
+                        )}
+                      </Stack>
+                    );
+                  })() : task.errorLog ? (
+                    /* SUCCESS / 메타로그 — 작게 dimmed */
+                    <Text size="11px" c="dimmed" truncate maw={200}>{task.errorLog}</Text>
                   ) : '-'}
                 </Table.Td>
                 <Table.Td>

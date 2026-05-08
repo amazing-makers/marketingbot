@@ -57,7 +57,8 @@ export async function POST(req: Request) {
       where: {
         id: taskId,
         campaign: { userId: license.userId }
-      }
+      },
+      include: { channel: true, campaign: true },
     });
 
     if (!task) {
@@ -73,6 +74,31 @@ export async function POST(req: Request) {
         errorLog
       },
     });
+
+    // Phase 50 — 발행 실패 시 사용자에게 즉시 알림 (in-app + push)
+    if (status === 'FAILED') {
+      try {
+        const { createNotificationDedup } = await import('@/lib/notifications/create');
+        const { toFriendlyError } = await import('@/lib/publish-error-messages');
+        const friendly = toFriendlyError(errorLog);
+        await createNotificationDedup({
+          userId: license.userId,
+          kind: 'CHANNEL_ERROR',
+          title: `발행 실패 — ${task.channel.accountName} (${task.channel.type})`,
+          body: friendly.title + (friendly.detail ? ` · ${friendly.detail}` : ''),
+          link: `/dashboard/campaigns/${task.campaignId}`,
+          metadata: {
+            taskId: task.id,
+            channelId: task.channelId,
+            channelType: task.channel.type,
+            campaignName: task.campaign?.name,
+            errorRaw: (errorLog || '').slice(0, 500),
+          },
+        }, /* dedup window hours */ 1);
+      } catch (e) {
+        console.warn('[result] FAILED notification create error', e);
+      }
+    }
 
     // 4. 만약 캠페인의 모든 태스크가 완료되었다면 캠페인 상태 업데이트 (옵션)
     // 여기서는 간단히 개별 태스크 업데이트만 수행

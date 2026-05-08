@@ -278,6 +278,34 @@ async function markFailed(taskId: string, errorLog: string) {
     } catch {
         // 이미 다른 곳에서 갱신됐을 수 있음
     }
+
+    // Phase 50 — 발행 실패 즉시 알림 (in-app + push). 1시간 dedup 으로 동일 채널 연속 실패 시 폭주 방지.
+    try {
+        const task = await prisma.scheduledTask.findUnique({
+            where: { id: taskId },
+            include: { channel: true, campaign: true },
+        });
+        if (!task) return;
+        const { createNotificationDedup } = await import('@/lib/notifications/create');
+        const { toFriendlyError } = await import('@/lib/publish-error-messages');
+        const friendly = toFriendlyError(errorLog);
+        await createNotificationDedup({
+            userId: task.channel.userId,
+            kind: 'CHANNEL_ERROR',
+            title: `발행 실패 — ${task.channel.accountName} (${task.channel.type})`,
+            body: friendly.title + (friendly.detail ? ` · ${friendly.detail}` : ''),
+            link: `/dashboard/campaigns/${task.campaignId}`,
+            metadata: {
+                taskId: task.id,
+                channelId: task.channelId,
+                channelType: task.channel.type,
+                campaignName: task.campaign?.name,
+                errorRaw: errorLog.slice(0, 500),
+            },
+        }, /* hours */ 1);
+    } catch (e) {
+        console.warn('[publishers] failed to create FAILED notification', e);
+    }
 }
 
 function extractPhotoUrl(mediaUrls: any): string | undefined {
