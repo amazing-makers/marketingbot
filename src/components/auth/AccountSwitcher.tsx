@@ -71,7 +71,13 @@ export default function AccountSwitcher({ currentUser, isAdmin, isPartner, admin
         }
     };
 
-    const handleAddAccount = async () => {
+    // 기존 계정으로 로그인 — 성공 시 자동으로 trusted device 등록.
+    const handleLoginAnother = async () => {
+        await signOut({ redirect: false });
+        window.location.href = '/login?add=1';
+    };
+    // 신규 계정 만들기 — 가입 성공 시 자동으로 trusted device 등록.
+    const handleRegisterNew = async () => {
         await signOut({ redirect: false });
         window.location.href = '/register';
     };
@@ -164,8 +170,11 @@ export default function AccountSwitcher({ currentUser, isAdmin, isPartner, admin
                 )}
 
                 <Menu.Divider />
-                <Menu.Item leftSection={<IconUserPlus size={14} />} onClick={handleAddAccount}>
-                    + 다른 계정 추가
+                <Menu.Item leftSection={<IconUserPlus size={14} />} onClick={handleLoginAnother}>
+                    + 다른 계정 로그인
+                </Menu.Item>
+                <Menu.Item leftSection={<IconUserPlus size={14} />} onClick={handleRegisterNew} color="teal">
+                    + 새 계정 만들기
                 </Menu.Item>
 
                 <Menu.Divider />

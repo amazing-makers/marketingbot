@@ -63,10 +63,13 @@ export default function SidebarAccountSwitcher({ currentUser }: { currentUser: C
         }
     };
 
-    const handleAddAccount = async () => {
-        // 새 계정 추가 — 현재 세션 유지하고 별도 탭처럼 register 가는 게 더 자연스럽지만
-        // 실제로 새 세션이 필요하므로 signOut 후 register 로 보냄. 가입 흐름 안에서
-        // 기존 td cookie 는 유지되므로 가입 후에도 admin 으로 다시 전환 가능.
+    // 기존 계정으로 로그인 — 로그인 성공 시 자동으로 trusted device 등록.
+    const handleLoginAnother = async () => {
+        await signOut({ redirect: false });
+        window.location.href = '/login?add=1';
+    };
+    // 신규 계정 만들기 — 가입 성공 시 자동으로 trusted device 등록.
+    const handleRegisterNew = async () => {
         await signOut({ redirect: false });
         window.location.href = '/register';
     };
@@ -187,7 +190,7 @@ export default function SidebarAccountSwitcher({ currentUser }: { currentUser: C
 
                     {/* 액션 */}
                     <UnstyledButton
-                        onClick={handleAddAccount}
+                        onClick={handleLoginAnother}
                         style={{ width: '100%', padding: '6px 4px', borderRadius: 6 }}
                     >
                         <Group gap={6} wrap="nowrap">
@@ -202,7 +205,27 @@ export default function SidebarAccountSwitcher({ currentUser }: { currentUser: C
                             }}>
                                 <IconUserPlus size={13} />
                             </Box>
-                            <Text size="xs" fw={600} c="violet.7">+ 다른 계정 추가</Text>
+                            <Text size="xs" fw={600} c="violet.7">+ 다른 계정 로그인</Text>
+                        </Group>
+                    </UnstyledButton>
+
+                    <UnstyledButton
+                        onClick={handleRegisterNew}
+                        style={{ width: '100%', padding: '6px 4px', borderRadius: 6 }}
+                    >
+                        <Group gap={6} wrap="nowrap">
+                            <Box style={{
+                                width: 28, height: 28,
+                                borderRadius: '50%',
+                                border: '1px dashed var(--mantine-color-teal-5)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'var(--mantine-color-teal-7)',
+                            }}>
+                                <IconUserPlus size={13} />
+                            </Box>
+                            <Text size="xs" fw={600} c="teal.7">+ 새 계정 만들기</Text>
                         </Group>
                     </UnstyledButton>
 
