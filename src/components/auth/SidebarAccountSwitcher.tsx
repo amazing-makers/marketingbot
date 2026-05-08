@@ -4,79 +4,79 @@ import {
     Box, UnstyledButton, Group, Avatar, Text, ActionIcon, Tooltip, Stack, Divider,
 } from '@mantine/core';
 import {
-    IconChevronDown, IconChevronUp, IconUserPlus, IconCheck, IconX, IconLogout,
+    IconChevronDown, IconChevronUp, IconUserPlus, IconX, IconLogout,
 } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { signOut } from 'next-auth/react';
+import {
+    listSwitchableAccounts,
+    switchToTrustedAccount,
+    forgetTrustedAccount,
+} from '@/app/actions/trustedDeviceActions';
 
-const STORAGE_KEY = 'amakers_saved_accounts';
-
-interface SavedAccount {
+interface SwitchableAccount {
+    id: string;
     email: string;
     name: string | null;
-    lastLoginAt: string;
 }
 
 interface CurrentUser {
+    id?: string;
     email: string;
     name?: string | null;
 }
 
 /**
- * Phase 39 — 사이드바 하단 다중 계정 관리 위젯.
+ * Phase 50 — 같은 PC 빠른 계정 전환 위젯.
  *
- * 헤더 AccountSwitcher 와 같은 localStorage 를 공유 — 어느 쪽에서 추가/제거해도 동기화.
- * 사이드바라 더 큰 공간이 있어 항상 펼쳐진 형태로 표시.
+ * 이전 (Phase 39): localStorage 에 email 만 저장 → 전환 시 비밀번호 입력 필요.
+ * 현재: server-side TrustedDevice token (httpOnly cookie + DB hashed) → 비번 없이 전환.
+ *
+ * cookie 가 없으면 listSwitchableAccounts() 가 빈 배열 반환 → "다른 계정 추가" 만 표시.
  */
 export default function SidebarAccountSwitcher({ currentUser }: { currentUser: CurrentUser }) {
-    const [accounts, setAccounts] = useState<SavedAccount[]>([]);
+    const [accounts, setAccounts] = useState<SwitchableAccount[]>([]);
     const [expanded, setExpanded] = useState(false);
+    const [switching, setSwitching] = useState<string | null>(null);
 
-    // 마운트 + storage 변경 감지 (다른 탭에서 변경 시 동기화)
     useEffect(() => {
-        const load = () => {
-            try {
-                const raw = localStorage.getItem(STORAGE_KEY);
-                const list: SavedAccount[] = raw ? JSON.parse(raw) : [];
-                // 현재 계정을 목록에 upsert
-                const withoutCurrent = list.filter(a => a.email.toLowerCase() !== currentUser.email.toLowerCase());
-                const updated: SavedAccount[] = [
-                    { email: currentUser.email, name: currentUser.name || null, lastLoginAt: new Date().toISOString() },
-                    ...withoutCurrent,
-                ].slice(0, 8);
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-                setAccounts(updated);
-            } catch { /* ignore */ }
-        };
-        load();
+        listSwitchableAccounts()
+            .then(setAccounts)
+            .catch(() => setAccounts([]));
+    }, [currentUser.email]);
 
-        const onStorage = (e: StorageEvent) => {
-            if (e.key === STORAGE_KEY) load();
-        };
-        window.addEventListener('storage', onStorage);
-        return () => window.removeEventListener('storage', onStorage);
-    }, [currentUser.email, currentUser.name]);
-
-    const handleSwitchTo = async (email: string) => {
-        if (email.toLowerCase() === currentUser.email.toLowerCase()) return;
-        await signOut({ redirect: false });
-        window.location.href = `/login?email=${encodeURIComponent(email)}`;
+    const handleSwitchTo = async (account: SwitchableAccount) => {
+        if (account.email.toLowerCase() === currentUser.email.toLowerCase()) return;
+        setSwitching(account.id);
+        try {
+            const r = await switchToTrustedAccount(account.id);
+            if (r.ok) {
+                // hard navigation — 새 세션 쿠키 반영 + 모든 RSC fresh fetch
+                window.location.href = '/dashboard';
+            } else {
+                alert(r.error || '전환 실패 — 비밀번호로 다시 로그인해주세요.');
+                await signOut({ redirect: false });
+                window.location.href = `/login?email=${encodeURIComponent(account.email)}`;
+            }
+        } finally {
+            setSwitching(null);
+        }
     };
 
     const handleAddAccount = async () => {
+        // 새 계정 추가 — 현재 세션 유지하고 별도 탭처럼 register 가는 게 더 자연스럽지만
+        // 실제로 새 세션이 필요하므로 signOut 후 register 로 보냄. 가입 흐름 안에서
+        // 기존 td cookie 는 유지되므로 가입 후에도 admin 으로 다시 전환 가능.
         await signOut({ redirect: false });
-        window.location.href = '/login?add=1';
+        window.location.href = '/register';
     };
 
-    const handleRemove = (email: string, e: React.MouseEvent) => {
+    const handleRemove = async (account: SwitchableAccount, e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        if (email.toLowerCase() === currentUser.email.toLowerCase()) return;
-        try {
-            const filtered = accounts.filter(a => a.email !== email);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-            setAccounts(filtered);
-        } catch { /* ignore */ }
+        if (account.email.toLowerCase() === currentUser.email.toLowerCase()) return;
+        await forgetTrustedAccount(account.id);
+        setAccounts(prev => prev.filter(a => a.id !== account.id));
     };
 
     const handleLogout = () => {
@@ -141,11 +141,13 @@ export default function SidebarAccountSwitcher({ currentUser }: { currentUser: C
                             </Text>
                             {otherAccounts.map(acc => {
                                 const accInitial = (acc.name || acc.email).charAt(0).toUpperCase();
+                                const isSwitching = switching === acc.id;
                                 return (
                                     <UnstyledButton
-                                        key={acc.email}
-                                        onClick={() => handleSwitchTo(acc.email)}
-                                        style={{ width: '100%', padding: 4, borderRadius: 6 }}
+                                        key={acc.id}
+                                        onClick={() => handleSwitchTo(acc)}
+                                        disabled={isSwitching}
+                                        style={{ width: '100%', padding: 4, borderRadius: 6, opacity: isSwitching ? 0.5 : 1 }}
                                     >
                                         <Group gap={6} wrap="nowrap">
                                             <Avatar radius="xl" size="sm" color="gray">{accInitial}</Avatar>
@@ -153,14 +155,16 @@ export default function SidebarAccountSwitcher({ currentUser }: { currentUser: C
                                                 <Text size="xs" fw={500} truncate>
                                                     {acc.name || acc.email.split('@')[0]}
                                                 </Text>
-                                                <Text size="10px" c="dimmed" truncate>{acc.email}</Text>
+                                                <Text size="10px" c="dimmed" truncate>
+                                                    {isSwitching ? '전환 중...' : acc.email}
+                                                </Text>
                                             </Box>
-                                            <Tooltip label="목록에서 제거" withArrow>
+                                            <Tooltip label="이 PC 에서 빠른 전환 끄기" withArrow>
                                                 <ActionIcon
                                                     size="xs"
                                                     variant="subtle"
                                                     color="gray"
-                                                    onClick={(e) => handleRemove(acc.email, e)}
+                                                    onClick={(e) => handleRemove(acc, e)}
                                                     aria-label={`${acc.email} 제거`}
                                                 >
                                                     <IconX size={10} />

@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { Suspense, useEffect } from 'react';
 import { IconUserPlus } from '@tabler/icons-react';
 import { recordLoginEvent } from '@/app/actions/authActions';
+import { issueTrustedDeviceForCurrentUser } from '@/app/actions/trustedDeviceActions';
 
 function LoginInner() {
   const searchParams = useSearchParams();
@@ -60,6 +61,10 @@ function LoginInner() {
           recordLoginEvent(userId).catch(() => {});
         }
       } catch { /* ignore */ }
+      // Phase 50 — 같은 PC 빠른 전환용 trusted device token 발급 (await — cookie 가 hard navigation 전에 set 되어야 함)
+      try {
+        await issueTrustedDeviceForCurrentUser();
+      } catch { /* ignore — 실패해도 로그인 흐름엔 영향 X */ }
       // hard navigation — signIn 직후 router.push 는 신규 세션 쿠키가 server component 까지 전파되기 전에 navigate 되어 /dashboard 의 auth() 가 미인증으로 판단, /login 으로 튕기는 race condition 발생. window.location 으로 전체 reload 해 쿠키 반영 보장.
       window.location.href = '/dashboard';
     }

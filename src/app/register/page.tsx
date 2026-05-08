@@ -4,6 +4,7 @@ import { TextInput, PasswordInput, Button, Paper, Title, Container, Stack, Ancho
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import { registerUser } from '@/app/actions/authActions';
+import { issueTrustedDeviceForCurrentUser } from '@/app/actions/trustedDeviceActions';
 import { signIn, signOut } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -118,6 +119,10 @@ function RegisterPageInner() {
       message: '대시보드로 이동합니다.',
       color: 'green',
     });
+    // Phase 50 — 같은 PC 빠른 전환용 trusted device token 발급
+    try {
+      await issueTrustedDeviceForCurrentUser();
+    } catch { /* ignore */ }
     // hard navigation — 새 세션 쿠키가 server component 에 반영되도록 전체 reload.
     window.location.href = '/dashboard';
   };

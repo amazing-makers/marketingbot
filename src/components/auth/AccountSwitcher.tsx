@@ -9,13 +9,16 @@ import {
 import { useEffect, useState } from 'react';
 import { signOut } from 'next-auth/react';
 import Link from 'next/link';
+import {
+    listSwitchableAccounts,
+    switchToTrustedAccount,
+    forgetTrustedAccount,
+} from '@/app/actions/trustedDeviceActions';
 
-const STORAGE_KEY = 'amakers_saved_accounts';
-
-interface SavedAccount {
+interface SwitchableAccount {
+    id: string;
     email: string;
     name: string | null;
-    lastLoginAt: string; // ISO
 }
 
 interface CurrentUser {
@@ -41,44 +44,44 @@ interface Props {
  * 사용자가 자주 쓰는 계정을 빠르게 전환할 수 있게 하는 것이 목적.
  */
 export default function AccountSwitcher({ currentUser, isAdmin, isPartner, adminUrl }: Props) {
-    const [accounts, setAccounts] = useState<SavedAccount[]>([]);
+    const [accounts, setAccounts] = useState<SwitchableAccount[]>([]);
+    const [switching, setSwitching] = useState<string | null>(null);
 
-    // 마운트 시: 로컬 저장 계정 로드 + 현재 사용자 자동 등록
+    // Phase 50 — server-fetched: cookie 의 trusted device token 으로 검증된 계정만.
     useEffect(() => {
-        try {
-            const raw = localStorage.getItem(STORAGE_KEY);
-            const list: SavedAccount[] = raw ? JSON.parse(raw) : [];
-            // 현재 계정을 목록에 upsert (lastLoginAt 갱신)
-            const withoutCurrent = list.filter(a => a.email.toLowerCase() !== currentUser.email.toLowerCase());
-            const updated: SavedAccount[] = [
-                { email: currentUser.email, name: currentUser.name || null, lastLoginAt: new Date().toISOString() },
-                ...withoutCurrent,
-            ].slice(0, 8); // 최대 8개
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-            setAccounts(updated);
-        } catch { /* ignore */ }
-    }, [currentUser.email, currentUser.name]);
+        listSwitchableAccounts()
+            .then(setAccounts)
+            .catch(() => setAccounts([]));
+    }, [currentUser.email]);
 
-    const handleSwitchTo = async (email: string) => {
-        // 현재 세션 로그아웃 + 로그인 페이지로 (이메일 미리 채움)
-        await signOut({ redirect: false });
-        window.location.href = `/login?email=${encodeURIComponent(email)}`;
+    const handleSwitchTo = async (account: SwitchableAccount) => {
+        if (account.email.toLowerCase() === currentUser.email.toLowerCase()) return;
+        setSwitching(account.id);
+        try {
+            const r = await switchToTrustedAccount(account.id);
+            if (r.ok) {
+                window.location.href = '/dashboard';
+            } else {
+                alert(r.error || '전환 실패 — 비밀번호로 다시 로그인해주세요.');
+                await signOut({ redirect: false });
+                window.location.href = `/login?email=${encodeURIComponent(account.email)}`;
+            }
+        } finally {
+            setSwitching(null);
+        }
     };
 
     const handleAddAccount = async () => {
         await signOut({ redirect: false });
-        window.location.href = '/login?add=1';
+        window.location.href = '/register';
     };
 
-    const handleRemove = (email: string, e: React.MouseEvent) => {
+    const handleRemove = async (account: SwitchableAccount, e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        if (email.toLowerCase() === currentUser.email.toLowerCase()) return;
-        try {
-            const filtered = accounts.filter(a => a.email !== email);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-            setAccounts(filtered);
-        } catch { /* ignore */ }
+        if (account.email.toLowerCase() === currentUser.email.toLowerCase()) return;
+        await forgetTrustedAccount(account.id);
+        setAccounts(prev => prev.filter(a => a.id !== account.id));
     };
 
     const initial = (currentUser.name || currentUser.email).charAt(0).toUpperCase();
@@ -126,24 +129,28 @@ export default function AccountSwitcher({ currentUser, isAdmin, isPartner, admin
                         <Menu.Label>다른 계정으로 전환</Menu.Label>
                         {otherAccounts.map(acc => {
                             const accInitial = (acc.name || acc.email).charAt(0).toUpperCase();
+                            const isSwitching = switching === acc.id;
                             return (
                                 <Menu.Item
-                                    key={acc.email}
-                                    onClick={() => handleSwitchTo(acc.email)}
+                                    key={acc.id}
+                                    onClick={() => handleSwitchTo(acc)}
                                     closeMenuOnClick={false}
+                                    disabled={isSwitching}
                                 >
                                     <Group gap={8} wrap="nowrap">
                                         <Avatar radius="xl" size="sm" color="gray">{accInitial}</Avatar>
                                         <Box style={{ flex: 1, minWidth: 0 }}>
                                             <Text size="sm" truncate>{acc.name || acc.email.split('@')[0]}</Text>
-                                            <Text size="11px" c="dimmed" truncate>{acc.email}</Text>
+                                            <Text size="11px" c="dimmed" truncate>
+                                                {isSwitching ? '전환 중...' : acc.email}
+                                            </Text>
                                         </Box>
-                                        <Tooltip label="목록에서 제거" withArrow>
+                                        <Tooltip label="이 PC 에서 빠른 전환 끄기" withArrow>
                                             <ActionIcon
                                                 size="sm"
                                                 variant="subtle"
                                                 color="gray"
-                                                onClick={(e) => handleRemove(acc.email, e)}
+                                                onClick={(e) => handleRemove(acc, e)}
                                                 aria-label={`${acc.email} 제거`}
                                             >
                                                 <IconX size={12} />

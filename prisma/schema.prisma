@@ -154,6 +154,26 @@ model User {
   feedbacks UserFeedback[]
 
   emailPreferences Json @default("{\"failures\": true, \"weekly\": true, \"welcome\": true}")
+
+  // Phase 50 — 같은 PC 에서 비밀번호 없이 다른 계정으로 빠르게 전환하기 위한 토큰.
+  trustedDevices TrustedDevice[]
+}
+
+// Phase 50 — 같은 PC 에서 한 번 비밀번호로 인증한 계정은 7일간 비번 없이 전환 허용.
+// raw token 은 클라이언트의 httpOnly cookie 에만 보관, DB 에는 bcrypt 해시만.
+// cookie 가 없거나 hash 매칭 실패 시 그냥 일반 로그인 흐름으로 fallback.
+model TrustedDevice {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String
+  expiresAt  DateTime
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 // 다중 브랜드/회사 격리 (Phase 6) — 한 사용자가 여러 워크스페이스에 소속 가능.
