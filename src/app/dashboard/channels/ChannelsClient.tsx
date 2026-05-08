@@ -744,7 +744,7 @@ export default function ChannelsClient({
               searchable
               {...form.getInputProps('type')}
             />
-            <TextInput label="계정 별명" placeholder="내 인스타 계정 1" required {...form.getInputProps('accountName')} />
+            <TextInput label="계정 별명" placeholder="메인 계정" required {...form.getInputProps('accountName')} />
             <Group grow>
               <Select
                 label="지역"
@@ -755,8 +755,8 @@ export default function ChannelsClient({
                 onChange={handleRegionChange}
               />
               <Select
-                label="이 채널에 게시될 언어 (자동번역)"
-                description="원본과 다르면 DeepL/AI가 자동으로 번역해서 발행합니다"
+                label="발행 언어"
+                description="원본과 다르면 자동 번역"
                 data={LANGUAGE_OPTIONS}
                 searchable
                 {...form.getInputProps('language')}
