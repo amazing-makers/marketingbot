@@ -2,7 +2,7 @@
 
 import {
   AppShell, Burger, Group, NavLink, Title, UnstyledButton, Text,
-  ActionIcon, Stack, Divider, Tooltip, useMantineColorScheme, Kbd, Box
+  ActionIcon, Stack, Divider, Tooltip, useMantineColorScheme, Kbd, Box, ScrollArea
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { Spotlight, spotlight } from '@mantine/spotlight';
@@ -397,7 +397,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </Group>
         </AppShell.Header>
 
-        <AppShell.Navbar p="md">
+        <AppShell.Navbar p="md" style={{ display: 'flex', flexDirection: 'column' }}>
+          <ScrollArea style={{ flex: 1, minHeight: 0 }} type="auto" scrollbarSize={6}>
           <Stack gap="xs">
             {/* 홈 */}
             <NavLink
@@ -512,10 +513,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               active={!!pathname && pathname.startsWith('/dashboard/settings') && !pathname.includes('/billing') && !pathname.includes('/webhooks')}
             />
           </Stack>
+          </ScrollArea>
 
-          {/* Phase 39 — 사이드바 하단 다중 계정 관리 */}
+          {/* Phase 39 — 사이드바 하단 다중 계정 관리 (스크롤 영역 밖에 sticky) */}
           {session?.user && (
-            <Box mt="auto" pt="md">
+            <Box pt="md" style={{ flexShrink: 0 }}>
               <SidebarAccountSwitcher
                 currentUser={{
                   email: session.user.email || '',
