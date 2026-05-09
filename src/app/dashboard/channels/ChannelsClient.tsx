@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   SimpleGrid, Card, Text, Group, Badge, Button, Modal,
   Select, TextInput, Stack, ActionIcon, Menu, Title, Alert
@@ -129,6 +130,38 @@ export default function ChannelsClient({
   const [channels, setChannels] = useState(initialChannels);
   const [opened, setOpened] = useState(false);
   const [loading, setLoading] = useState(false);
+  const sp = useSearchParams();
+  const router = useRouter();
+
+  // Phase 50 — Instagram OAuth 결과 알림 + URL 정리
+  useEffect(() => {
+    const status = sp.get('ig_oauth');
+    const msg = sp.get('ig_oauth_msg');
+    if (!status) return;
+    if (status === 'ok') {
+      notifications.show({
+        title: '✅ 인스타 연동 완료',
+        message: msg || '인스타 채널이 자동으로 등록됐어요. 페이지 새로고침 시 표시됩니다.',
+        color: 'teal',
+        autoClose: 7000,
+      });
+      // 새 채널 표시 — page reload (server fetch fresh)
+      setTimeout(() => router.refresh(), 1000);
+    } else {
+      notifications.show({
+        title: '인스타 연동 실패',
+        message: msg || '알 수 없는 오류',
+        color: 'red',
+        autoClose: 10000,
+      });
+    }
+    // URL 에서 query 제거
+    const url = new URL(window.location.href);
+    url.searchParams.delete('ig_oauth');
+    url.searchParams.delete('ig_oauth_msg');
+    window.history.replaceState({}, '', url.toString());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // 채널별 검증 진행 상태 (UI loading spinner)
   const [verifying, setVerifying] = useState<Record<string, boolean>>({});
   // Phase 50 — 편집 모달 상태
@@ -879,32 +912,39 @@ export default function ChannelsClient({
               </>
             ) : form.values.type === 'INSTAGRAM' ? (
               <>
-                <Alert color="violet" variant="light" p="xs">
-                  <Text size="xs" fw={600} mb={4}>📘 Business 계정 — Graph API 자동 발행 (권장)</Text>
-                  <Text size="11px">
-                    인스타 Business/Creator 계정 + Facebook 페이지 연결되어 있으면 아래 토큰 입력으로 서버에서 직접 자동 발행 가능 (에이전트 불필요, 100% 안정).
-                    <br />
-                    <Anchor href="https://developers.facebook.com" target="_blank" rel="noreferrer" size="xs">
-                      Meta Developer Portal <IconExternalLink size={10} />
-                    </Anchor>
-                    {' → 앱 생성 → Instagram Graph API → Page Access Token 발급 (60일).'}
+                <Alert color="violet" variant="light" p="md">
+                  <Text size="sm" fw={700} mb={4}>📘 Facebook 으로 1-click 연동 (권장)</Text>
+                  <Text size="xs" mb="sm">
+                    인스타그램 <strong>Business/Creator 계정</strong> + Facebook 페이지 연결돼 있으면
+                    아래 버튼 한 번으로 자동 연동됩니다 (토큰 발급 작업 X). 서버에서 직접 자동 발행.
                   </Text>
+                  <Button
+                    fullWidth
+                    color="blue"
+                    component="a"
+                    href="/api/auth/instagram/start?next=/dashboard/channels"
+                    leftSection={<IconBrandFacebook size={18} />}
+                  >
+                    Facebook 으로 인스타 연동
+                  </Button>
                 </Alert>
+
+                <Text size="xs" c="dimmed" ta="center">또는 토큰 직접 입력 (고급)</Text>
+
                 <TextInput
-                  label="Page Access Token (Long-lived, 60일 유효)"
+                  label="Page Access Token (선택, 60일 long-lived)"
                   type="password"
                   placeholder="EAAxxxxx..."
-                  description="Graph API Explorer 또는 Access Token Tool 에서 발급. scope: instagram_basic + instagram_content_publish + pages_show_list"
+                  description="OAuth 안 되는 환경에서만 — Graph API Explorer 에서 발급"
                   {...form.getInputProps('igAccessToken')}
                 />
                 <TextInput
-                  label="Instagram Business Account ID"
+                  label="Instagram Business Account ID (선택)"
                   placeholder="17841401234567890"
-                  description="Graph API Explorer 에서 /me/accounts → 페이지 ID → /{page-id}?fields=instagram_business_account 로 확인"
                   {...form.getInputProps('igUserId')}
                 />
                 <Text size="11px" c="dimmed">
-                  ⓘ Business 계정이 아니거나 토큰이 없으면 두 필드 비워두기 — 데스크톱 에이전트로 자동 폴백.
+                  ⓘ 위 두 필드 비워두면 OAuth 또는 에이전트 폴백.
                 </Text>
               </>
             ) : (

@@ -19,7 +19,11 @@ const envSchema = z.object({
     NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
     POSTHOG_API_KEY: z.string().optional(),
     CRON_SECRET: z.string().optional(),
-    
+
+    // Phase 50 — Instagram Graph API OAuth (Meta Developer App, 운영자 1회 등록)
+    META_APP_ID: z.string().optional(),
+    META_APP_SECRET: z.string().optional(),
+
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 });
 
