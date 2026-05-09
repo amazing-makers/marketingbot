@@ -170,6 +170,9 @@ export default function ChannelsClient({
       // Telegram (P3-g)
       botToken: '',
       chatId: '',
+      // Instagram Graph API (Phase 50, Business 계정)
+      igAccessToken: '',
+      igUserId: '',
       // WordPress (P4-a)
       siteUrl: '',
       appPassword: '',
@@ -218,6 +221,13 @@ export default function ChannelsClient({
       } else if (values.type === 'TELEGRAM') {
         credentials.botToken = values.botToken;
         credentials.chatId = values.chatId;
+      } else if (values.type === 'INSTAGRAM') {
+        // Business 계정 — Graph API 토큰 입력 시 클라우드 발행, 비워두면 에이전트로 폴백.
+        if (values.igAccessToken) credentials.accessToken = values.igAccessToken;
+        if (values.igUserId) credentials.igUserId = values.igUserId;
+        // 호환성을 위해 username/password 도 보관 (옛 에이전트 흐름)
+        if (values.username) credentials.username = values.username;
+        if (values.password) credentials.password = values.password;
       } else if (values.type === 'WORDPRESS') {
         credentials.siteUrl = values.siteUrl;
         credentials.username = values.username;
@@ -867,17 +877,38 @@ export default function ChannelsClient({
                   {...form.getInputProps('xClientId')}
                 />
               </>
+            ) : form.values.type === 'INSTAGRAM' ? (
+              <>
+                <Alert color="violet" variant="light" p="xs">
+                  <Text size="xs" fw={600} mb={4}>📘 Business 계정 — Graph API 자동 발행 (권장)</Text>
+                  <Text size="11px">
+                    인스타 Business/Creator 계정 + Facebook 페이지 연결되어 있으면 아래 토큰 입력으로 서버에서 직접 자동 발행 가능 (에이전트 불필요, 100% 안정).
+                    <br />
+                    <Anchor href="https://developers.facebook.com" target="_blank" rel="noreferrer" size="xs">
+                      Meta Developer Portal <IconExternalLink size={10} />
+                    </Anchor>
+                    {' → 앱 생성 → Instagram Graph API → Page Access Token 발급 (60일).'}
+                  </Text>
+                </Alert>
+                <TextInput
+                  label="Page Access Token (Long-lived, 60일 유효)"
+                  type="password"
+                  placeholder="EAAxxxxx..."
+                  description="Graph API Explorer 또는 Access Token Tool 에서 발급. scope: instagram_basic + instagram_content_publish + pages_show_list"
+                  {...form.getInputProps('igAccessToken')}
+                />
+                <TextInput
+                  label="Instagram Business Account ID"
+                  placeholder="17841401234567890"
+                  description="Graph API Explorer 에서 /me/accounts → 페이지 ID → /{page-id}?fields=instagram_business_account 로 확인"
+                  {...form.getInputProps('igUserId')}
+                />
+                <Text size="11px" c="dimmed">
+                  ⓘ Business 계정이 아니거나 토큰이 없으면 두 필드 비워두기 — 데스크톱 에이전트로 자동 폴백.
+                </Text>
+              </>
             ) : (
               <>
-                {form.values.type === 'INSTAGRAM' && (
-                  <Alert color="violet" variant="light" p="xs">
-                    <Text size="xs">
-                      추가 직후 데스크톱 에이전트가 인스타그램 로그인 창을 자동으로 띄웁니다.
-                      그 창에서 직접 로그인 (2FA 포함) 하시면 인증이 완료됩니다.
-                      여기 입력하는 아이디/비번은 자동 입력 힌트로만 사용됩니다 (선택).
-                    </Text>
-                  </Alert>
-                )}
                 <TextInput label="아이디 / 이메일" placeholder="username" {...form.getInputProps('username')} />
                 <TextInput label="비밀번호" type="password" placeholder="password" {...form.getInputProps('password')} />
                 {form.values.type === 'NAVER_CAFE' && (

@@ -381,8 +381,32 @@ export async function verifyChannelConnection(channelId: string): Promise<{
         : { ok: false, error: r.error };
       break;
     }
+    case 'INSTAGRAM': {
+      // Phase 50 — accessToken + igUserId 가 있으면 Graph API 클라우드 발행 (Business 계정).
+      // 없으면 기존 에이전트 흐름 (개인 계정 — 에이전트 브라우저 자동화).
+      if (creds.accessToken && creds.igUserId) {
+        const { verifyInstagramBusinessCredentials } = await import("@/lib/publishers/instagram-business");
+        const r = await verifyInstagramBusinessCredentials(creds.accessToken, creds.igUserId);
+        result = r.ok
+          ? { ok: true, detail: `@${r.username}${r.followers ? ` · 팔로워 ${r.followers.toLocaleString()}명` : ''} — Graph API 인증 성공` }
+          : { ok: false, error: r.error };
+        break;
+      }
+      // accessToken 없음 → 에이전트 흐름 (default 분기와 동일)
+      await enqueueChannelVerify(channelId);
+      await prisma.marketingChannel.update({
+        where: { id: channelId },
+        data: { status: 'PENDING_AUTH', verifyError: null },
+      });
+      return {
+        ok: true,
+        detail: 'Business 계정 토큰이 없어 데스크톱 에이전트로 위임합니다. 에이전트 창에서 로그인을 완료해주세요.',
+        newStatus: 'PENDING_AUTH',
+        channelType: channel.type,
+      };
+    }
     default: {
-      // 에이전트 채널 (Instagram/Facebook/Threads/Naver/카카오 등) — Phase 50.
+      // 에이전트 채널 (Facebook/Threads/Naver/카카오 등) — Phase 50.
       // 즉시 verify task 를 큐잉. 에이전트가 polling 시 받아서 브라우저 띄워 사용자 직접 로그인.
       // 이미 PENDING/RUNNING 인 verify task 가 있으면 중복 큐잉 안 함 (idempotent).
       await enqueueChannelVerify(channelId);

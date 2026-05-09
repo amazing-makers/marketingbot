@@ -24,8 +24,10 @@ import { publishToDiscord, type DiscordCredentials } from './discord';
 import { publishToLinkedIn, type LinkedInCredentials } from './linkedin';
 import { publishToX, type XCredentials } from './x';
 import { publishToYouTube, type YouTubeCredentials } from './youtube';
+import { publishToInstagramBusiness, type InstagramBusinessCredentials } from './instagram-business';
 
 // HTTP-only 발행 가능 채널 (클라우드 직접 처리)
+// INSTAGRAM: accessToken + igUserId 가 있으면 Graph API 발행, 없으면 에이전트 폴백.
 // YouTube: 현재 STUB (수동 업로드 안내만). 동영상 자동 업로드는 Phase 7 예정.
 export const CLOUD_PUBLISHED_CHANNELS = new Set<ChannelType>([
     'TELEGRAM',
@@ -34,6 +36,7 @@ export const CLOUD_PUBLISHED_CHANNELS = new Set<ChannelType>([
     'LINKEDIN',
     'X',
     'YOUTUBE',
+    'INSTAGRAM',
 ] as ChannelType[]);
 
 export interface PublishOutcome {
@@ -79,6 +82,39 @@ export async function publishTask(taskId: string): Promise<PublishOutcome> {
 
     try {
         switch (channel.type) {
+            case 'INSTAGRAM': {
+                // accessToken + igUserId 둘 다 있어야 클라우드 발행. 없으면 'agent' 로 위임 (PENDING 유지).
+                const igCreds = creds as Partial<InstagramBusinessCredentials>;
+                if (!igCreds?.accessToken || !igCreds?.igUserId) {
+                    return { handler: 'agent', success: false, error: 'IG Business 토큰 없음 — 에이전트 위임' };
+                }
+                const photoUrl = extractPhotoUrl(task.mediaUrls);
+                if (!photoUrl) {
+                    throw new Error('인스타는 이미지가 필수입니다 (public URL 필요 — R2 업로드 권장)');
+                }
+                const result = await publishToInstagramBusiness({
+                    credentials: { accessToken: igCreds.accessToken, igUserId: igCreds.igUserId },
+                    caption: task.content,
+                    imageUrl: photoUrl,
+                });
+                await prisma.scheduledTask.update({
+                    where: { id: taskId },
+                    data: {
+                        status: 'SUCCESS',
+                        executedAt: new Date(),
+                        errorLog: `Instagram media_id=${result.mediaId}${result.permalink ? ` url=${result.permalink}` : ''}`,
+                    },
+                });
+                await prisma.marketingChannel.update({
+                    where: { id: channel.id },
+                    data: { lastUsedAt: new Date(), status: 'ACTIVE' },
+                });
+                return {
+                    handler: 'cloud',
+                    success: true,
+                    externalId: result.mediaId,
+                };
+            }
             case 'TELEGRAM': {
                 const result = await publishToTelegram({
                     credentials: creds as TelegramCredentials,
