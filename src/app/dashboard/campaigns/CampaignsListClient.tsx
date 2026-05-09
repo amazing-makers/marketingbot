@@ -1,12 +1,12 @@
 'use client';
 
 import { Table, Group, Text, Badge, Button, Stack, Title, Anchor, Card, TextInput, Select, Box, Checkbox, Paper, ActionIcon, Tooltip } from '@mantine/core';
-import { IconPlus, IconCalendar, IconChevronRight, IconCalendarMonth, IconSearch, IconTrash, IconPlayerPause, IconCopy } from '@tabler/icons-react';
+import { IconPlus, IconCalendar, IconChevronRight, IconCalendarMonth, IconSearch, IconTrash, IconPlayerPause, IconCopy, IconRefresh } from '@tabler/icons-react';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 import { useMemo, useState, useTransition } from 'react';
 import { notifications } from '@mantine/notifications';
-import { bulkDeleteCampaigns, bulkPauseCampaigns, duplicateCampaign } from '@/app/actions/campaignActions';
+import { bulkDeleteCampaigns, bulkPauseCampaigns, duplicateCampaign, republishCampaign } from '@/app/actions/campaignActions';
 import { useRouter } from 'next/navigation';
 
 interface CampaignRow {
@@ -115,6 +115,24 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
         });
     };
 
+    const handleRepublish = (id: string, name: string) => {
+        if (!confirm(`"${name}" 을 같은 내용으로 지금 다시 발행할까요?\n새 캠페인이 만들어지고 즉시 발행됩니다.`)) return;
+        startTransition(async () => {
+            try {
+                const r = await republishCampaign(id);
+                notifications.show({
+                    title: '🔁 즉시 다시 발행',
+                    message: `${r.channelCount}개 채널 — 클라우드 ~30초, 에이전트 ~1분 안에 발행됩니다.`,
+                    color: 'violet',
+                    autoClose: 6000,
+                });
+                router.push(`/dashboard/campaigns/${r.id}`);
+            } catch (e: any) {
+                notifications.show({ title: '오류', message: e?.message || '실패', color: 'red' });
+            }
+        });
+    };
+
     const allSelectedVisible = filtered.length > 0 && filtered.every(c => selected.has(c.id));
     const someSelectedVisible = !allSelectedVisible && filtered.some(c => selected.has(c.id));
 
@@ -157,7 +175,19 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
             </Table.Td>
             <Table.Td onClick={(e) => e.stopPropagation()}>
                 <Group gap={4}>
-                    <Tooltip label="복제" withArrow>
+                    <Tooltip label="🔁 같은 내용으로 지금 즉시 다시 발행" withArrow>
+                        <ActionIcon
+                            variant="subtle"
+                            color="violet"
+                            size="sm"
+                            onClick={() => handleRepublish(campaign.id, campaign.name)}
+                            loading={isPending}
+                            aria-label="다시 발행"
+                        >
+                            <IconRefresh size={14} />
+                        </ActionIcon>
+                    </Tooltip>
+                    <Tooltip label="복제 (DRAFT 사본)" withArrow>
                         <ActionIcon
                             variant="subtle"
                             color="gray"

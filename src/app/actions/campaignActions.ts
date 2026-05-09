@@ -428,6 +428,80 @@ export async function duplicateCampaign(originalId: string): Promise<{ id: strin
 }
 
 /**
+ * Phase 50 — 이전 캠페인을 같은 콘텐츠 + 같은 채널로 1-click 즉시 다시 발행.
+ *
+ * duplicateCampaign 과의 차이:
+ * - duplicateCampaign: DRAFT 사본 생성 → 사용자가 검토/수정 후 발행
+ * - republishCampaign:  SCHEDULED 사본 + scheduledAt=now + 즉시 cloud publish trigger
+ *
+ * 클라우드 채널 (Telegram/WordPress/Discord/LinkedIn/X/YouTube) 은 fire-and-forget 으로 즉시 dispatch.
+ * 에이전트 채널 (Instagram/Facebook/Threads/Naver) 은 polling 흐름으로 ~1분 안에 dispatch.
+ */
+export async function republishCampaign(originalId: string): Promise<{ id: string; channelCount: number }> {
+  const user = await getSessionUser();
+  const filter = await getActiveWorkspaceFilter(user.id!);
+
+  const original = await prisma.campaign.findFirst({
+    where: { id: originalId, userId: filter.userId, workspaceId: filter.workspaceId },
+    include: {
+      tasks: {
+        select: { content: true, mediaUrls: true, channelId: true },
+      },
+    },
+  });
+  if (!original) throw new Error('원본 캠페인을 찾을 수 없습니다');
+  if (original.tasks.length === 0) throw new Error('원본 캠페인에 발행 task 가 없습니다');
+
+  // 한도 체크 (중복 작성 막음)
+  const { checkDailyTaskLimit, getPlanLimits } = await import('@/lib/billing/plan-limits');
+  const limitCheck = await checkDailyTaskLimit(user.id!, original.tasks.length);
+  if (!limitCheck.allowed) {
+    const planLabel = getPlanLimits(limitCheck.plan).label;
+    throw new Error(
+      `오늘 발행 한도 초과 (${limitCheck.current}/${limitCheck.limit} · ${planLabel}). 다시 발행 못 함.`,
+    );
+  }
+
+  const now = new Date();
+  const result = await prisma.$transaction(async (tx) => {
+    const copy = await tx.campaign.create({
+      data: {
+        userId: user.id!,
+        workspaceId: filter.workspaceId,
+        name: `${original.name} (재발행)`,
+        description: original.description,
+        status: 'SCHEDULED',
+        scheduledAt: now,
+        tags: (original.tags as any) || [],
+      },
+    });
+
+    await tx.scheduledTask.createMany({
+      data: original.tasks.map(t => ({
+        campaignId: copy.id,
+        channelId: t.channelId,
+        content: t.content,
+        mediaUrls: t.mediaUrls as any,
+        scheduledAt: now,
+        status: 'PENDING' as const,
+      })),
+    });
+
+    return copy;
+  });
+
+  // 클라우드 채널 즉시 발행 — cron 5분 기다리지 않음
+  import('@/lib/publishers').then(({ publishCloudReadyTasks }) =>
+    publishCloudReadyTasks({ userId: user.id!, limit: 50 }).catch((e) =>
+      console.warn('[republishCampaign] immediate publishCloudReadyTasks failed', e)
+    )
+  );
+
+  revalidatePath('/dashboard/campaigns');
+  return { id: result.id, channelCount: original.tasks.length };
+}
+
+/**
  * Phase 32 — 캠페인 일괄 삭제. 본인 소유분만 처리.
  */
 export async function bulkDeleteCampaigns(ids: string[]): Promise<{ deleted: number }> {
