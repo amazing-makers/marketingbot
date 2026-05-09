@@ -293,6 +293,17 @@ export async function createCampaign(data: {
     }).catch(() => {});
   });
 
+  // Phase 50 — scheduledAt 이 지금 시각 이전 (즉시 발행) 이면 cron 5분 기다리지 말고 즉시 cloud publish.
+  // Vercel Hobby 플랜은 cron schedule */5 * * * * 가 실제로는 1일 1회만 실행됨 — 이 fallback 으로 우회.
+  // 클라우드 publishers (Telegram/WordPress/Discord/LinkedIn/X/YouTube) 만 즉시 처리, 에이전트 채널은 polling.
+  if (data.scheduledAt && data.scheduledAt.getTime() <= Date.now() + 60_000) {
+    import('@/lib/publishers').then(({ publishCloudReadyTasks }) =>
+      publishCloudReadyTasks({ userId: user.id!, limit: 50 }).catch((e) =>
+        console.warn('[createCampaign] immediate publishCloudReadyTasks failed', e)
+      )
+    );
+  }
+
   revalidatePath("/dashboard/campaigns");
   return campaign;
 }
