@@ -133,23 +133,47 @@ export async function publishToTelegram(input: TelegramPublishInput): Promise<Te
 }
 
 /**
- * 자격증명 검증 — getMe 호출. 토큰 유효성만 빠르게 확인.
+ * 자격증명 검증 — getMe (봇 자체) + getChat (채널/그룹) 둘 다 호출.
+ * 'getMe 성공 + getChat 실패' 케이스를 확실히 잡아냄 — 봇은 valid 하지만 채널에 admin 미등록 등.
  */
-export async function verifyTelegramCredentials(botToken: string): Promise<{
+export async function verifyTelegramCredentials(botToken: string, chatId?: string): Promise<{
     ok: boolean;
     username?: string;
+    chatTitle?: string;
     error?: string;
 }> {
     if (!botToken) return { ok: false, error: 'botToken 누락' };
     try {
-        const r = await fetch(`${API_BASE}/bot${botToken}/getMe`, {
+        const meRes = await fetch(`${API_BASE}/bot${botToken}/getMe`, {
             signal: AbortSignal.timeout(15000),
         });
-        const data = await r.json();
-        if (!r.ok || !data.ok) {
-            return { ok: false, error: data.description || `HTTP ${r.status}` };
+        const meData = await meRes.json();
+        if (!meRes.ok || !meData.ok) {
+            return { ok: false, error: `봇 토큰 오류: ${meData.description || `HTTP ${meRes.status}`}` };
         }
-        return { ok: true, username: data.result?.username };
+        const username = meData.result?.username;
+
+        // chatId 가 주어지면 getChat 까지 — 봇이 그 채널/그룹에 접근 가능한지 확인
+        if (chatId) {
+            const chatRes = await fetch(`${API_BASE}/bot${botToken}/getChat?chat_id=${encodeURIComponent(chatId)}`, {
+                signal: AbortSignal.timeout(15000),
+            });
+            const chatData = await chatRes.json();
+            if (!chatRes.ok || !chatData.ok) {
+                return {
+                    ok: false,
+                    username,
+                    error: `채널 접근 실패 (${chatId}): ${chatData.description || `HTTP ${chatRes.status}`}. ` +
+                        `봇 @${username} 을 채널/그룹에 admin 으로 추가했는지 확인해주세요.`,
+                };
+            }
+            return {
+                ok: true,
+                username,
+                chatTitle: chatData.result?.title || chatData.result?.username || chatId,
+            };
+        }
+        return { ok: true, username };
     } catch (e: any) {
         return { ok: false, error: e?.message || '네트워크 오류' };
     }

@@ -9,6 +9,12 @@ import { notifications } from '@mantine/notifications';
 import { bulkDeleteCampaigns, bulkPauseCampaigns, duplicateCampaign } from '@/app/actions/campaignActions';
 import { useRouter } from 'next/navigation';
 
+interface CampaignChannelRow {
+    type: string;
+    accountName: string;
+    status: string;
+}
+
 interface CampaignRow {
     id: string;
     name: string;
@@ -18,7 +24,31 @@ interface CampaignRow {
     tags?: string[];
     thumbnail?: string | null;
     _count: { tasks: number };
+    channels?: CampaignChannelRow[];
+    successCount?: number;
+    failedCount?: number;
+    pendingCount?: number;
 }
+
+const CHANNEL_LABELS: Record<string, string> = {
+    INSTAGRAM: '인스타', FACEBOOK: '페북', X: 'X', TIKTOK: '틱톡',
+    YOUTUBE: '유튜브', THREADS: '스레드', KAKAO: '카톡',
+    NAVER_BLOG: '네이버블로그', NAVER_CAFE: '네이버카페',
+    TELEGRAM: '텔레그램', DISCORD: 'Discord', WORDPRESS: 'WordPress',
+    LINKEDIN: 'LinkedIn', TISTORY: '티스토리', WHATSAPP: '왓츠앱',
+    PINTEREST: '핀터', WEIBO: '웨이보', VK: 'VK', LINE: '라인',
+    EMAIL: '이메일', SMS: 'SMS',
+};
+const CHANNEL_BRAND: Record<string, string> = {
+    INSTAGRAM: 'pink', FACEBOOK: 'blue', X: 'dark', TIKTOK: 'dark',
+    YOUTUBE: 'red', THREADS: 'dark', KAKAO: 'yellow',
+    NAVER_BLOG: 'green', NAVER_CAFE: 'green',
+    TELEGRAM: 'cyan', DISCORD: 'indigo', WORDPRESS: 'gray',
+    LINKEDIN: 'blue', TISTORY: 'orange',
+};
+const TASK_STATUS_COLORS: Record<string, string> = {
+    SUCCESS: 'teal', FAILED: 'red', RUNNING: 'blue', PENDING: 'gray', CANCELLED: 'yellow',
+};
 
 export default function CampaignsListClient({ campaigns }: { campaigns: CampaignRow[] }) {
     const router = useRouter();
@@ -151,7 +181,38 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
                     {campaign.status}
                 </Badge>
             </Table.Td>
-            <Table.Td>{campaign._count.tasks}곳</Table.Td>
+            <Table.Td>
+                <Stack gap={3}>
+                    {/* 채널 type 배지들 — 어디로 발행되는지 한눈에 */}
+                    <Group gap={3} wrap="wrap">
+                        {(campaign.channels || []).slice(0, 4).map((ch, i) => {
+                            const statusColor = TASK_STATUS_COLORS[ch.status] || 'gray';
+                            const label = CHANNEL_LABELS[ch.type] || ch.type;
+                            const variant = ch.status === 'SUCCESS' ? 'filled'
+                                          : ch.status === 'FAILED' ? 'filled'
+                                          : 'light';
+                            return (
+                                <Tooltip key={i} label={`${label} · ${ch.accountName} · ${ch.status}`} withArrow>
+                                    <Badge size="xs" variant={variant} color={statusColor}>
+                                        {label}
+                                    </Badge>
+                                </Tooltip>
+                            );
+                        })}
+                        {(campaign.channels?.length || 0) > 4 && (
+                            <Badge size="xs" variant="light" color="gray">+{(campaign.channels!.length - 4)}</Badge>
+                        )}
+                    </Group>
+                    {/* 발행 결과 요약 */}
+                    {(campaign.successCount || campaign.failedCount || campaign.pendingCount) ? (
+                        <Group gap={6}>
+                            {!!campaign.successCount && <Text size="11px" c="teal.7">✅ {campaign.successCount}</Text>}
+                            {!!campaign.failedCount && <Text size="11px" c="red.7">❌ {campaign.failedCount}</Text>}
+                            {!!campaign.pendingCount && <Text size="11px" c="dimmed">⏳ {campaign.pendingCount}</Text>}
+                        </Group>
+                    ) : null}
+                </Stack>
+            </Table.Td>
             <Table.Td>
                 <Group gap="xs">
                     <IconCalendar size={14} color="gray" />

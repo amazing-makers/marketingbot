@@ -140,14 +140,17 @@ export async function listCalendarEntries(input: { from: Date; to: Date }) {
 export async function listCampaigns() {
   const user = await getSessionUser();
   const filter = await getActiveWorkspaceFilter(user.id!);
-  // Phase 35 — 카드 썸네일을 위해 첫 task 의 mediaUrls 1장 함께 조회
+  // Phase 35 — 썸네일 + Phase 50 — 채널별 task status 노출 (목록에서 어디로 발행됐는지 한눈에).
   const campaigns = await prisma.campaign.findMany({
     where: { userId: filter.userId, workspaceId: filter.workspaceId },
     include: {
       _count: { select: { tasks: true } },
       tasks: {
-        select: { mediaUrls: true },
-        take: 1,
+        select: {
+          mediaUrls: true,
+          status: true,
+          channel: { select: { type: true, accountName: true } },
+        },
         orderBy: { scheduledAt: 'asc' },
       },
     },
@@ -156,7 +159,29 @@ export async function listCampaigns() {
   return campaigns.map(c => {
     const firstMedia = (c.tasks[0]?.mediaUrls as any[] | null) || [];
     const thumbnail = Array.isArray(firstMedia) && firstMedia.length > 0 ? String(firstMedia[0]) : null;
-    return { ...c, thumbnail };
+    // 채널별 발행 상태 요약 — 캠페인 목록 행에 표시
+    const channels = c.tasks.map(t => ({
+      type: t.channel?.type || 'UNKNOWN',
+      accountName: t.channel?.accountName || '',
+      status: t.status,
+    }));
+    const successCount = c.tasks.filter(t => t.status === 'SUCCESS').length;
+    const failedCount = c.tasks.filter(t => t.status === 'FAILED').length;
+    const pendingCount = c.tasks.filter(t => t.status === 'PENDING').length;
+    return {
+      id: c.id,
+      name: c.name,
+      status: c.status,
+      scheduledAt: c.scheduledAt,
+      createdAt: c.createdAt,
+      tags: (c.tags as any) || [],
+      thumbnail,
+      _count: c._count,
+      channels,
+      successCount,
+      failedCount,
+      pendingCount,
+    };
   });
 }
 

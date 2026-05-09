@@ -331,9 +331,9 @@ export async function verifyChannelConnection(channelId: string): Promise<{
   switch (channel.type) {
     case 'TELEGRAM': {
       const { verifyTelegramCredentials } = await import("@/lib/publishers/telegram");
-      const r = await verifyTelegramCredentials(creds.botToken);
+      const r = await verifyTelegramCredentials(creds.botToken, creds.chatId);
       result = r.ok
-        ? { ok: true, detail: `봇 @${r.username} 연결 성공` }
+        ? { ok: true, detail: r.chatTitle ? `봇 @${r.username} → "${r.chatTitle}" 채널 연결 성공` : `봇 @${r.username} 연결 성공` }
         : { ok: false, error: r.error };
       break;
     }
@@ -557,8 +557,8 @@ export async function verifyChannelInternal(channelId: string): Promise<{
   switch (channel.type) {
     case 'TELEGRAM': {
       const { verifyTelegramCredentials } = await import("@/lib/publishers/telegram");
-      const r = await verifyTelegramCredentials(creds.botToken);
-      result = r.ok ? { ok: true, detail: `@${r.username}` } : { ok: false, error: r.error };
+      const r = await verifyTelegramCredentials(creds.botToken, creds.chatId);
+      result = r.ok ? { ok: true, detail: r.chatTitle ? `@${r.username} → ${r.chatTitle}` : `@${r.username}` } : { ok: false, error: r.error };
       break;
     }
     case 'DISCORD': {
