@@ -55,7 +55,7 @@ export default async function AnalyticsPage() {
                             </Box>
                         ))}
                     </Stack>
-                    {funnel[0].count === 0 && (
+                    {(funnel[0]?.count ?? 0) === 0 && (
                         <Text size="sm" c="dimmed" ta="center" mt="md">최근 30일 캠페인이 없어요. 첫 캠페인을 만들어보세요.</Text>
                     )}
                 </Paper>
