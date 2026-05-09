@@ -428,6 +428,59 @@ export async function duplicateCampaign(originalId: string): Promise<{ id: strin
 }
 
 /**
+ * Phase 50 — 캠페인 prefill 데이터 (수정해서 다시 발행 흐름).
+ *
+ * /dashboard/campaigns/new?from=<id> 에서 호출 — 원본 캠페인의 채널 / 콘텐츠 / 태그 / 미디어를
+ * 새 캠페인 작성 폼에 미리 채움. 사용자가 자유롭게 수정한 뒤 발행.
+ */
+export async function getCampaignForPrefill(originalId: string): Promise<{
+  name: string;
+  description: string | null;
+  channelIds: string[];
+  content: string;
+  tags: string[];
+  mediaUrls: string[];
+} | null> {
+  const user = await getSessionUser();
+  const filter = await getActiveWorkspaceFilter(user.id!);
+
+  const original = await prisma.campaign.findFirst({
+    where: { id: originalId, userId: filter.userId, workspaceId: filter.workspaceId },
+    include: {
+      tasks: {
+        select: { content: true, mediaUrls: true, channelId: true },
+      },
+    },
+  });
+  if (!original) return null;
+  if (original.tasks.length === 0) {
+    return {
+      name: `${original.name} (다시 발행)`,
+      description: original.description,
+      channelIds: [],
+      content: '',
+      tags: (original.tags as any) || [],
+      mediaUrls: [],
+    };
+  }
+
+  // 첫 task 의 content + mediaUrls 사용 (모든 채널이 같은 원본을 갖는 보통 케이스).
+  // 채널마다 번역돼서 다른 content 일 수도 있지만 prefill 은 원본 추정용.
+  const first = original.tasks[0];
+  const channelIds = Array.from(new Set(original.tasks.map(t => t.channelId)));
+  const mediaArr = Array.isArray(first.mediaUrls) ? first.mediaUrls as string[] : [];
+
+  return {
+    name: `${original.name} (다시 발행)`,
+    description: original.description,
+    channelIds,
+    content: first.content,
+    tags: (original.tags as any) || [],
+    mediaUrls: mediaArr.filter(u => typeof u === 'string'),
+  };
+}
+
+/**
  * Phase 50 — 이전 캠페인을 같은 콘텐츠 + 같은 채널로 1-click 즉시 다시 발행.
  *
  * duplicateCampaign 과의 차이:

@@ -54,6 +54,9 @@ function NewCampaignPageInner() {
   // Phase 24 — AI 어시스턴트가 ?topic=... 으로 보냈을 때 본문 prefill
   const topicParam = searchParams.get('topic');
 
+  // Phase 50 — 이전 캠페인을 ?from=<id> 로 prefill (수정해서 다시 발행 흐름)
+  const fromParam = searchParams.get('from');
+
   // 캘린더에서 "+" 클릭 시 ?date=YYYY-MM-DD 로 진입 — 그 날짜 9시 prefill
   const dateParam = searchParams.get('date');
   const initialScheduledAt = useMemo(() => {
@@ -231,6 +234,53 @@ function NewCampaignPageInner() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [template, channels.length]);
+
+  // Phase 50 — ?from=<id> prefill (이전 캠페인을 수정해서 다시 발행)
+  useEffect(() => {
+    if (!fromParam || channels.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { getCampaignForPrefill } = await import('@/app/actions/campaignActions');
+        const data = await getCampaignForPrefill(fromParam);
+        if (cancelled || !data) return;
+        // 사용자 채널 변경됐을 수 있으니 현재 보유 채널과 교집합만
+        const validChannelIds = data.channelIds.filter(id => channels.some(c => c.id === id));
+        form.setValues({
+          name: data.name,
+          description: data.description || '',
+          channelIds: validChannelIds,
+          content: data.content,
+          tags: data.tags,
+          scheduledAt: form.values.scheduledAt,
+        });
+        // 미디어 prefill — http URL 만 (R2 등)
+        if (data.mediaUrls && data.mediaUrls.length > 0) {
+          setMedia(data.mediaUrls.map((url, i) => {
+            const isVideo = /\.(mp4|webm|mov|avi)(\?|$)/i.test(url);
+            return {
+              id: `prefill-${i}-${Date.now()}`,
+              url,
+              type: (isVideo ? 'video' : 'image') as 'image' | 'video',
+              name: url.split('/').pop()?.split('?')[0] || `prefill-${i}`,
+              sizeKb: 0,
+              uploading: false,
+            };
+          }));
+        }
+        notifications.show({
+          title: '✏️ 이전 캠페인 prefill 됨',
+          message: `${data.channelIds.length}개 채널 + 본문 ${data.content.length}자 — 수정 후 발행하세요.`,
+          color: 'violet',
+          autoClose: 5000,
+        });
+      } catch (e) {
+        console.warn('[from prefill] failed', e);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromParam, channels.length]);
 
   // 변수 값 변경 시 본문 자동 갱신
   useEffect(() => {

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import dayjs from 'dayjs';
 import { useMemo, useState, useTransition } from 'react';
 import { notifications } from '@mantine/notifications';
-import { bulkDeleteCampaigns, bulkPauseCampaigns, duplicateCampaign, republishCampaign } from '@/app/actions/campaignActions';
+import { bulkDeleteCampaigns, bulkPauseCampaigns, duplicateCampaign } from '@/app/actions/campaignActions';
 import { useRouter } from 'next/navigation';
 
 interface CampaignRow {
@@ -115,22 +115,10 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
         });
     };
 
-    const handleRepublish = (id: string, name: string) => {
-        if (!confirm(`"${name}" 을 같은 내용으로 지금 다시 발행할까요?\n새 캠페인이 만들어지고 즉시 발행됩니다.`)) return;
-        startTransition(async () => {
-            try {
-                const r = await republishCampaign(id);
-                notifications.show({
-                    title: '🔁 즉시 다시 발행',
-                    message: `${r.channelCount}개 채널 — 클라우드 ~30초, 에이전트 ~1분 안에 발행됩니다.`,
-                    color: 'violet',
-                    autoClose: 6000,
-                });
-                router.push(`/dashboard/campaigns/${r.id}`);
-            } catch (e: any) {
-                notifications.show({ title: '오류', message: e?.message || '실패', color: 'red' });
-            }
-        });
+    // 🔁 다시 발행 — 새 캠페인 작성 페이지로 prefill 해서 이동.
+    // 사용자가 채널·본문 등 검토/수정 후 "지금 바로 발행" 토글로 즉시 발행 가능.
+    const handleRepublish = (id: string) => {
+        router.push(`/dashboard/campaigns/new?from=${id}`);
     };
 
     const allSelectedVisible = filtered.length > 0 && filtered.every(c => selected.has(c.id));
@@ -175,13 +163,12 @@ export default function CampaignsListClient({ campaigns }: { campaigns: Campaign
             </Table.Td>
             <Table.Td onClick={(e) => e.stopPropagation()}>
                 <Group gap={4}>
-                    <Tooltip label="🔁 같은 내용으로 지금 즉시 다시 발행" withArrow>
+                    <Tooltip label="🔁 다시 발행 — 내용 확인/수정 후 발행" withArrow>
                         <ActionIcon
                             variant="subtle"
                             color="violet"
                             size="sm"
-                            onClick={() => handleRepublish(campaign.id, campaign.name)}
-                            loading={isPending}
+                            onClick={() => handleRepublish(campaign.id)}
                             aria-label="다시 발행"
                         >
                             <IconRefresh size={14} />
