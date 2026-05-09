@@ -293,15 +293,18 @@ export async function createCampaign(data: {
     }).catch(() => {});
   });
 
-  // Phase 50 — scheduledAt 이 지금 시각 이전 (즉시 발행) 이면 cron 5분 기다리지 말고 즉시 cloud publish.
-  // Vercel Hobby 플랜은 cron schedule */5 * * * * 가 실제로는 1일 1회만 실행됨 — 이 fallback 으로 우회.
+  // Phase 50 — scheduledAt 이 지금 시각 이전 (즉시 발행) 이면 cron 안 기다리고 즉시 cloud publish.
+  // Vercel Hobby 플랜은 cron schedule */5 * * * * 가 실제 1일 1회만 실행 → 이 fallback 으로 우회.
+  // ⚠️ Vercel serverless 에서는 fire-and-forget Promise 가 lambda 종료 시 cancel.
+  //    → await 으로 끝까지 기다림 (Telegram/Discord/WordPress API 호출은 보통 1-3초).
   // 클라우드 publishers (Telegram/WordPress/Discord/LinkedIn/X/YouTube) 만 즉시 처리, 에이전트 채널은 polling.
   if (data.scheduledAt && data.scheduledAt.getTime() <= Date.now() + 60_000) {
-    import('@/lib/publishers').then(({ publishCloudReadyTasks }) =>
-      publishCloudReadyTasks({ userId: user.id!, limit: 50 }).catch((e) =>
-        console.warn('[createCampaign] immediate publishCloudReadyTasks failed', e)
-      )
-    );
+    try {
+      const { publishCloudReadyTasks } = await import('@/lib/publishers');
+      await publishCloudReadyTasks({ userId: user.id!, limit: 50 });
+    } catch (e) {
+      console.warn('[createCampaign] immediate publishCloudReadyTasks failed', e);
+    }
   }
 
   revalidatePath("/dashboard/campaigns");
@@ -543,12 +546,13 @@ export async function republishCampaign(originalId: string): Promise<{ id: strin
     return copy;
   });
 
-  // 클라우드 채널 즉시 발행 — cron 5분 기다리지 않음
-  import('@/lib/publishers').then(({ publishCloudReadyTasks }) =>
-    publishCloudReadyTasks({ userId: user.id!, limit: 50 }).catch((e) =>
-      console.warn('[republishCampaign] immediate publishCloudReadyTasks failed', e)
-    )
-  );
+  // 클라우드 채널 즉시 발행 — cron 안 기다림. await 필수 (serverless lambda 종료 시 floating Promise cancel).
+  try {
+    const { publishCloudReadyTasks } = await import('@/lib/publishers');
+    await publishCloudReadyTasks({ userId: user.id!, limit: 50 });
+  } catch (e) {
+    console.warn('[republishCampaign] immediate publishCloudReadyTasks failed', e);
+  }
 
   revalidatePath('/dashboard/campaigns');
   return { id: result.id, channelCount: original.tasks.length };
