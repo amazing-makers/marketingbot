@@ -70,12 +70,13 @@ const LIMITS: Record<PlanCode, PlanLimits> = {
         label: 'PRO',
     },
     BUSINESS: {
-        maxChannels: 100,
-        maxActiveSeries: 50,
-        dailyTaskLimit: 1000,
-        aiCaptionDaily: 1500,
-        aiImageDaily: 500,
-        label: 'BUSINESS',
+        // 무료 전환 — 사실상 무제한 (전 기능 개방).
+        maxChannels: 1_000_000,
+        maxActiveSeries: 1_000_000,
+        dailyTaskLimit: 1_000_000,
+        aiCaptionDaily: 1_000_000,
+        aiImageDaily: 1_000_000,
+        label: '무료(무제한)',
     },
 };
 
@@ -85,27 +86,10 @@ const LIMITS: Record<PlanCode, PlanLimits> = {
  *   2. FREE_TRIAL 라이센스 만료 안 됐으면 FREE_TRIAL
  *   3. 그 외 FREE
  */
-export async function getUserEffectivePlan(userId: string): Promise<PlanCode> {
-    const [sub, lic] = await Promise.all([
-        prisma.subscription.findUnique({
-            where: { userId },
-            select: { plan: true, status: true },
-        }),
-        prisma.license.findFirst({
-            where: { userId, plan: 'FREE_TRIAL' },
-            orderBy: { createdAt: 'desc' },
-            select: { validUntil: true },
-        }),
-    ]);
-
-    if (sub && sub.status === 'active' && sub.plan && sub.plan !== 'FREE') {
-        const code = sub.plan as PlanCode;
-        if (LIMITS[code]) return code;
-    }
-    if (lic?.validUntil && dayjs(lic.validUntil).isAfter(dayjs())) {
-        return 'FREE_TRIAL';
-    }
-    return 'FREE';
+export async function getUserEffectivePlan(_userId: string): Promise<PlanCode> {
+    // 무료 전환 — 모든 사용자에게 전 기능 개방(무제한). 구독/Stripe 는 휴면.
+    // (수익은 향후 유료티어/광고로 재설계 — 현재는 한도 없음.)
+    return 'BUSINESS';
 }
 
 export function getPlanLimits(plan: PlanCode): PlanLimits {
