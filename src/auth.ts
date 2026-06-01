@@ -7,6 +7,23 @@ import "@/lib/env"; // 환경변수 검증 강제
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
+  // SSO: NEXTAUTH_URL 이 amakers.co.kr 이면 세션 쿠키를 .amakers.co.kr 도메인으로 발급 →
+  // 허브(app.amakers.co.kr)·오토앱(insta/blog/tistory)과 한 번 로그인 공유.
+  // (전 앱 동일 NEXTAUTH_SECRET 필요. 단일 도메인/localhost 에선 미설정.)
+  cookies: process.env.NEXTAUTH_URL?.includes("amakers.co.kr")
+    ? {
+        sessionToken: {
+          name: "__Secure-authjs.session-token",
+          options: {
+            httpOnly: true,
+            sameSite: "lax",
+            path: "/",
+            secure: true,
+            domain: ".amakers.co.kr",
+          },
+        },
+      }
+    : {},
   providers: [
     Credentials({
       async authorize(credentials) {
